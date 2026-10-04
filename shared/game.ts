@@ -1,3 +1,4 @@
+import type { CombatState } from './combat.js';
 import { BUILDINGS, WORLD } from './map.js';
 export const ARENA = { ...WORLD, radius: 14, speed: 220 };
 export const STEP = 1 / 30;
@@ -6,9 +7,9 @@ export const RECONNECT_MS = 10_000;
 export const COLORS = ['#60cfff','#ffbc66','#b6a2ff','#77d8a4','#ff8da5','#e9df78'];
 export const MOVEMENT = { sprintMultiplier: 1.5, staminaMax: 100, staminaDrain: 28, staminaRegen: 22, regenDelay: 0.6, dashSpeed: 850, dashDuration: 0.18, dashCooldown: 3 };
 export type Position = { x: number; y: number };
-export type Input = { seq: number; dx: number; dy: number; sprint?: boolean; dashId?: number };
+export type Input = { seq: number; dx: number; dy: number; sprint?: boolean; dashId?: number; attackId?: number; aimX?: number; aimY?: number };
 export type Motion = Position & { stamina: number; regenWait: number; exhausted: boolean; dashCooldown: number; dashRemaining: number; dashX: number; dashY: number; facingX: number; facingY: number; dashSeen: number; sprinting: boolean };
-export type PlayerView = Motion & { id: string; name: string; color: string; ready: boolean; connected: boolean; ack: number };
+export type PlayerView = Motion & CombatState & { id: string; name: string; color: string; ready: boolean; connected: boolean; ack: number };
 export type RoomView = { code: string; hostId: string; phase: 'lobby'|'arena'; players: PlayerView[]; tick: number; serverTime: number; notice: string };
 export type ClientMessage =
  | { type: 'create'; name: string }

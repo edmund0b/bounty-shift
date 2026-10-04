@@ -18,7 +18,7 @@ test('two independent WebSockets: lobby, authority, movement, reconnect, host tr
  const game=await createGameServer(true);await new Promise<void>(r=>game.server.listen(0,'127.0.0.1',r));const address=game.server.address();assert(address&&typeof address==='object');const url=`ws://127.0.0.1:${address.port}/ws`;const clients:Client[]=[];
  const connect=async()=>{const c=new Client(url);clients.push(c);await c.open();return c;};
  try{
-  const http=`http://127.0.0.1:${address.port}`;assert.deepEqual(await (await fetch(http+'/health')).json(),{ok:true,phase:2});const html=await (await fetch(http+'/')).text();assert(html.includes('Bounty Shift'));const asset=html.match(/src=\"([^\"]+\.js)\"/);assert(asset);assert.equal((await fetch(http+asset[1])).status,200);
+  const http=`http://127.0.0.1:${address.port}`;assert.deepEqual(await (await fetch(http+'/health')).json(),{ok:true,phase:3});const html=await (await fetch(http+'/')).text();assert(html.includes('Bounty Shift'));const asset=html.match(/src=\"([^\"]+\.js)\"/);assert(asset);assert.equal((await fetch(http+asset[1])).status,200);
   const a=await connect();a.send({type:'create',name:'Edmund'});const wa=await a.wait(m=>m.type==='welcome');assert(wa.type==='welcome');const code=wa.room.code;assert.match(code,/^[A-F0-9]{6}$/);assert.equal(wa.room.hostId,wa.id);
   const invalid=await connect();invalid.send({type:'join',name:'Other',code:'ZZZZZZ'});await invalid.wait(m=>m.type==='error'&&m.message.includes('Room not found'));
   invalid.send({type:'join',name:'edmund',code});await invalid.wait(m=>m.type==='error'&&m.message.includes('already'));
@@ -60,5 +60,20 @@ test('six-player room capacity, readiness, and independent movement',async()=>{
   for(let i=0;i<6;i++){clients[i].send({type:'input',seq:1,dx:i%2?1:-1,dy:0});}
   const moved=await host.state(r=>r.players.every(p=>p.ack===1));for(const p of moved.players){const old=initial.players.find(x=>x.id===p.id)!;assert.notEqual(p.x,old.x);assert(p.x>=ARENA.radius&&p.x<=ARENA.width-ARENA.radius);}
   assert.equal(game.rooms.rooms.get(code)!.players.length,6);
+ }finally{for(const c of clients)c.ws.terminate();await game.close();}
+});
+test('two live WebSocket clients agree on combat, KO, reconnect, and protected respawn',async()=>{
+ const game=await createGameServer(true);await new Promise<void>(r=>game.server.listen(0,'127.0.0.1',r));const address=game.server.address();assert(address&&typeof address==='object');const clients:Client[]=[];
+ const connect=async()=>{const c=new Client(`ws://127.0.0.1:${address.port}/ws`);clients.push(c);await c.open();return c;};
+ try{
+  const a=await connect();a.send({type:'create',name:'Attacker'});const wa=await a.wait(m=>m.type==='welcome');assert(wa.type==='welcome');const b=await connect();b.send({type:'join',name:'Target',code:wa.room.code});const wb=await b.wait(m=>m.type==='welcome');assert(wb.type==='welcome');a.send({type:'ready',ready:true});b.send({type:'ready',ready:true});await a.state(r=>r.players.every(p=>p.ready));a.send({type:'start'});await a.state(r=>r.phase==='arena');await b.state(r=>r.phase==='arena');a.messages=[];b.messages=[];
+  // Arrange authoritative fixtures only in this test, not via a gameplay endpoint.
+  const room=game.rooms.rooms.get(wa.room.code)!;Object.assign(room.players[0],{x:1000,y:700});Object.assign(room.players[1],{x:1040,y:700});
+  for(let attackId=1;attackId<=4;attackId++){
+   if(attackId>1)await new Promise(r=>setTimeout(r,650));a.send({type:'input',seq:attackId,dx:0,dy:0,attackId,aimX:1,aimY:0});const health=100-attackId*25;const ra=await a.state(r=>r.players.find(p=>p.id===wb.id)?.health===health);const rb=await b.state(r=>r.tick===ra.tick);assert.deepEqual(ra.players,rb.players);
+  }
+  const dead=room.players.find(p=>p.id===wb.id)!;const x=dead.x,y=dead.y;b.send({type:'input',seq:1,dx:1,dy:0,sprint:true,dashId:1,attackId:1,aimX:-1,aimY:0});await b.state(r=>r.players.find(p=>p.id===wb.id)!.ack===1);assert.equal(dead.x,x);assert.equal(dead.y,y);assert.equal(room.players[0].health,100);
+  b.close();await a.state(r=>r.players.some(p=>p.id===wb.id&&!p.connected));const resumed=await connect();resumed.send({type:'resume',code:wa.room.code,token:wb.token});const welcome=await resumed.wait(m=>m.type==='welcome');assert(welcome.type==='welcome');assert.equal(welcome.id,wb.id);assert.equal(welcome.room.players.find(p=>p.id===wb.id)!.health,0);
+  const respawn=await resumed.wait(m=>m.type==='state'&&m.room.players.find(p=>p.id===wb.id)?.spawnVersion===1,6500);assert(respawn.type==='state');const ra=await a.state(r=>r.tick===respawn.room.tick);assert.deepEqual(ra.players,respawn.room.players);const p=ra.players.find(p=>p.id===wb.id)!;assert.equal(p.health,100);assert.equal(p.koRemaining,0);assert(p.protection>0);const {isWalkable}=await import('../shared/game.js');assert(isWalkable(p));
  }finally{for(const c of clients)c.ws.terminate();await game.close();}
 });
