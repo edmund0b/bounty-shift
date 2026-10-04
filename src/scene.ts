@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { BUILDINGS, WORLD, PLAZA } from '../shared/map';
 import { ARENA, isWalkable, type Motion, type RoomView } from '../shared/game';
 import { COMBAT } from '../shared/combat';
-import { VIEW, cameraAim } from '../shared/presentation';
+import { VIEW, cameraAim, CONTROLLER, smoothAngle } from '../shared/presentation';
+import { constrainOrbit } from './camera';
 
 const S=VIEW.scale;
 type Avatar={group:THREE.Group;limbs:THREE.Group[];materials:THREE.MeshStandardMaterial[];label:THREE.Sprite;labelCanvas:HTMLCanvasElement;labelTexture:THREE.CanvasTexture;ring:THREE.Mesh;arc:THREE.Mesh;lastLabel:string;version:number;x:number;z:number};
@@ -73,25 +74,21 @@ export function createArenaScene(canvas:HTMLCanvasElement){
   const a={group,limbs,materials:mats,label,labelCanvas:c,labelTexture:t,ring,arc,lastLabel:'',version:-1,x:0,z:0};avatars.set(id,a);return a;
  };
  scene.updateMatrixWorld(true);
- const ray=new THREE.Raycaster(),target=new THREE.Vector3(),desired=new THREE.Vector3(),direction=new THREE.Vector3(),look=new THREE.Vector3();let first=true,lastWidth=0,lastHeight=0;
- function constrainCamera(point:THREE.Vector3){
-  point.x=THREE.MathUtils.clamp(point.x,.15,WORLD.width*S-.15);point.z=THREE.MathUtils.clamp(point.z,.15,WORLD.height*S-.15);
-  direction.copy(point).sub(target);const length=direction.length();if(length<.01)return;ray.set(target,direction.normalize());ray.far=length;
-  const hit=ray.intersectObjects(solids,false)[0];if(hit)point.copy(target).addScaledVector(direction,Math.max(.35,hit.distance-.28));
- }
- function update(room:RoomView,id:string,predicted:Motion|null,yaw:number,dt:number,time:number){
+ const ray=new THREE.Raycaster(),target=new THREE.Vector3(),desired=new THREE.Vector3(),look=new THREE.Vector3();let first=true,lastWidth=0,lastHeight=0;
+ const constrainCamera=(point:THREE.Vector3)=>constrainOrbit(point,target,solids,ray);
+ function update(room:RoomView,id:string,predicted:Motion|null,yaw:number,pitch:number,dt:number,time:number){
   const width=canvas.clientWidth,height=canvas.clientHeight;if(!width||!height)return;
   if(lastWidth!==width||lastHeight!==height){lastWidth=width;lastHeight=height;renderer.setSize(width,height,false);camera.aspect=width/height;camera.updateProjectionMatrix();}
   const self=room.players.find(p=>p.id===id);if(!self)return;const local=predicted||self,aim=cameraAim(yaw);
-  target.set(local.x*S,1.3,local.y*S);desired.set(target.x-aim.x*VIEW.cameraDistance+Math.cos(yaw)*VIEW.shoulder,VIEW.cameraHeight,target.z-aim.y*VIEW.cameraDistance+Math.sin(yaw)*VIEW.shoulder);constrainCamera(desired);
-  if(first){camera.position.copy(desired);first=false;}else camera.position.lerp(desired,1-Math.exp(-dt*14));constrainCamera(camera.position);
-  look.set(target.x+aim.x*4.2,1.35,target.z+aim.y*4.2);camera.lookAt(look);
+  target.set(local.x*S,CONTROLLER.lookHeight,local.y*S);const orbit=VIEW.cameraDistance*Math.cos(pitch);desired.set(target.x-aim.x*orbit+Math.cos(yaw)*VIEW.shoulder,Math.max(CONTROLLER.floorClearance,target.y+CONTROLLER.cameraLift-Math.sin(pitch)*VIEW.cameraDistance),target.z-aim.y*orbit+Math.sin(yaw)*VIEW.shoulder);constrainCamera(desired);
+  if(first){camera.position.copy(desired);first=false;}else camera.position.lerp(desired,1-Math.exp(-dt*CONTROLLER.cameraSmoothing));constrainCamera(camera.position);
+  look.set(target.x+aim.x*4.2*Math.cos(pitch),target.y+Math.sin(pitch)*4.2,target.z+aim.y*4.2*Math.cos(pitch));camera.lookAt(look);
   const ids=new Set(room.players.map(p=>p.id));for(const [key,a] of avatars)if(!ids.has(key)){scene.remove(a.group);avatars.delete(key);}
   for(const p of room.players){
    const color=p.id===id?'#46e7ff':p.id===room.objective.target?.id?'#f8d94a':p.color;
    const a=avatars.get(p.id)||makeAvatar(p.id,color),pos=p.id===id?local:p;
    const oldX=a.x,oldZ=a.z;if(a.version!==p.spawnVersion||p.id===id){a.x=pos.x*S;a.z=pos.y*S;a.version=p.spawnVersion;}else{const f=1-Math.exp(-dt*18);const candidate={x:a.x/S+(p.x-a.x/S)*f,y:a.z/S+(p.y-a.z/S)*f};if(Math.hypot(a.x-p.x*S,a.z-p.y*S)<=180*S&&isWalkable(candidate)){a.x=candidate.x*S;a.z=candidate.y*S;}else{a.x=p.x*S;a.z=p.y*S;}}
-   a.group.position.set(a.x,p.health===0?-.65:0,a.z);const facing=p.attackFlash>0?{x:p.attackX,y:p.attackY}:p.id===id?aim:{x:p.facingX,y:p.facingY};a.group.rotation.y=Math.atan2(facing.x,facing.y);
+   a.group.position.set(a.x,p.health===0?-.65:0,a.z);const facing=p.attackFlash>0?{x:p.attackX,y:p.attackY}:{x:pos.facingX,y:pos.facingY};a.group.rotation.y=smoothAngle(a.group.rotation.y,Math.atan2(facing.x,facing.y),CONTROLLER.avatarTurnSpeed,dt);a.arc.rotation.z=-Math.PI/2+(p.attackFlash>0?Math.atan2(p.attackX,p.attackY)-a.group.rotation.y:0);
    a.materials[1].color.set(p.hitFlash>0?'#ffffff':color);a.materials[1].emissive.set(p.hitFlash>0?'#ffffff':color);for(const mat of a.materials){mat.transparent=p.id===id&&camera.position.distanceTo(target)<1.25;mat.opacity=mat.transparent?.18:1;}
    a.materials[0].color.set(p.health===0?'#141a25':p.hitFlash>0?'#d7f5ff':p.id===room.objective.target?.id?'#635931':'#385772');
    (a.ring.material as THREE.MeshBasicMaterial).color.set(p.protection>0?'#f8d94a':color);a.ring.visible=p.id===id||p.id===room.objective.target?.id||p.protection>0;a.arc.visible=p.attackFlash>0;
