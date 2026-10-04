@@ -13,11 +13,11 @@ export function createArenaScene(canvas:HTMLCanvasElement,map:MapDefinition=ACTI
  const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));renderer.outputColorSpace=THREE.SRGBColorSpace;
  renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;
- const scene=new THREE.Scene();scene.background=new THREE.Color('#071223');scene.fog=new THREE.Fog('#071223',28,78);
+ const scene=new THREE.Scene();scene.background=new THREE.Color(map.environment.fog);scene.fog=new THREE.Fog(map.environment.fog,28,78);
  const camera=new THREE.PerspectiveCamera(VIEW.fov,16/9,.08,110);
- scene.add(new THREE.HemisphereLight('#94dcff','#102039',2.2));const sun=new THREE.DirectionalLight('#c5ddff',2.2);sun.position.set(10,20,8);scene.add(sun);
- const magenta=new THREE.PointLight('#ff62db',30,35,2);magenta.position.set(43,6,28);scene.add(magenta);
- const cyan=new THREE.PointLight('#3edcff',35,35,2);cyan.position.set(21,6,20);scene.add(cyan);
+ const lighting=map.environment.lighting;
+ scene.add(new THREE.HemisphereLight(lighting?.sky??'#94dcff',lighting?.ground??'#102039',2.2));const sun=new THREE.DirectionalLight(lighting?.sun??'#c5ddff',2.2);sun.position.set(10,20,8);scene.add(sun);
+ for(const p of lighting?.points??[{color:'#ff62db',intensity:30,distance:35,x:43,y:6,z:28},{color:'#3edcff',intensity:35,distance:35,x:21,y:6,z:20}]){const light=new THREE.PointLight(p.color,p.intensity,p.distance,2);light.position.set(p.x,p.y,p.z);scene.add(light);}
  const resources=new Set<{dispose:()=>void}>(),solids:THREE.Mesh[]=[],avatars=new Map<string,Avatar>();
  const track=<T extends {dispose:()=>void}>(r:T):T=>{resources.add(r);return r;};
  const material=(color:string,glow=false)=>track(new THREE.MeshStandardMaterial({color,roughness:glow?.35:.55,metalness:.45,emissive:glow?color:'#000000',emissiveIntensity:glow?2:0}));

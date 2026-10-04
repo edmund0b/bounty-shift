@@ -1,9 +1,9 @@
 import {centralPlaza} from './maps/central-plaza.js';
+import {scorchedPoint} from './maps/scorched-point.js';
 import type {MapDefinition} from './maps/types.js';
 export type {MapDefinition,MapBlock,Surface} from './maps/types.js';
 // Only completed maps enter the registry. Future IDs are reserved, not selectable.
-export const MAPS:Readonly<Record<string,MapDefinition>>={central_plaza:centralPlaza};
-export const FUTURE_MAP_IDS=['sky_docks','nexus_arena'] as const;
+export const MAPS:Readonly<Record<string,MapDefinition>>={central_plaza:centralPlaza,scorched_point:scorchedPoint};
 export const ACTIVE_MAP=MAPS.central_plaza;
 export const WORLD=ACTIVE_MAP.bounds;
 export const BUILDINGS=ACTIVE_MAP.blocks;

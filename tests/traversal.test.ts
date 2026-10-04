@@ -7,8 +7,8 @@ import {canHit,clearAttackLine} from '../shared/combat';
 import {RoomServer} from '../server/rooms';
 import type {WebSocket} from 'ws';
 
-test('Central Plaza registry contains one selectable map, eight spread valid spawns, and asymmetric districts',()=>{
- assert.deepEqual(Object.keys(MAPS),['central_plaza']);assert(WORLD.width*WORLD.height>2000*1440*1.5);
+test('Central Plaza remains the default map with eight spread valid spawns and asymmetric districts',()=>{
+ assert(MAPS.central_plaza);assert.equal(ACTIVE_MAP.id,'central_plaza');assert(WORLD.width*WORLD.height>2000*1440*1.5);
  assert.equal(ACTIVE_MAP.districts.length,5);assert.equal(SPAWNS.length,8);SPAWNS.forEach(p=>assert(isWalkable(p)));
  for(const s of ACTIVE_MAP.surfaces)if(s.ramp)assert(Math.abs(s.ramp.to-s.ramp.from)/(s.ramp.axis==='x'?s.width:s.height)<=TRAVERSAL.maxSlope,`${s.id} exceeds the supported map slope`);
  for(let i=0;i<SPAWNS.length;i++)for(let j=i+1;j<SPAWNS.length;j++)assert(Math.hypot(SPAWNS[i].x-SPAWNS[j].x,SPAWNS[i].y-SPAWNS[j].y)>250);

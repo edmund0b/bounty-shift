@@ -5,17 +5,18 @@ import { STEP, NETWORK, COLORS, MAX_PLAYERS, RECONNECT_MS, advanceMotion, freshM
 import { COMBAT, freshCombat, canHit, safeSpawn, type CombatState } from '../shared/combat.js';
 import { ROUND, MATCH, emptyMatch, type MatchView, type RoundView } from '../shared/rounds.js';
 import { ACTIVE_MAP, MAPS } from '../shared/map.js';
+import {selectRoundMap,OPENING_MAP_ID} from '../shared/map-rotation.js';
 
 type Player = { targetId: string|null; eliminations: number; matchEliminations: number } & Motion & CombatState & { id: string; token: string; name: string; color: string; ready: boolean; x: number; y: number; ack: number; seq: number; dx: number; dy: number; lastInput: number; sprint: boolean; dashId: number; attackId: number; aimX: number; aimY: number; disconnectedAt: number; socket: WebSocket|null };
 const mapFor=(room:{mapId:string})=>MAPS[room.mapId]??ACTIVE_MAP;
-type Room = { mapId:string; code: string; hostId: string; phase: 'lobby'|'arena'|'intermission'|'complete'; match: MatchView; round: RoundView; roster: Player[]; players: Player[]; tick: number; notice: string };
+type Room = { mapId:string; nextMapId:string|null; code: string; hostId: string; phase: 'lobby'|'arena'|'intermission'|'complete'; match: MatchView; round: RoundView; roster: Player[]; players: Player[]; tick: number; notice: string };
 export class RoomServer {
  rooms = new Map<string, Room>();
  sessions = new Map<WebSocket, { room: Room; player: Player }>();
  send(ws: WebSocket, message: ServerMessage) { if (ws.readyState===1) {try{ws.send(JSON.stringify(message));}catch{this.disconnect(ws);}} }
  view(room: Room, recipient?:Player): RoomView {
   const target=room.players.find(p=>p.id===recipient?.targetId);
-  return { mapId:room.mapId, match:room.match, round:room.round, objective:{target:target?{id:target.id,name:target.name}:null,eliminations:recipient?.eliminations??0,matchEliminations:recipient?.matchEliminations??0}, code:room.code, hostId:room.hostId, phase:room.phase, tick:room.tick, notice:room.notice, serverTime:Date.now(), players:room.players.map(p=>({id:p.id,name:p.name,color:p.color,ready:p.ready,connected:!!p.socket,x:p.x,y:p.y,elevation:p.elevation,ack:p.ack,stamina:p.stamina,regenWait:p.regenWait,exhausted:p.exhausted,dashCooldown:p.dashCooldown,dashRemaining:p.dashRemaining,dashX:p.dashX,dashY:p.dashY,facingX:p.facingX,facingY:p.facingY,dashSeen:p.dashSeen,sprinting:p.sprinting,health:p.health,koRemaining:p.koRemaining,protection:p.protection,attackCooldown:p.attackCooldown,attackSeen:p.attackSeen,attackFlash:p.attackFlash,hitFlash:p.hitFlash,attackX:p.attackX,attackY:p.attackY,spawnVersion:p.spawnVersion})) };
+  return { mapId:room.mapId, nextMapId:room.nextMapId, match:room.match, round:room.round, objective:{target:target?{id:target.id,name:target.name}:null,eliminations:recipient?.eliminations??0,matchEliminations:recipient?.matchEliminations??0}, code:room.code, hostId:room.hostId, phase:room.phase, tick:room.tick, notice:room.notice, serverTime:Date.now(), players:room.players.map(p=>({id:p.id,name:p.name,color:p.color,ready:p.ready,connected:!!p.socket,x:p.x,y:p.y,elevation:p.elevation,ack:p.ack,stamina:p.stamina,regenWait:p.regenWait,exhausted:p.exhausted,dashCooldown:p.dashCooldown,dashRemaining:p.dashRemaining,dashX:p.dashX,dashY:p.dashY,facingX:p.facingX,facingY:p.facingY,dashSeen:p.dashSeen,sprinting:p.sprinting,health:p.health,koRemaining:p.koRemaining,protection:p.protection,attackCooldown:p.attackCooldown,attackSeen:p.attackSeen,attackFlash:p.attackFlash,hitFlash:p.hitFlash,attackX:p.attackX,attackY:p.attackY,spawnVersion:p.spawnVersion})) };
  }
  broadcast(room: Room) { for(const p of room.players) if(p.socket) this.send(p.socket,{type:'state',room:this.view(room,p)}); }
  fail(ws:WebSocket,message:string,fatal=false) { this.send(ws,{type:'error',message,fatal}); }
@@ -43,7 +44,7 @@ export class RoomServer {
    if(m.type==='create') {
     if(this.rooms.size>=100) {this.fail(ws,'Server is full. Please try again later.');return;}
     let code:string; do {code=randomBytes(4).toString('hex').slice(0,6).toUpperCase();} while(this.rooms.has(code));
-    room={mapId:ACTIVE_MAP.id,code,hostId:'',phase:'lobby',match:emptyMatch(),round:{endsAt:0,remainingSeconds:0,returnAt:0,results:[]},roster:[],players:[],tick:0,notice:''};this.rooms.set(code,room);
+    room={mapId:OPENING_MAP_ID,nextMapId:null,code,hostId:'',phase:'lobby',match:emptyMatch(),round:{endsAt:0,remainingSeconds:0,returnAt:0,results:[]},roster:[],players:[],tick:0,notice:''};this.rooms.set(code,room);
    } else {
     const code=typeof m.code==='string'?m.code.trim().toUpperCase():''; room=this.rooms.get(code);
     if(!room) {this.fail(ws,'Room not found. Check the six-character code.');return;}
@@ -81,7 +82,7 @@ export class RoomServer {
    p.seq=m.seq;p.dx=m.dx;p.dy=m.dy;p.sprint=m.sprint??false;p.dashId=m.dashId??p.dashId;p.lastInput=Date.now();
   }
  }
- toLobby(room:Room,notice:string) {if(room.phase==='lobby'){this.broadcast(room);return;}room.match=emptyMatch();room.round={endsAt:0,remainingSeconds:0,returnAt:0,results:[]};room.roster=[];room.phase='lobby';room.notice=notice;for(const p of room.players){Object.assign(p,freshMotion(mapFor(room).spawns[0]),freshCombat());p.dashSeen=p.dashId;p.attackSeen=p.attackId;p.targetId=null;p.eliminations=0;p.matchEliminations=0;p.ready=false;p.dx=0;p.dy=0;p.sprint=false;p.dashRemaining=0;p.attackFlash=0;p.hitFlash=0;p.attackSeen=p.attackId;}this.broadcast(room);}
+ toLobby(room:Room,notice:string) {if(room.phase==='lobby'){this.broadcast(room);return;}room.match=emptyMatch();room.round={endsAt:0,remainingSeconds:0,returnAt:0,results:[]};room.roster=[];room.phase='lobby';room.mapId=OPENING_MAP_ID;room.nextMapId=null;room.notice=notice;for(const p of room.players){Object.assign(p,freshMotion(mapFor(room).spawns[0]),freshCombat());p.dashSeen=p.dashId;p.attackSeen=p.attackId;p.targetId=null;p.eliminations=0;p.matchEliminations=0;p.ready=false;p.dx=0;p.dy=0;p.sprint=false;p.dashRemaining=0;p.attackFlash=0;p.hitFlash=0;p.attackSeen=p.attackId;}this.broadcast(room);}
  disconnect(ws:WebSocket) {const s=this.sessions.get(ws);if(!s)return;this.sessions.delete(ws);const {room,player:p}=s;p.socket=null;p.ready=false;p.dx=0;p.dy=0;p.sprint=false;p.dashRemaining=0;p.disconnectedAt=Date.now();this.transfer(room);this.broadcast(room);}
  transfer(room:Room) {if(!room.players.some(p=>p.id===room.hostId && p.socket)){const next=room.players.find(p=>p.socket);if(next)room.hostId=next.id;}}
  remove(room:Room,p:Player) {if(this.rooms.get(room.code)!==room||!room.players.includes(p))return;if(p.socket)this.sessions.delete(p.socket);p.socket=null;p.dx=0;p.dy=0;p.lastInput=0;p.targetId=null;room.players=room.players.filter(x=>x!==p);if(!room.players.length){this.rooms.delete(room.code);return;}this.transfer(room);if((room.phase==='arena'||room.phase==='intermission') && room.players.length<2)this.toLobby(room,'Test ended: at least two players are needed.');else {for(const other of room.players)if(other.targetId===p.id)this.assignTarget(room,other,p.id);this.broadcast(room);}}
@@ -97,7 +98,8 @@ export class RoomServer {
   if(this.rooms.get(room.code)!==room||!room.match.id||!['lobby','intermission'].includes(room.phase)||room.match.roundNumber>=MATCH.rounds)return;
   if(room.players.length<2){this.toLobby(room,'Match ended: at least two players are needed.');return;}
   for(const p of room.roster)p.eliminations=0;
-  room.phase='arena';room.notice='';room.match.roundNumber++;room.match.nextRoundSeconds=0;
+  room.mapId=room.match.roundNumber===0?OPENING_MAP_ID:room.nextMapId??selectRoundMap(room.match.roundNumber+1,room.mapId,randomInt);room.nextMapId=null;
+  room.phase='arena';room.notice='';room.match.roundNumber++;room.match.nextRoundSeconds=0;room.match.mapHistory.push(room.mapId);
   room.round={endsAt:now+ROUND.durationMs,remainingSeconds:ROUND.durationMs/1000,returnAt:0,results:[]};
   room.players.forEach((p,i)=>{const version=p.spawnVersion+1;Object.assign(p,freshMotion(mapFor(room).spawns[i]),freshCombat());p.spawnVersion=version;const dx=mapFor(room).plaza.x+mapFor(room).plaza.width/2-p.x,dy=mapFor(room).plaza.y+mapFor(room).plaza.height/2-p.y,length=Math.hypot(dx,dy)||1;p.facingX=dx/length;p.facingY=dy/length;p.targetId=null;p.eliminations=0;p.dx=0;p.dy=0;p.sprint=false;p.dashId=0;p.attackId=0;p.aimX=0;p.aimY=0;p.seq=p.ack;p.lastInput=0;});
   // Generate a new random assignment each round; repeats are allowed, especially with two players.
@@ -115,9 +117,9 @@ export class RoomServer {
   room.round.remainingSeconds=0;room.round.results=this.ranking(room.roster);
   room.match.history.push(room.round.results.map(p=>({...p})));
   if(room.match.roundNumber>=MATCH.rounds){
-   room.phase='complete';room.round.returnAt=0;room.match.nextRoundSeconds=0;
+   room.phase='complete';room.nextMapId=null;room.round.returnAt=0;room.match.nextRoundSeconds=0;
    room.match.results=this.ranking(room.roster,true);room.match.winners=room.match.results.filter(p=>p.rank===1).map(p=>({id:p.id,name:p.name}));
-  }else{room.phase='intermission';room.round.returnAt=now+ROUND.resultsMs;room.match.nextRoundSeconds=ROUND.resultsMs/1000;}
+  }else{room.nextMapId=selectRoundMap(room.match.roundNumber+1,room.mapId,randomInt);room.phase='intermission';room.round.returnAt=now+ROUND.resultsMs;room.match.nextRoundSeconds=ROUND.resultsMs/1000;}
   for(const p of room.players){p.dx=0;p.dy=0;p.sprint=false;p.sprinting=false;p.dashRemaining=0;p.attackSeen=p.attackId;p.ack=p.seq;}
   this.broadcast(room);
  }

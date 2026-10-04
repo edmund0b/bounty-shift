@@ -8,6 +8,11 @@ export function freshCombat():CombatState {return {health:COMBAT.maxHealth,koRem
 export function clearAttackLine(a:Position,b:Position,map:MapDefinition=ACTIVE_MAP):boolean {
  const az=(a.elevation??0)+COMBAT.chestHeight,bz=(b.elevation??0)+COMBAT.chestHeight;
  const hit=map.blocks.some(w=>{
+  if(w.shape==='ellipse'){
+   const steps=Math.max(1,Math.ceil(Math.hypot(b.x-a.x,b.y-a.y,bz-az)/2));
+   for(let i=0;i<=steps;i++){const t=i/steps,z=az+(bz-az)*t;if(z>=w.bottom&&z<=w.top&&inside({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t},w))return true;}
+   return false;
+  }
   let enter=0,exit=1;
   for(const [start,delta,min,max] of [[a.x,b.x-a.x,w.x,w.x+w.width],[a.y,b.y-a.y,w.y,w.y+w.height],[az,bz-az,w.bottom,w.top]]){
    if(Math.abs(delta)<1e-9){if(start<min||start>max)return false;continue;}
