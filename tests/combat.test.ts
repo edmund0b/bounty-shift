@@ -18,8 +18,8 @@ function fixture(count=2){
 }
 test('melee requires range, directional aim, and unblocked building line',()=>{
  assert(canHit({x:1000,y:700},{x:1040,y:700},1,0));assert(!canHit({x:1000,y:700},{x:1100,y:700},1,0));assert(!canHit({x:1000,y:700},{x:1040,y:700},-1,0));
- const a={x:146,y:195},b={x:175,y:166};assert(isWalkable(a)&&isWalkable(b));assert(!clearAttackLine(a,b));assert(!canHit(a,b,1,-1));
- assert(clearAttackLine({x:900,y:600},{x:950,y:600}));assert(!clearAttackLine({x:100,y:300},{x:650,y:300}));
+ const a={x:166,y:515},b={x:195,y:486};assert(isWalkable(a)&&isWalkable(b));assert(!clearAttackLine(a,b));assert(!canHit(a,b,1,-1));
+ assert(clearAttackLine({x:900,y:600},{x:950,y:600}));assert(!clearAttackLine({x:100,y:600},{x:600,y:600}));
 });
 test('server damage, request deduplication, cooldown, misses, and forged health',()=>{
  const f=fixture();f.attack(0,1,0,{health:0,damage:9999});f.ticks();assert.equal(f.players[1].health,75);assert.equal(f.players[0].health,100);assert(f.players[1].hitFlash>0);
@@ -29,7 +29,7 @@ test('server damage, request deduplication, cooldown, misses, and forged health'
  const old=f.players[0].seq;f.send(0,{type:'input',seq:old+1,dx:0,dy:0,attackId:Infinity,aimX:1,aimY:0});assert.equal(f.players[0].seq,old);f.send(0,{type:'input',seq:old+1,dx:0,dy:0,attackId:4,aimX:99,aimY:0});assert.equal(f.players[0].seq,old);
 });
 test('wall corner blocks an otherwise in-range server attack',()=>{
- const f=fixture();Object.assign(f.players[0],{x:146,y:195});Object.assign(f.players[1],{x:175,y:166});f.attack(0,1,-1);f.ticks();assert.equal(f.players[1].health,100);
+ const f=fixture();Object.assign(f.players[0],{x:166,y:515});Object.assign(f.players[1],{x:195,y:486});f.attack(0,1,-1);f.ticks();assert.equal(f.players[1].health,100);
 });
 test('KO freezes walking, sprint, dash and attack; safe protected respawn follows five seconds',()=>{
  const f=fixture();for(let i=0;i<4;i++){f.attack(0);f.ticks();if(i<3)f.ticks(20);}const target=f.players[1];assert.equal(target.health,0);assert.equal(target.koRemaining,5);

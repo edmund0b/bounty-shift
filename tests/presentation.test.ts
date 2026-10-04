@@ -11,7 +11,7 @@ test('camera-relative controls rotate forward/strafe without changing speed',()=
  assert(cameraMovement(0,1,0).dy<0);assert(cameraMovement(0,1,Math.PI/2).dx>.99);
 });
 test('rotated sprint/dash retain shared prediction, map collision and valid spawns',()=>{
- assert(SPAWNS.every(isWalkable));for(const yaw of [0,Math.PI/2,Math.PI,Math.PI*1.5]){
+ assert(SPAWNS.every(p=>isWalkable(p)));for(const yaw of [0,Math.PI/2,Math.PI,Math.PI*1.5]){
   let p=freshMotion({x:1000,y:700});for(let i=0;i<240;i++){p=advanceMotion(p,{...cameraMovement(0,1,yaw),sprint:true,dashId:Math.floor(i/100)+1});assert(isWalkable(p));}
  }
 });

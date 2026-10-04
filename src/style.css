@@ -43,3 +43,8 @@ body.match-open #root{height:100vh;height:100dvh;overflow:hidden}
 @media(pointer:coarse){.joystick{display:flex}.game-screen .touch-controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}.game-screen .touch-controls .touch-ability{grid-column:auto}}
 @media(pointer:fine){.game-screen .touch-controls{display:none}}
 @media(max-height:500px){.joystick{width:96px;height:96px;bottom:28px;left:12px}}
+/* Navigation-only map overlays the arena, leaving reticle/joystick/HUD unobstructed. */
+.minimap{position:absolute;top:10px;right:10px;width:clamp(140px,18vw,230px);border:1px solid #3c8ba5;border-radius:6px;background:#071522dd;pointer-events:none;padding:5px;box-shadow:0 3px 15px #0005}
+.minimap-title{display:flex;justify-content:space-between;gap:4px;font-size:10px;font-weight:600;color:#caedf7;line-height:1.2;margin-bottom:3px}.minimap-title span{color:#68ddfa;white-space:nowrap}.minimap svg{display:block;width:100%;height:auto}
+@media(max-width:600px){.minimap{width:clamp(90px,28vw,130px);top:6px;right:6px;padding:3px}.minimap-title{font-size:8px}}
+@media(max-height:450px){.minimap{width:clamp(90px,16vw,130px);top:5px;right:5px}.minimap-title{font-size:8px}}

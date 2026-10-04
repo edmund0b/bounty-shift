@@ -11,3 +11,7 @@ test('camera obstruction compresses before a wall, respects floor/bounds, and re
  const outside=new THREE.Vector3(-100,-100,1000);constrainOrbit(outside,target,[]);assert(outside.x>=0&&outside.z<=WORLD.height*VIEW.scale);assert(outside.y>=CONTROLLER.floorClearance-1e-9);
  wall.geometry.dispose();(wall.material as THREE.Material).dispose();
 });
+test('camera floor constraint follows raised walkways instead of dipping below their deck',()=>{
+ const point=new THREE.Vector3(10,-50,18),target=new THREE.Vector3(10,4.3,13);constrainOrbit(point,target,[],new THREE.Raycaster(),{width:2600,height:2100},3);
+ assert(point.y>=3+CONTROLLER.floorClearance-1e-8);
+});

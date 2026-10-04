@@ -97,3 +97,22 @@ test('real duplicate connection cannot steal session and can resume after old so
   a.close();await b.state(r=>r.hostId===wb.id);duplicate.send({type:'resume',code:wa.room.code,token:wa.token});const resumed=await duplicate.wait(m=>m.type==='welcome');assert(resumed.type==='welcome');assert.equal(resumed.id,wa.id);assert.equal(resumed.room.hostId,wb.id);assert.equal(resumed.room.players.length,2);
  }finally{for(const c of clients)c.ws.terminate();await game.close();assert.equal(game.rooms.rooms.size,0);assert.equal(game.rooms.sessions.size,0);}
 });
+
+test('two live clients agree on stair elevation, elevated reconnect, KO respawn and round reset',async()=>{
+ const {freshMotion,isWalkable,STEP}=await import('../shared/game.js');
+ const game=await createGameServer(true);await new Promise<void>(r=>game.server.listen(0,'127.0.0.1',r));const address=game.server.address();assert(address&&typeof address==='object');const clients:Client[]=[];
+ const connect=async()=>{const c=new Client(`ws://127.0.0.1:${address.port}/ws`);clients.push(c);await c.open();return c;};
+ try{
+  const a=await connect();a.send({type:'create',name:'Climber'});const wa=await a.wait(m=>m.type==='welcome');assert(wa.type==='welcome');const b=await connect();b.send({type:'join',name:'Observer',code:wa.room.code});await b.wait(m=>m.type==='welcome');a.send({type:'ready',ready:true});b.send({type:'ready',ready:true});await a.state(r=>r.players.every(p=>p.ready));a.send({type:'start'});await a.state(r=>r.phase==='arena');await b.state(r=>r.phase==='arena');
+  const room=game.rooms.rooms.get(wa.room.code)!,p=room.players[0];Object.assign(p,freshMotion({x:730,y:1900}));a.messages=[];b.messages=[];
+  a.send({type:'input',seq:1,dx:0,dy:-1,sprint:true,dashId:1,elevation:99999});await a.state(r=>r.players[0].ack===1);
+  let now=Date.now();for(let i=0;i<60;i++){now+=STEP*1000;p.lastInput=now;game.rooms.tick(now);}
+  assert.equal(p.elevation,100);assert(isWalkable(p));game.rooms.broadcast(room);
+  const ra=await a.state(r=>r.players[0].elevation===100),rb=await b.state(r=>r.tick===ra.tick);assert.deepEqual(ra.players,rb.players);assert.equal(ra.mapId,'central_plaza');
+  a.close();await b.state(r=>!r.players[0].connected);const c=await connect();c.send({type:'resume',code:wa.room.code,token:wa.token});const resumed=await c.wait(m=>m.type==='welcome');assert(resumed.type==='welcome');assert.equal(resumed.id,wa.id);assert.equal(resumed.room.players[0].elevation,100);
+  // KO fixture exercises the same authoritative timer/respawn path used by combat.
+  p.health=0;p.koRemaining=STEP;p.dx=0;p.dy=0;c.messages=[];b.messages=[];game.rooms.tick(Date.now());
+  const spawn=await c.state(r=>r.players[0].health===100&&r.players[0].spawnVersion===2),other=await b.state(r=>r.tick===spawn.tick);assert.deepEqual(spawn.players,other.players);assert.equal(spawn.players[0].elevation,0);assert(spawn.players[0].protection>0);assert(isWalkable(spawn.players[0]));
+  Object.assign(p,freshMotion({x:730,y:1000,elevation:100}));game.rooms.tick(room.round.endsAt);game.rooms.tick(room.round.returnAt);assert(room.players.every(p=>p.elevation===0&&isWalkable(p)));assert.equal(room.match.roundNumber,2);
+ }finally{clients.forEach(c=>c.ws.terminate());await game.close();}
+});

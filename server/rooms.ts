@@ -4,17 +4,18 @@ import { STEP, NETWORK, COLORS, MAX_PLAYERS, RECONNECT_MS, advanceMotion, freshM
 
 import { COMBAT, freshCombat, canHit, safeSpawn, type CombatState } from '../shared/combat.js';
 import { ROUND, MATCH, emptyMatch, type MatchView, type RoundView } from '../shared/rounds.js';
-import { SPAWNS } from '../shared/map.js';
+import { ACTIVE_MAP, MAPS } from '../shared/map.js';
 
 type Player = { targetId: string|null; eliminations: number; matchEliminations: number } & Motion & CombatState & { id: string; token: string; name: string; color: string; ready: boolean; x: number; y: number; ack: number; seq: number; dx: number; dy: number; lastInput: number; sprint: boolean; dashId: number; attackId: number; aimX: number; aimY: number; disconnectedAt: number; socket: WebSocket|null };
-type Room = { code: string; hostId: string; phase: 'lobby'|'arena'|'intermission'|'complete'; match: MatchView; round: RoundView; roster: Player[]; players: Player[]; tick: number; notice: string };
+const mapFor=(room:{mapId:string})=>MAPS[room.mapId]??ACTIVE_MAP;
+type Room = { mapId:string; code: string; hostId: string; phase: 'lobby'|'arena'|'intermission'|'complete'; match: MatchView; round: RoundView; roster: Player[]; players: Player[]; tick: number; notice: string };
 export class RoomServer {
  rooms = new Map<string, Room>();
  sessions = new Map<WebSocket, { room: Room; player: Player }>();
  send(ws: WebSocket, message: ServerMessage) { if (ws.readyState===1) {try{ws.send(JSON.stringify(message));}catch{this.disconnect(ws);}} }
  view(room: Room, recipient?:Player): RoomView {
   const target=room.players.find(p=>p.id===recipient?.targetId);
-  return { match:room.match, round:room.round, objective:{target:target?{id:target.id,name:target.name}:null,eliminations:recipient?.eliminations??0,matchEliminations:recipient?.matchEliminations??0}, code:room.code, hostId:room.hostId, phase:room.phase, tick:room.tick, notice:room.notice, serverTime:Date.now(), players:room.players.map(p=>({id:p.id,name:p.name,color:p.color,ready:p.ready,connected:!!p.socket,x:p.x,y:p.y,ack:p.ack,stamina:p.stamina,regenWait:p.regenWait,exhausted:p.exhausted,dashCooldown:p.dashCooldown,dashRemaining:p.dashRemaining,dashX:p.dashX,dashY:p.dashY,facingX:p.facingX,facingY:p.facingY,dashSeen:p.dashSeen,sprinting:p.sprinting,health:p.health,koRemaining:p.koRemaining,protection:p.protection,attackCooldown:p.attackCooldown,attackSeen:p.attackSeen,attackFlash:p.attackFlash,hitFlash:p.hitFlash,attackX:p.attackX,attackY:p.attackY,spawnVersion:p.spawnVersion})) };
+  return { mapId:room.mapId, match:room.match, round:room.round, objective:{target:target?{id:target.id,name:target.name}:null,eliminations:recipient?.eliminations??0,matchEliminations:recipient?.matchEliminations??0}, code:room.code, hostId:room.hostId, phase:room.phase, tick:room.tick, notice:room.notice, serverTime:Date.now(), players:room.players.map(p=>({id:p.id,name:p.name,color:p.color,ready:p.ready,connected:!!p.socket,x:p.x,y:p.y,elevation:p.elevation,ack:p.ack,stamina:p.stamina,regenWait:p.regenWait,exhausted:p.exhausted,dashCooldown:p.dashCooldown,dashRemaining:p.dashRemaining,dashX:p.dashX,dashY:p.dashY,facingX:p.facingX,facingY:p.facingY,dashSeen:p.dashSeen,sprinting:p.sprinting,health:p.health,koRemaining:p.koRemaining,protection:p.protection,attackCooldown:p.attackCooldown,attackSeen:p.attackSeen,attackFlash:p.attackFlash,hitFlash:p.hitFlash,attackX:p.attackX,attackY:p.attackY,spawnVersion:p.spawnVersion})) };
  }
  broadcast(room: Room) { for(const p of room.players) if(p.socket) this.send(p.socket,{type:'state',room:this.view(room,p)}); }
  fail(ws:WebSocket,message:string,fatal=false) { this.send(ws,{type:'error',message,fatal}); }
@@ -42,7 +43,7 @@ export class RoomServer {
    if(m.type==='create') {
     if(this.rooms.size>=100) {this.fail(ws,'Server is full. Please try again later.');return;}
     let code:string; do {code=randomBytes(4).toString('hex').slice(0,6).toUpperCase();} while(this.rooms.has(code));
-    room={code,hostId:'',phase:'lobby',match:emptyMatch(),round:{endsAt:0,remainingSeconds:0,returnAt:0,results:[]},roster:[],players:[],tick:0,notice:''};this.rooms.set(code,room);
+    room={mapId:ACTIVE_MAP.id,code,hostId:'',phase:'lobby',match:emptyMatch(),round:{endsAt:0,remainingSeconds:0,returnAt:0,results:[]},roster:[],players:[],tick:0,notice:''};this.rooms.set(code,room);
    } else {
     const code=typeof m.code==='string'?m.code.trim().toUpperCase():''; room=this.rooms.get(code);
     if(!room) {this.fail(ws,'Room not found. Check the six-character code.');return;}
@@ -51,7 +52,7 @@ export class RoomServer {
     if(room.players.some(p=>p.name.toLowerCase()===name.toLowerCase())) {this.fail(ws,'That name is already in this room. Choose another name.');return;}
    }
    const color=COLORS.find(c=>!room!.players.some(p=>p.color===c)) || COLORS[0];
-   const p:Player={targetId:null,eliminations:0,matchEliminations:0,...freshMotion(SPAWNS[0]),...freshCombat(),sprint:false,dashId:0,attackId:0,aimX:0,aimY:0,id:randomUUID(),token:randomBytes(24).toString('hex'),name,color,ready:false,ack:0,seq:0,dx:0,dy:0,lastInput:0,disconnectedAt:0,socket:ws};
+   const p:Player={targetId:null,eliminations:0,matchEliminations:0,...freshMotion(mapFor(room).spawns[0]),...freshCombat(),sprint:false,dashId:0,attackId:0,aimX:0,aimY:0,id:randomUUID(),token:randomBytes(24).toString('hex'),name,color,ready:false,ack:0,seq:0,dx:0,dy:0,lastInput:0,disconnectedAt:0,socket:ws};
    room.players.push(p);if(!room.hostId) room.hostId=p.id;room.notice='';this.sessions.set(ws,{room,player:p});
    this.send(ws,{type:'welcome',id:p.id,token:p.token,room:this.view(room,p)});this.broadcast(room);return;
   }
@@ -80,7 +81,7 @@ export class RoomServer {
    p.seq=m.seq;p.dx=m.dx;p.dy=m.dy;p.sprint=m.sprint??false;p.dashId=m.dashId??p.dashId;p.lastInput=Date.now();
   }
  }
- toLobby(room:Room,notice:string) {if(room.phase==='lobby'){this.broadcast(room);return;}room.match=emptyMatch();room.round={endsAt:0,remainingSeconds:0,returnAt:0,results:[]};room.roster=[];room.phase='lobby';room.notice=notice;for(const p of room.players){Object.assign(p,freshMotion(SPAWNS[0]),freshCombat());p.dashSeen=p.dashId;p.attackSeen=p.attackId;p.targetId=null;p.eliminations=0;p.matchEliminations=0;p.ready=false;p.dx=0;p.dy=0;p.sprint=false;p.dashRemaining=0;p.attackFlash=0;p.hitFlash=0;p.attackSeen=p.attackId;}this.broadcast(room);}
+ toLobby(room:Room,notice:string) {if(room.phase==='lobby'){this.broadcast(room);return;}room.match=emptyMatch();room.round={endsAt:0,remainingSeconds:0,returnAt:0,results:[]};room.roster=[];room.phase='lobby';room.notice=notice;for(const p of room.players){Object.assign(p,freshMotion(mapFor(room).spawns[0]),freshCombat());p.dashSeen=p.dashId;p.attackSeen=p.attackId;p.targetId=null;p.eliminations=0;p.matchEliminations=0;p.ready=false;p.dx=0;p.dy=0;p.sprint=false;p.dashRemaining=0;p.attackFlash=0;p.hitFlash=0;p.attackSeen=p.attackId;}this.broadcast(room);}
  disconnect(ws:WebSocket) {const s=this.sessions.get(ws);if(!s)return;this.sessions.delete(ws);const {room,player:p}=s;p.socket=null;p.ready=false;p.dx=0;p.dy=0;p.sprint=false;p.dashRemaining=0;p.disconnectedAt=Date.now();this.transfer(room);this.broadcast(room);}
  transfer(room:Room) {if(!room.players.some(p=>p.id===room.hostId && p.socket)){const next=room.players.find(p=>p.socket);if(next)room.hostId=next.id;}}
  remove(room:Room,p:Player) {if(this.rooms.get(room.code)!==room||!room.players.includes(p))return;if(p.socket)this.sessions.delete(p.socket);p.socket=null;p.dx=0;p.dy=0;p.lastInput=0;p.targetId=null;room.players=room.players.filter(x=>x!==p);if(!room.players.length){this.rooms.delete(room.code);return;}this.transfer(room);if((room.phase==='arena'||room.phase==='intermission') && room.players.length<2)this.toLobby(room,'Test ended: at least two players are needed.');else {for(const other of room.players)if(other.targetId===p.id)this.assignTarget(room,other,p.id);this.broadcast(room);}}
@@ -98,7 +99,7 @@ export class RoomServer {
   for(const p of room.roster)p.eliminations=0;
   room.phase='arena';room.notice='';room.match.roundNumber++;room.match.nextRoundSeconds=0;
   room.round={endsAt:now+ROUND.durationMs,remainingSeconds:ROUND.durationMs/1000,returnAt:0,results:[]};
-  room.players.forEach((p,i)=>{const version=p.spawnVersion+1;Object.assign(p,freshMotion(SPAWNS[i]),freshCombat());p.spawnVersion=version;p.targetId=null;p.eliminations=0;p.dx=0;p.dy=0;p.sprint=false;p.dashId=0;p.attackId=0;p.aimX=0;p.aimY=0;p.seq=p.ack;p.lastInput=0;});
+  room.players.forEach((p,i)=>{const version=p.spawnVersion+1;Object.assign(p,freshMotion(mapFor(room).spawns[i]),freshCombat());p.spawnVersion=version;const dx=mapFor(room).plaza.x+mapFor(room).plaza.width/2-p.x,dy=mapFor(room).plaza.y+mapFor(room).plaza.height/2-p.y,length=Math.hypot(dx,dy)||1;p.facingX=dx/length;p.facingY=dy/length;p.targetId=null;p.eliminations=0;p.dx=0;p.dy=0;p.sprint=false;p.dashId=0;p.attackId=0;p.aimX=0;p.aimY=0;p.seq=p.ack;p.lastInput=0;});
   // Generate a new random assignment each round; repeats are allowed, especially with two players.
   const order=[...room.players];for(let i=order.length-1;i>0;i--){const j=randomInt(i+1);[order[i],order[j]]=[order[j],order[i]];}
   order.forEach((p,i)=>p.targetId=order[(i+1)%order.length].id);
@@ -132,9 +133,9 @@ export class RoomServer {
     for(const p of room.players) {
      p.attackCooldown=Math.max(0,p.attackCooldown-STEP);p.protection=Math.max(0,p.protection-STEP);p.attackFlash=Math.max(0,p.attackFlash-STEP);p.hitFlash=Math.max(0,p.hitFlash-STEP);
      if(p.koRemaining>0){p.koRemaining=Math.max(0,p.koRemaining-STEP);p.ack=p.seq;p.dashSeen=p.dashId;p.attackSeen=p.attackId;
-      if(p.koRemaining<1e-8){const point=safeSpawn(room.players.filter(o=>o!==p&&o.health>0).map(o=>({x:o.x,y:o.y})));const version=p.spawnVersion+1;Object.assign(p,freshMotion(point),freshCombat());p.spawnVersion=version;p.protection=COMBAT.protection;p.dashSeen=p.dashId;p.attackSeen=p.attackId;p.dx=0;p.dy=0;p.sprint=false;p.lastInput=0;}continue;
+      if(p.koRemaining<1e-8){const point=safeSpawn(room.players.filter(o=>o!==p&&o.health>0).map(o=>({x:o.x,y:o.y})),mapFor(room));const version=p.spawnVersion+1;Object.assign(p,freshMotion(point),freshCombat());p.spawnVersion=version;p.protection=COMBAT.protection;p.dashSeen=p.dashId;p.attackSeen=p.attackId;p.dx=0;p.dy=0;p.sprint=false;p.lastInput=0;}continue;
      }
-     if(!p.socket)continue;const active=now-p.lastInput<NETWORK.inputTimeoutMs;const motion=advanceMotion(p,{dx:active?p.dx:0,dy:active?p.dy:0,sprint:active&&p.sprint,dashId:active?p.dashId:p.dashSeen});Object.assign(p,motion);p.ack=p.seq;
+     if(!p.socket)continue;const active=now-p.lastInput<NETWORK.inputTimeoutMs;const motion=advanceMotion(p,{dx:active?p.dx:0,dy:active?p.dy:0,sprint:active&&p.sprint,dashId:active?p.dashId:p.dashSeen},STEP,mapFor(room));Object.assign(p,motion);p.ack=p.seq;
     }
     // Gather all eligible swings before applying damage: simultaneous hits can trade.
     const attacks:Player[]=[];
@@ -144,7 +145,7 @@ export class RoomServer {
      p.attackCooldown=COMBAT.cooldown;p.attackFlash=COMBAT.attackFlash;p.protection=0;attacks.push(p);
     }
     const damage=new Map<Player,Player[]>();
-    for(const attacker of attacks){const targets=room.players.filter(p=>p!==attacker&&p.health>0&&p.protection<=0&&canHit(attacker,p,attacker.attackX,attacker.attackY));targets.sort((a,b)=>Math.hypot(a.x-attacker.x,a.y-attacker.y)-Math.hypot(b.x-attacker.x,b.y-attacker.y)||a.id.localeCompare(b.id));const target=targets[0];if(target)damage.set(target,[...(damage.get(target)||[]),attacker]);}
+    for(const attacker of attacks){const targets=room.players.filter(p=>p!==attacker&&p.health>0&&p.protection<=0&&canHit(attacker,p,attacker.attackX,attacker.attackY,mapFor(room)));targets.sort((a,b)=>Math.hypot(a.x-attacker.x,a.y-attacker.y)-Math.hypot(b.x-attacker.x,b.y-attacker.y)||a.id.localeCompare(b.id));const target=targets[0];if(target)damage.set(target,[...(damage.get(target)||[]),attacker]);}
     const completions:Player[]=[];
     for(const [p,hitters] of damage){
      // Stable ID order defines the final damage contributor within a simultaneous tick.

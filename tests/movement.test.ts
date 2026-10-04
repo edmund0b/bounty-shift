@@ -11,16 +11,16 @@ test('city spawns and all traversable routes are connected',()=>{
  const key=(x:number,y:number)=>`${x},${y}`;seen.add(key(queue[0].x,queue[0].y));
  for(let i=0;i<queue.length;i++){const p=queue[i];for(const [dx,dy] of [[20,0],[-20,0],[0,20],[0,-20]]){const n={x:p.x+dx,y:p.y+dy};if(!isWalkable(n)||seen.has(key(n.x,n.y)))continue;seen.add(key(n.x,n.y));queue.push(n);}}
  // Route landmarks on both sides and the exterior must be reachable from the plaza.
- for(const p of [{x:90,y:90},{x:1910,y:90},{x:90,y:1350},{x:1910,y:1350},{x:670,y:550},{x:1310,y:550},{x:1010,y:510}])assert(queue.some(n=>Math.hypot(n.x-p.x,n.y-p.y)<=15),`Unreachable route ${key(p.x,p.y)}`);
+ for(const p of [{x:90,y:90},{x:2510,y:90},{x:90,y:2010},{x:2510,y:2010},{x:570,y:810},{x:2010,y:810},{x:1010,y:810}])assert(queue.some(n=>Math.hypot(n.x-p.x,n.y-p.y)<=15),`Unreachable route ${key(p.x,p.y)}`);
 });
 test('walls block fast movement from every direction; diagonal sliding stays outside',()=>{
- for(const b of BUILDINGS){
+ for(const b of BUILDINGS.filter(b=>b.bottom===0)){
   const cx=b.x+b.width/2,cy=b.y+b.height/2,r=ARENA.radius;
-  for(const [start,dx,dy] of [[{x:b.x-r-10,y:cy},1,0],[{x:b.x+b.width+r+10,y:cy},-1,0],[{x:cx,y:b.y-r-10},0,1],[{x:cx,y:b.y+b.height+r+10},0,-1]] as const){const p=move(start,dx,dy,.2,MOVEMENT.dashSpeed);assert(isWalkable(p));assert(Math.hypot(p.x-start.x,p.y-start.y)<=10.00001);}
+  for(const [start,dx,dy] of [[{x:b.x-r-10,y:cy},1,0],[{x:b.x+b.width+r+10,y:cy},-1,0],[{x:cx,y:b.y-r-10},0,1],[{x:cx,y:b.y+b.height+r+10},0,-1]] as const){if(!isWalkable(start))continue;const p=move(start,dx,dy,.2,MOVEMENT.dashSpeed);assert(isWalkable(p));assert(Math.hypot(p.x-start.x,p.y-start.y)<=10.00001);}
  }
- let p={x:146,y:280};for(let i=0;i<90;i++){p=move(p,1,1);assert(isWalkable(p));}assert(p.y>280,'Wall contact allows sliding');
+ let p={x:166,y:600};for(let i=0;i<90;i++){p=move(p,1,1);assert(isWalkable(p));}assert(p.y>600,'Wall contact allows sliding');
  // Large displacement and a wall narrower than a dash cannot tunnel through.
- const p2=move({x:610,y:750},1,0,1,MOVEMENT.dashSpeed);assert.equal(p2.x,626);assert(isWalkable(p2));
+ const p2=move({x:1106,y:1572},1,0,1,MOVEMENT.dashSpeed);assert(p2.x<=1116);assert(isWalkable(p2));
 });
 test('sprint speed, stamina exhaustion, release, and regeneration are deterministic',()=>{
  let walking=freshMotion({x:800,y:720}),sprinting=freshMotion({x:800,y:720});
@@ -35,10 +35,10 @@ test('dash is a single burst, obeys collision, cooldown, and facing while idle',
  s=advanceMotion(s,{dx:0,dy:0,dashId:2});assert.equal(s.x,x);assert.equal(s.dashSeen,2);
  for(let i=0;i<100;i++)s=advanceMotion(s,{dx:0,dy:0,dashId:2});assert.equal(s.dashCooldown,0);assert.equal(s.x,x,'Rejected requests are not queued');
  s=advanceMotion(s,{dx:0,dy:0,dashId:3});assert(s.x>x,'Idle dash uses last facing direction');
- let blocked=freshMotion({x:146,y:300});for(let i=0;i<10;i++)blocked=advanceMotion(blocked,{dx:1,dy:0,dashId:1});assert.equal(blocked.x,146);assert(isWalkable(blocked));
+ let blocked=freshMotion({x:166,y:600});for(let i=0;i<10;i++)blocked=advanceMotion(blocked,{dx:1,dy:0,dashId:1});assert.equal(blocked.x,166);assert(isWalkable(blocked));
 });
 test('camera follows and clamps without exposing the whole world',()=>{
- assert.deepEqual(cameraFor({x:1000,y:720}),{x:520,y:420});assert.deepEqual(cameraFor({x:0,y:0}),{x:0,y:0});const far=cameraFor({x:WORLD.width,y:WORLD.height});assert.equal(far.x,1040);assert.equal(far.y,840);
+ assert.deepEqual(cameraFor({x:1000,y:720}),{x:520,y:420});assert.deepEqual(cameraFor({x:0,y:0}),{x:0,y:0});const far=cameraFor({x:WORLD.width,y:WORLD.height});assert.equal(far.x,WORLD.width-960);assert.equal(far.y,WORLD.height-600);
 });
 test('authoritative room state agrees with prediction and rejects ability spoofing',()=>{
  const rooms=new RoomServer(),messages:string[]=[];

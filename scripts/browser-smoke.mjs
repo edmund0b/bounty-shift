@@ -17,7 +17,7 @@ try{
  const sizes=[[1920,1080],[1440,900],[1366,768],[1280,720],[1024,600],[800,450],[640,360],[390,844],[375,667],[320,568],[844,390]];
  async function checkLayout(page){
   const metrics=await page.evaluate(()=>{
-   const selectors=['.game-screen>header','.objective','.viewport','.game-hud','.hint','.legend','.touch-controls','.game-hud label','.game-hud span','.game-hud progress','.touch-controls button','.legend li','.arena-section>.panel>*'];
+   const selectors=['.game-screen>header','.objective','.viewport','.game-hud','.hint','.legend','.touch-controls','.game-hud label','.game-hud span','.game-hud progress','.touch-controls button','.legend li','.minimap','.arena-section>.panel>*'];
    const items=selectors.flatMap(s=>[...document.querySelectorAll(s)]).filter(e=>getComputedStyle(e).display!=='none').map(e=>{const r=e.getBoundingClientRect();return {name:e.className||e.tagName,x:r.x,y:r.y,right:r.right,bottom:r.bottom,height:r.height};});
    return {width:innerWidth,height:innerHeight,scrollWidth:document.documentElement.scrollWidth,scrollHeight:document.documentElement.scrollHeight,items};
   });
@@ -31,7 +31,7 @@ try{
  await a.setViewportSize({width:1366,height:768});await a.waitForTimeout(100);
  await a.screenshot({path:resolve(output,'STEP2_PREVIEW.png'),fullPage:true});
  const room=game.rooms.rooms.get(code),self=room.players.find(p=>p.name==='goichi');const oldX=self.x;
- await a.keyboard.down('w');await a.waitForTimeout(600);await a.keyboard.up('w');await a.waitForTimeout(150);assert(self.x>oldX+40,'Camera-relative forward follows initial opponent-facing view');
+ await a.keyboard.down('w');await a.waitForTimeout(600);await a.keyboard.up('w');await a.waitForTimeout(150);assert(self.x>oldX+40,'Camera-relative forward follows initial plaza-facing view');
  // Real desktop pointer lock: activation click does not attack or move the body.
  const stationary={x:self.x,y:self.y,fx:self.facingX,fy:self.facingY},attackSeen=self.attackSeen;
  await a.locator('.viewport canvas').click();await a.waitForFunction(()=>document.pointerLockElement===document.querySelector('canvas'));
@@ -60,10 +60,30 @@ try{
  await b.screenshot({path:resolve(output,'STAGE2_MOBILE_PREVIEW.png'),fullPage:true});
  await a.keyboard.down('e');await a.waitForTimeout(250);await a.keyboard.up('e');await a.keyboard.down('Shift');await a.keyboard.down('w');await a.waitForTimeout(200);await a.keyboard.press('Space');await a.keyboard.up('w');await a.keyboard.up('Shift');await a.waitForTimeout(200);assert(self.stamina<100);assert(self.dashCooldown>0);
  // Server fixture places an opponent within the reticle-facing range; no test endpoint added.
- await a.getByRole('button',{name:'Return everyone to lobby'}).click();await a.getByRole('button',{name:'Ready up'}).click();await b.getByRole('button',{name:'Ready up'}).click();await a.getByRole('button',{name:'Start match',exact:true}).click();await a.locator('.viewport canvas').waitFor();await a.waitForTimeout(200);const victim=room.players.find(p=>p.name==='Aizen');Object.assign(self,{x:1000,y:700});Object.assign(victim,{x:1040,y:700});await a.waitForTimeout(200);await a.keyboard.press('f');await a.waitForTimeout(200);assert.equal(victim.health,75);await b.waitForFunction(()=>document.querySelector('.game-hud')?.textContent.includes('75 / 100'));
+ await a.getByRole('button',{name:'Return everyone to lobby'}).click();await a.getByRole('button',{name:'Ready up'}).click();await b.getByRole('button',{name:'Ready up'}).click();await a.getByRole('button',{name:'Start match',exact:true}).click();await a.locator('.viewport canvas').waitFor();await a.waitForTimeout(200);const victim=room.players.find(p=>p.name==='Aizen');
+ // Walk the real client up the west stairs. A/D/W vectors are relative to the retained local camera.
+ Object.assign(self,{x:730,y:1900,elevation:0,spawnVersion:self.spawnVersion+1});await a.waitForTimeout(200);
+ await a.keyboard.down('q');await a.waitForTimeout(280);await a.keyboard.up('q');await a.waitForTimeout(100);
+ await a.keyboard.down('Shift');await a.keyboard.down('w');await a.waitForTimeout(1550);await a.keyboard.up('w');await a.keyboard.up('Shift');await a.waitForTimeout(200);
+ assert.equal(self.elevation,100,'Browser-controlled sprint climbs to upper walkway');
+ const marker=await a.locator('.minimap svg > g:last-child').getAttribute('transform');const coords=marker.match(/translate\(([^ ]+) ([^)]+)\)/);assert(Math.abs(+coords[1]-self.x)<5&&Math.abs(+coords[2]-self.y)<5,'Minimap marker tracks authoritative X/Z at height');
+ Object.assign(self,{x:985,y:1450,elevation:100,spawnVersion:self.spawnVersion+1});await a.keyboard.down('e');await a.waitForTimeout(280);await a.keyboard.up('e');await a.waitForTimeout(150);
+ // Reset camera pitch for a reproducible upper-route preview through the normal look listener.
+ await a.locator('.viewport canvas').click();await a.waitForFunction(()=>!!document.pointerLockElement);
+ await a.waitForTimeout(80);await a.evaluate(()=>{for(const value of [10000,-280]){const event=new MouseEvent('mousemove');Object.defineProperty(event,'movementY',{value});document.dispatchEvent(event);}});await a.waitForTimeout(200);
+ await a.keyboard.down('w');await a.waitForTimeout(80);await a.keyboard.up('w');await a.waitForTimeout(100);
+ const heading=Math.atan2(self.facingX,-self.facingY),towardPlaza=Math.atan2(1300-self.x,-(1060-self.y));
+ await a.evaluate(delta=>{const event=new MouseEvent('mousemove');Object.defineProperty(event,'movementX',{value:delta});document.dispatchEvent(event);},Math.atan2(Math.sin(towardPlaza-heading),Math.cos(towardPlaza-heading))/.0028);await a.waitForTimeout(250);
+ await a.keyboard.down('w');await a.waitForTimeout(80);await a.keyboard.up('w');await a.waitForTimeout(150);await a.keyboard.press('Escape');await a.waitForTimeout(100);
+ await a.screenshot({path:resolve(output,'CENTRAL_PLAZA_PREVIEW.png'),fullPage:true});
+ Object.assign(victim,{x:1620,y:1450,elevation:100,spawnVersion:victim.spawnVersion+1});await b.waitForTimeout(400);await b.screenshot({path:resolve(output,'CENTRAL_PLAZA_MOBILE_PREVIEW.png'),fullPage:true});
+ Object.assign(self,{x:1000,y:700,elevation:0,spawnVersion:self.spawnVersion+1});await a.waitForTimeout(250);
+ // Preview free-look deliberately changes orientation; place the melee fixture along the actual camera-forward movement, not a fixed world axis.
+ await a.keyboard.down('w');await a.waitForTimeout(110);await a.keyboard.up('w');await a.waitForTimeout(180);
+ Object.assign(victim,{x:self.x+self.facingX*40,y:self.y+self.facingY*40,elevation:0,spawnVersion:victim.spawnVersion+1});await a.waitForTimeout(250);await a.keyboard.press('f');await a.waitForTimeout(200);assert.equal(victim.health,75);await b.waitForFunction(()=>document.querySelector('.game-hud')?.textContent.includes('75 / 100'));
  await a.reload();await a.locator('.viewport canvas').waitFor();assert.equal(room.players.length,2);await a.waitForTimeout(300);
  await a.setViewportSize({width:390,height:844});await a.screenshot({path:resolve(output,'STEP2_MOBILE_PREVIEW.png'),fullPage:true});assert.equal(await a.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'No horizontal overflow');
  for(let n=1;n<=3;n++){game.rooms.tick(room.round.endsAt);await a.getByRole('heading',{name:n===3?'MATCH COMPLETE':'Round complete',exact:true}).waitFor();await checkLayout(a);if(n<3){game.rooms.tick(room.round.returnAt);await a.locator('.viewport canvas').waitFor();await a.waitForTimeout(150);}}assert.equal(room.phase,'complete');
  await b.getByRole('button',{name:'Return everyone to lobby'}).click();await a.getByRole('button',{name:'Ready up'}).waitFor();assert(room.players.every(p=>p.matchEliminations===0&&p.targetId===null));assert.equal(await a.evaluate(()=>document.documentElement.classList.contains('match-open')),false,'Lobby restores normal page flow');
- assert.deepEqual(errors,[]);console.log('Browser QA passed: two independent sessions, WebGL render, forward/sprint/dash, turn, reticle melee, synchronized health, refresh, pointer-lock stationary yaw/pitch and steering, real multi-touch joystick/look, 11 viewport sizes without overflow or clipped HUD, three-round transitions, final results, lobby reset.');
+ assert.deepEqual(errors,[]);console.log('Browser QA passed: two independent sessions, WebGL render, forward/sprint/dash, turn, reticle melee, synchronized health, refresh, Central Plaza minimap/elevated traversal, pointer-lock stationary yaw/pitch and steering, real multi-touch joystick/look, 11 viewport sizes without overflow or clipped HUD, three-round transitions, final results, lobby reset.');
 }finally{if(browser)await browser.close();await game.close();}

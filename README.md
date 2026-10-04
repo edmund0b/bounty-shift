@@ -1,27 +1,77 @@
-# Bounty Shift — Step 2: Third-person Arena
+# Bounty Shift — Step 2, Stage 3: Central Plaza
 
-Continues the approved Step 1 foundation at https://github.com/edmund0b/bounty-shift, viewport correction based on deployed Step 2 commit `5a839b2`. The Render service remains https://bounty-shift.onrender.com. The server, WebSocket protocol, map collision rectangles, combat values, targets, scores, and three-round match lifecycle are unchanged.
+Central Plaza is the first playable map in the existing Bounty Shift project. It extends the Step 1 multiplayer/match foundation and Step 2 third-person renderer/controller. Only this map is enabled; Sky Docks and Nexus Arena are reserved identifiers, with no geometry or random selection yet.
 
-Step 2 adds a Three.js WebGL presentation layer: physical neon buildings, façade signage, simple humanoid avatars, a collision-aware third-person chase camera, camera-relative controls, in-world names/health, reticle, and an updated HUD. The supplied concept guides the dark-blue/cyan/magenta palette and framing; these are prototype meshes, not final art.
+Repository: https://github.com/edmund0b/bounty-shift
 
-![Desktop preview](STEP2_PREVIEW.png)
+Existing public service: https://bounty-shift.onrender.com
 
-## Step 2 architecture and controls
+![Central Plaza desktop preview](STEP2_PREVIEW.png)
 
-- `src/scene.ts` owns the 3D scene/renderer, static structures, camera, avatar meshes/labels, interpolation, and disposal. One render loop exists only while the arena is mounted; hidden tabs skip rendering.
-- `src/Arena.tsx` hosts the scene, camera-drag input, reticle, graphics errors, and health/stamina/ability HUD.
-- `shared/presentation.ts` centralizes world-to-render scale and camera-relative movement/aim conversion. The server still simulates positions in the original two dimensions; visual height is decorative. No physics engine, extra floor, or jump system was added.
-- Three.js is a frontend dependency; its vendor chunk is separated for caching. `playwright-core` is a development-only dependency for the optional browser smoke test. Render needs no account/configuration change.
-- WASD/arrows move relative to camera yaw. Shift sprints; Space dashes in movement/last-facing direction. Right mouse drag or Q/E turns the camera. Touch Turn L/R buttons rotate it.
-- Left click, F, and touch Attack all strike along camera yaw/center-reticle direction. This is close-range melee, not cursor targeting or a projectile; the server still enforces 80-pixel range, arc, walls, and cooldown. Looking around alone does not change idle dash's last movement direction.
-- Each client sees their local avatar in cyan and their own Bounty in gold; other avatars retain player colors. This does not reveal anyone else's target. Names/health use depth-tested floating labels.
-- Local body faces the camera's aim direction; remote bodies show authoritative movement/attack direction. Camera orientation itself is local, and idle aiming poses are not networked in this version.
-- Static meshes are derived directly from `shared/map.ts`, so visible solid buildings match authoritative collision. SOUTH TERMINAL, WEST STORAGE, EAST STORAGE, and WORKSHOP have signage on their existing structures. SIGNAL STATION's façade is presented as CENTRAL PLAZA to mark the central approach. No map geometry was redesigned.
-- The camera shortens its trailing distance near buildings/boundaries. The local body fades when the camera is very close. Room and round transitions still unmount/remount the scene cleanly.
+## The map
 
-## Local build and test
+The playable district is 2600 × 2100 world units, approximately 1.9 times the previous arena's ground area. Five connected regions have different layouts:
 
-Use Node.js 22 or newer, inside the repository folder:
+- Central Plaza: an open middle with a solid monument base, twin cyan energy pylons, surrounding cover and routes on every side.
+- West Depot: industrial buildings, cargo cover, magenta signage, ground lanes and a west loading balcony/catwalk.
+- East Storage: asymmetric storage blocks and tighter cargo corners, pink facade lighting, ground connections and an east upper route.
+- South Terminal: cyan landmark signage, an open spawn approach, side lanes and nearby cover.
+- North Bridge: a raised cross-map route connecting both side catwalks, with a central stair approach and skyline beyond.
+
+The upper network has three wide approaches: west stairs, east ramp and north stairs. Players can ascend on one side, cross the North Bridge and descend elsewhere. Side balconies overlook the plaza without sealing its central approach. Decks permit ground-level passage underneath where there is sufficient clearance; ramps are solid wedges. Building facades and door-shaped lighting panels are closed solids, not entrances. Open lanes around the buildings are real routes.
+
+The rendering is procedural and stylized: dark navy architecture, cyan/magenta trim, generated facade signs, cargo, barriers, sparse planter trees, lane markings and lightweight distant towers. Floor sheen uses materials/painted lighting rather than costly real-time reflections.
+
+## Map architecture and authoritative traversal
+
+- `shared/maps/types.ts` defines bounds, blocks with bottom/top heights, walkable surfaces/ramps, spawns, districts and environment settings.
+- `shared/maps/central-plaza.ts` is the single source of map geometry, collision volumes, upper routes and spawn points.
+- `shared/map.ts` registers `central_plaza`. `sky_docks` and `nexus_arena` are placeholders only. Rooms carry a map ID; the server, client prediction, renderer and minimap resolve the same definition. No map picker or randomizer was added.
+- `shared/traversal.ts` supplies common support-height and volume checks. World X/Y remain horizontal coordinates, rendered as X/Z at `VIEW.scale` (0.03). `elevation` is authoritative feet height in world units. Upper decks are at 100 units, or 3 rendered metres.
+- Walking, sprint and dash use the existing shared movement integrator with small collision substeps. Slopes change height continuously; visually marked stairs use smooth collision ramps. Players cannot step directly from the ground onto a bridge, dash through a solid, or walk off an unsupported upper edge. Rails guard edges while leaving ramp mouths and route joins open.
+- Prediction uses the same map/traversal functions as the server. Clients continue sending input intent, never their position or elevation. Snapshots/reconnect restore authoritative elevation. Remote interpolation samples the matching support to keep feet on slopes.
+- Melee preserves damage, range, arc and cooldown. Hit checks now include vertical distance and a chest-height line through solid volumes/ramp wedges. Ground players cannot hit through an overhead deck at players above them. Low cover below the strike line can be struck over.
+- The camera retains Stage 2 free look/obstruction rays, now following the player's elevation and staying above their current floor. Close obstruction slightly increases avatar fading to preserve visibility. Round spawn facing points toward the plaza. No controller replacement, jump, falling/gravity or new ability was introduced.
+
+Eight valid ground spawn positions are spread across outer districts and approaches. Current room capacity remains 2–6. Round starts use these spread positions; respawn retains the existing greatest-clearance choice among valid spawns and existing protection. Round/lobby resets restore ground elevation and all existing reset rules.
+
+## Navigation minimap
+
+The top-right, north-up SVG minimap is generated directly from the active map's bounds, buildings, cover, walkways, ramps and district locations. The cyan arrow shows only your authoritative position and facing. Upper-floor movement uses the same horizontal X/Y coordinates. No enemy markers, target radar or reveal mechanics were added.
+
+The marker updates in the existing arena render loop. The panel is pointer-transparent and responsively clamped, so it does not capture camera input, displace the arena or add page height. Desktop and narrow/short mobile sizes preserve the existing one-viewport layout.
+
+## Preserved controls
+
+| Action | Desktop | Touch |
+| --- | --- | --- |
+| Move | WASD / arrows, relative to camera yaw | Lower-left analog joystick, relative to camera |
+| Look | Click arena, then mouse-look; Esc releases | Swipe the right half of the arena |
+| Sprint | Hold Shift while moving | Hold Sprint while using joystick |
+| Dash | Space | Tap Dash |
+| Melee | Click while mouse-look is active, or F | Tap Attack |
+| Camera fallback | Q/E yaw; cursor-look if pointer lock unavailable | Independent look pointer |
+
+Camera orbit works while stationary. Movement is flattened to horizontal camera yaw, with normalized diagonals. Moving avatars rotate toward their gameplay direction; stationary camera look does not spin the body. Dash uses current movement input, or the avatar's last gameplay facing when idle. Melee uses camera yaw/reticle direction. Name/health sprites still billboard; local cyan, private Bounty gold and other player colors are preserved.
+
+The existing joystick/look pointer-ID separation, touch buttons, focus/cancel clearing, HUD buttons and gameplay-only prevention of page scrolling remain intact. UI clicks do not activate pointer lock. Match screens use the preserved `100vh`/`100dvh` compact-header/flexible-arena/compact-HUD structure; menus and lobby retain normal scrolling where needed.
+
+## Game rules and match foundation
+
+1. Create a room and share its six-character code. Join with 2–6 players, ready up, and have the host start.
+2. Each player receives one private Bounty target; nobody targets themselves. Fight any player, but only knocking out your assigned target earns one Bounty elimination. Successful credit reassigns your target; with two players the same opponent remains necessary.
+3. Health is 100. Melee deals 25 damage, has an 80-unit range/120-degree arc and a 0.6-second cooldown. One strike hits the nearest eligible player; obstacles and height can prevent hits.
+4. KO lasts five seconds. Respawn restores health/resources and grants 1.5 seconds of protection; the protected player's accepted attack ends it. Initial round spawns have no protection.
+5. Each of three rounds lasts 90 seconds. Round expiry freezes gameplay and snapshots the leaderboard. A five-second intermission starts the next round automatically, resetting round state while retaining match totals.
+6. After Round 3, final totals determine the winner; top ties share victory. Only the host returns everyone to lobby. A fresh match clears all prior scores/history/targets and readiness.
+
+Walking remains 220 units/second; sprint remains 330. Stamina max 100, drain 28/second, regeneration 22/second after 0.6 seconds. Dash remains 850 units/second for 0.18 seconds with a three-second cooldown. Centralized constants remain in `shared/game.ts`, `shared/combat.ts`, `shared/rounds.ts`, `shared/presentation.ts` and `shared/traversal.ts`; existing balance values were not changed.
+
+Server authority still covers movement, health, hit/KO attribution, targets, score, timers, transitions and results. Only the recipient's own target is sent in their objective HUD; public player snapshots never contain other target assignments. Camera position/rotation stays local. Reconnect grace remains ten seconds; identity, health, elevation, target, scores, cooldowns and deadlines are preserved while the room/server exists. Duplicate tabs cannot steal an active identity. Permanent departures repair targets, migrate host authority and cancel play gracefully if too few players remain. See `FOUNDATION_AUDIT.md` for the Step 1 audit history.
+
+## Build and automated validation
+
+Use Node.js 22 or newer inside the repository:
 
 ```sh
 npm ci --include=dev
@@ -30,171 +80,82 @@ npm test
 npm start
 ```
 
-Open http://localhost:3000 in two independent browser windows. Build before testing: the integration test checks production frontend assets. For development use `npm run dev`. `PORT` overrides 3000. Production uses the same URL for the frontend and `/ws`.
+Open http://localhost:3000 in two independent browser sessions. The one Node service serves both frontend assets and `/ws`; `PORT` can override 3000. For development, use `npm run dev`. Build before integration/browser tests so production frontend assets exist.
 
-## How to play this prototype
-
-1. Create a room, share its six-character code, and have 2–6 players join.
-2. Everyone readies up; only the host can start the three-round match.
-3. Read your private `BOUNTY: name` HUD. Nobody can target themselves.
-4. Knock out that player to earn one Bounty elimination. Knockouts of anyone else earn zero. You can still fight any opponent.
-5. After a successful Bounty knockout, your target is reassigned. With two players, it must remain the same opponent; wait for their respawn. With more players, reassignment prefers a different connected opponent, then living candidates within that group. Multiple players may hunt the same person after reassignment.
-6. Play each round until the server's 90-second timer expires. Movement and combat freeze; the leaderboard ranks successful Bounty eliminations. Ties share ranks (for example 1, 1, 3).
-7. After rounds 1 and 2, the leaderboard stays visible during a five-second NEXT ROUND countdown. Movement and attacks are frozen. The next round starts automatically with fresh health, spawns, movement resources, round counts, and private targets. Match totals persist. After round 3, MATCH COMPLETE shows final placements and WINNER, or MATCH TIED with all top players. Final results stay until the host returns everyone to lobby. Lobby return clears totals, targets, KO, and readiness; players can start a fresh match.
-
-The host can return everyone to the lobby early, cancelling the current match. If a permanent departure leaves fewer than two players during play, the match is cancelled and the remaining player returns to the lobby without a fabricated winner.
-
-## Controls and preserved movement/combat
-
-| Action | Desktop | Touch |
-| --- | --- | --- |
-| Move | WASD / arrows relative to camera | Directional buttons relative to camera |
-| Sprint | Hold Shift while moving | Hold Sprint plus direction |
-| Dash | Space | Tap Dash |
-| Melee | Left click / F toward center reticle | Tap Attack toward center reticle |
-| Turn view | Right-drag / Q E | Hold Turn L / Turn R |
-
-- Chase camera follows behind your cyan humanoid avatar, slightly elevated. Visible opponents render as physical avatars with floating labels and health bars.
-- Flat 2000 × 1440 city arena: central plaza, solid buildings, alleys, cross streets, and an outside loop. No extra floors or layered tunnels.
-- Walking: 220 pixels/second. Sprint: 330. Stamina starts at 100, drains at 28/second, regenerates at 22/second after a 0.6-second delay. Release Sprint after exhaustion before sprinting again.
-- Dash: 850 pixels/second for 0.18 seconds, three-second cooldown. Same server collision as walking/sprinting; no wall clipping or dash invulnerability. Rejected cooldown presses are discarded.
-- Health: 100. Melee: 25 damage, 80-pixel center distance, 120-degree forward arc, 0.6-second cooldown. One strike hits the nearest eligible player, with walls blocking hits. A nearby non-target may intercept a strike aimed at your Bounty.
-- KO lasts five seconds and disables movement/abilities/attacks. Respawn restores health and movement resources at a valid plaza spawn with the greatest available clearance from living opponents.
-- Spawn protection lasts 1.5 seconds; the protected player's own accepted attack ends it. Initial round spawn has no protection.
-- Same-tick mutual lethal attacks can trade. For multiple attackers hitting the same victim in one tick, stable server player-ID ordering determines the final damage contributor. Exactly one attacker can receive credit for that KO, and only if that victim was their assigned target. Both mutual Bounty completions are checked before any reassignment.
-- Respawning preserves your target, round progress, and match total. Reconnecting preserves identity, target, progress, match identity, round number, timer, health, KO, and cooldown while the server remains alive.
-- Disconnected players remain vulnerable during the existing ten-second reconnect window. Their targets remain valid. Permanent departures repair affected targets without awarding elimination credit. Departed participants retain earned totals in final results; their later round scores are zero.
-
-## Multiplayer authority and target privacy
-
-Clients send movement, dash, and attack intent only. The server runs about 30 Hz and sends about 15 Hz authoritative snapshots. Shared movement prediction/reconciliation and remote interpolation are preserved. The server owns collision, hit detection, health, KO attribution, respawn, private targets, objective counts, deadlines, and results.
-
-`Player.targetId` and objective progress are server-only fields. Each outgoing state/welcome is serialized for its recipient. The public player array never includes target assignments or reconnect tokens. A client receives only its own target's ID/name and its own round and match elimination counts under `room.objective`. Completed results contain everyone's counts, but no target relationships. Positions/health remain public, as in Phase 3; this is not server fog of war.
-
-Initial assignment uses a shuffled circular order: each player receives one other player, with one incoming target relationship per player. Reassignment does not preserve that one-to-one incoming property; it only guarantees a valid non-self target. This avoids introducing permanent elimination or complicated target chains.
-
-The server checks the absolute deadline before processing movement/damage on a tick. Pending attacks at or after expiry cannot earn credit. Results are a frozen server snapshot. Match state distinguishes lobby, active round (`arena`), `intermission`, and `complete`. `room.match` contains the match ID, round number, countdown, final ranking, winners, and completed-round history. History stores immutable score snapshots without targets. Round constants live in `shared/rounds.ts`; no gameplay endpoint lets clients choose targets, health, damage, credit, duration, or results.
-
-## Foundation hardening
-
-Read [FOUNDATION_AUDIT.md](FOUNDATION_AUDIT.md) for the full transition audit, bug fixes, validation boundary, and centralized constants. No balance values changed. Resume conflicts now retry conservatively without stealing the connected player. Repeated lobby return preserves freshly chosen ready states. Inputs require the current match ID and round number, so reload every device after deployment. Permanent departures release their transport references; earned score records remain until match cleanup. Touch capture/cancellation and narrow-screen containment were fixed without redesign.
-
-## Exact Step 2 changed files
-
-| File | Change |
-| --- | --- |
-| `src/scene.ts` | New Three.js physical arena, avatars, signage, camera, labels, disposal |
-| `src/Arena.tsx` | Third-person viewport, camera drag, reticle, upgraded HUD |
-| `src/main.tsx` | Camera-relative movement, aim, Q/E and touch turn controls, instructions |
-| `src/style.css` | Neon presentation and responsive HUD |
-| `shared/presentation.ts` | New rendering/camera/control constants and conversion helpers |
-| `tests/presentation.test.ts` | New camera-relative speed/direction and collision regressions |
-| `scripts/browser-smoke.mjs` | New reproducible two-browser rendering/control/match smoke test |
-| `package.json`, `package-lock.json` | Three.js/types, development browser test dependency/script |
-| `vite.config.ts` | Separate Three.js vendor chunk |
-| `README.md` | Step 2 architecture, controls, deployment, acceptance instructions |
-| `STEP2_PREVIEW.png`, `STEP2_MOBILE_PREVIEW.png` | Browser-captured prototype previews |
-
-All server files, map/combat/round/game definitions, foundation tests, hosting commands, and `FOUNDATION_AUDIT.md` are unchanged.
-
-## Optional browser smoke test
-
-After building, install a local test browser and run:
+Optional Chromium browser checks:
 
 ```sh
 npx playwright-core install chromium
 npm run test:browser
 ```
 
-If you already have a compatible Chromium binary, use `BOUNTY_QA_BROWSER=/absolute/path/to/chromium npm run test:browser` on a Unix shell. Screenshots go into the temporary `bounty-shift-qa` directory; `BOUNTY_QA_OUTPUT` can override that directory. Test fixtures only arrange server positions/advance timers inside the local test process; no debug endpoint is shipped. The script is not run during normal Render startup or `npm test`.
+On a Unix shell, an existing compatible binary can be selected with `BOUNTY_QA_BROWSER=/absolute/path/to/chromium npm run test:browser`. `BOUNTY_QA_OUTPUT` selects a screenshot directory. The script arranges local server fixtures and advances test time; it adds no production debug endpoint and is not part of normal startup.
 
-## Upload the viewport correction into the existing repository
+Local validation for this delivery:
 
-1. Download and extract `Bounty_Shift_Viewport_Fix.zip`.
-2. Open https://github.com/edmund0b/bounty-shift on the existing deployed branch (`main`). Select Add file → Upload files.
-3. From inside the extracted `bounty-shift` folder, drag `src`, `scripts`, `README.md`, `STEP2_PREVIEW.png`, and `STEP2_MOBILE_PREVIEW.png` into the upload area. Uploading folders preserves their paths and includes unchanged files deliberately.
-4. Confirm paths include `src/main.tsx`, `src/style.css`, and `scripts/browser-smoke.mjs`. Do not upload the ZIP, enclosing folder, `node_modules`, `dist`, or `.git`.
-5. Commit using `Fix gameplay viewport layout and HUD sizing`.
-6. Let the existing Render service auto-deploy. If auto-deploy is disabled, open that service and select Manual Deploy → Deploy latest commit. No settings or dependency changes are needed.
-7. After deployment succeeds, refresh both devices and run the viewport checklist below.
+- Production TypeScript/frontend/server build passes. Vite retains the advisory Three.js chunk-size warning.
+- All 70 automated tests pass, including real independent WebSocket sessions. Added coverage checks map/spawn validity, all approaches, sprint/dash on slopes, a complete west-to-north-to-east upper route and descent, deck underpasses, upper edge constraints, vertical melee, authoritative/predicted elevation agreement, forged-height rejection, elevated reconnect, KO respawn and round reset. Previous room, combat, privacy, scoring, host, reconnect and full-match tests remain.
+- Chromium/WebGL checks pass with two independent sessions: stationary pointer-lock yaw/pitch, camera steering, sprint/dash, reticle melee and synchronized health, refresh, actual client-controlled stair ascent, map marker coordinates, real multi-touch joystick/look, three-round transitions, final results and lobby reset. No page runtime errors were observed.
+- Eleven viewport sizes pass containment/HUD visibility checks: 1920×1080, 1440×900, 1366×768, 1280×720, 1024×600, 800×450, 640×360, 390×844, 375×667, 320×568 and 844×390.
 
-### Viewport correction and checks
+Browser timers are accelerated for transition checks. Physical phones, public network latency, full-duration matches and performance on actual devices remain owner acceptance checks after deployment.
 
-The match-only `game-screen` shell uses `100vh` with a `100dvh` override, compact header/objective, and a flexible arena section. Both flex containers have `min-height: 0`. The canvas fills the remaining arena rectangle instead of imposing a fixed minimum height or aspect ratio; the existing Three.js resize handling adjusts its camera and renderer. Health/stamina/attack/dash, hints, player legend, and touch controls reserve compact space beneath it. Round/room information and host/leave controls moved into the header; the redundant developer footer is omitted during matches. Gameplay data and controls remain available.
+## Exact changed files for Map 1
 
-The `match-open` class constrains document/root overflow only while in a match (including results/intermission); it is removed when returning to menus/lobby. Short-height and narrow-width rules reduce spacing/fonts and reorganize the HUD/touch buttons. Gameplay, server, networking, collision, and camera logic are unchanged.
+Relative to the completed Stage 2 controller:
 
-Local browser checks cover 1920×1080, 1440×900, 1366×768, 1280×720, 1024×600, 800×450, 640×360, 390×844, 375×667, 320×568, and 844×390. They check document dimensions and visible content bounds, arena height, mouse-wheel scrolling, results, and lobby cleanup. Physical devices/browser chrome still require the public check:
+| Files | Change |
+| --- | --- |
+| `shared/maps/types.ts`, `shared/maps/central-plaza.ts` (new) | Reusable map model and Central Plaza definition |
+| `shared/map.ts` | Registry, active map and compatibility exports |
+| `shared/traversal.ts` (new) | Shared support heights, ramp/volume collision and render support sampling |
+| `shared/game.ts` | Elevation/map-aware authoritative and predicted movement; snapshot map ID |
+| `shared/combat.ts` | Map-aware safe spawns and height/volume-aware hit checks |
+| `shared/presentation.ts` | Close-obstruction avatar fade threshold |
+| `server/rooms.ts` | Room map identity, map-aware movement/combat/spawns and elevation snapshots |
+| `src/environment.ts` (new) | Procedural map geometry, landmarks, signs, skyline and batching |
+| `src/Minimap.tsx` (new) | Actual-layout, local-player-only navigation minimap |
+| `src/scene.ts`, `src/camera.ts` | Map rendering, elevation-aware avatars/camera and support interpolation |
+| `src/Arena.tsx` | Active-map scene/minimap integration and defensive pointer-lock release handling |
+| `src/main.tsx` | Active-map prediction, spawn-facing camera initialization and map heading |
+| `src/style.css` | Responsive minimap rules only; no-scroll gameplay layout preserved |
+| `tests/traversal.test.ts` (new) | Map/height/traversal/network regression tests |
+| `tests/camera.test.ts`, `tests/combat.test.ts`, `tests/movement.test.ts`, `tests/multiplayer.test.ts`, `tests/presentation.test.ts` | New-map geometry regressions and elevated network/camera checks |
+| `scripts/browser-smoke.mjs` | Minimap, elevated client traversal and Central Plaza preview checks |
+| `README.md`, `STEP2_PREVIEW.png`, `STEP2_MOBILE_PREVIEW.png` | Current documentation and browser-captured previews |
 
-- Start a match on two devices. Confirm title/round/room/connection, target/scores/timer, arena, and health/stamina/attack/dash are visible together.
-- Resize the desktop window. Confirm no scrollbar and no cut-off HUD, hints, or legend; no zoom adjustment should be needed.
-- On mobile, rotate and expand/collapse browser chrome. Confirm touch movement/turn/sprint/dash/attack remain reachable.
-- Use movement, sprint, dash, attack, and mouse wheel; the match page must stay still.
-- Complete rounds and inspect final results. Return to lobby; normal page scrolling must work again.
+No dependency, lockfile, Render configuration, match-rule, room-capacity or scoring changes. The ZIP includes unchanged repository files too.
 
-Changed files: `src/main.tsx`, `src/style.css`, `scripts/browser-smoke.mjs`, `README.md`, `STEP2_PREVIEW.png`, `STEP2_MOBILE_PREVIEW.png`. The source ZIP preserves the existing repository structure and includes unchanged project files.
+## Upload to the existing GitHub repository and redeploy
 
-## Redeploy the existing Render service
+1. Download and extract `Bounty_Shift_Step_2_Stage_3_Central_Plaza.zip`. Open its `bounty-shift` folder.
+2. Open https://github.com/edmund0b/bounty-shift on the branch connected to Render. Choose Add file → Upload files.
+3. Drag the folders `src`, `shared`, `server`, `tests`, `scripts`, plus `README.md`, `STEP2_PREVIEW.png`, `STEP2_MOBILE_PREVIEW.png`. Upload their contents with the paths intact. Do not drag the enclosing `bounty-shift` folder or the ZIP. Do not upload `node_modules`, `dist` or `.git`.
+4. Before committing, confirm these new paths: `shared/maps/types.ts`, `shared/maps/central-plaza.ts`, `shared/traversal.ts`, `src/environment.ts`, `src/Minimap.tsx`, `tests/traversal.test.ts`. Also confirm the updated `server/rooms.ts`; both server and client must receive this update together.
+5. Commit message: `Add Step 2 Stage 3 Central Plaza map`.
+6. Wait for the existing Render auto-deploy. If disabled, open the existing service and choose Manual Deploy → Deploy latest commit. Keep build `npm ci --include=dev && npm run build`, start `npm start`, and existing environment/root-directory settings. No new service or account is needed.
+7. Wait for Live and verify the new commit. Refresh all devices at https://bounty-shift.onrender.com. Redeploy resets in-memory rooms, so create a fresh room. The header should say `Step 2 · Central Plaza` and the minimap should appear. Do not leave an older client tab running against the updated map/height protocol.
 
-1. Open the existing Bounty Shift Web Service in the Render dashboard.
-2. Auto-deploy should run after the GitHub commit. If disabled, choose Manual Deploy → Deploy latest commit.
-3. Keep build `npm ci --include=dev && npm run build`, start `npm start`, `NODE_ENV=production`, and existing service/root-directory settings. No configuration or billing changes are needed. The existing Three.js dependency and lockfile are unchanged by this layout correction.
-4. Wait for Live and confirm Render shows the new commit.
-5. Reload both devices at https://bounty-shift.onrender.com. Existing rooms expire on redeploy; create a fresh room.
-6. Confirm the header says `Step 2 · Third-person prototype`. https://bounty-shift.onrender.com/health should report `{"ok":true,"phase":6}`.
+## Public-device acceptance checklist
 
-## Step 2 public-device acceptance checklist
+Start with two separate devices, ideally on different networks; repeat with at least three players when practical.
 
-Reload every device after deployment. A full match takes about 4 minutes 40 seconds. Test first with two devices, then at least three players where practical. This is the public acceptance gate for the first third-person version.
+- Create/join, ready up and start with existing host controls. Check separate safe spawns, correct private targets, initial health/resources and the minimap.
+- From South Terminal, reach Central Plaza, West Depot and East Storage using main and side routes. Use cover to break sightlines. Confirm solid buildings block movement and open lanes remain open.
+- Ascend west stairs, cross the North Bridge to the east catwalk and descend the east ramp. Try the central north stairs in both directions. Sprint/dash on slopes and decks: no height jumps, sinking, falling through floors, edge escape or wall clipping. Walk underneath a deck on the ground where clearance permits.
+- Orbit/tilt while stationary and while climbing. Test near-wall camera compression/recovery. Confirm remote players' positions/facing/height agree on both devices.
+- Check your cyan minimap arrow follows actual horizontal position and facing on ground and high ground; opponents never appear on it.
+- Test camera-facing melee on ground, on a slope and on the upper route. Out-of-range, wall/deck-blocked and wrong-elevation hits must fail. Both devices must agree on damage, KO and Bounty credit. A non-target KO still earns zero objective credit.
+- KO and respawn: valid ground spawn, full health, protection, existing cooldown/reset behavior, target and score retention. Refresh while elevated/damaged/KO and reconnect within grace; there must be no duplicate body or reset score.
+- Finish the full three-round match. Confirm synchronized expiry/intermission, fresh spawns/health/round scores, persistent match totals, refreshed private targets, final winner/tie and host lobby return. Start a fresh second match and verify old state is cleared.
+- Test host disconnect/migration and a permanent target departure with three players. With fewer than two remaining, play must end cleanly.
+- On a physical phone, stand still and swipe to look; simultaneously use the left joystick and right look region. Test touch Sprint/Dash/Attack, all ramps and turns, release/cancel/app switch and portrait/landscape. The minimap must not obstruct controls.
+- Resize desktop and rotate mobile: header, target/timer, arena, bottom HUD and buttons remain visible together with no page scrolling or zoom adjustment.
 
-First use two devices on the same public URL, ideally on different networks. Then repeat objective tests with 3–6 players.
+## Performance and remaining limits
 
-- Create/join, verify room code, host, ready requirements, and host-only start.
-- Both players spawn with 100 health, full stamina, and available dash. Each sees only their own target HUD; neither targets themselves. In two-player mode each targets the other.
-- Walking, sprint/stamina, dash cooldown, camera, map collision, and movement synchronization still work.
-- Land a normal hit: both screens agree on health. Wall-blocked and out-of-range attacks still miss; cooldown still applies.
-- KO your assigned target: your elimination count increases exactly once. The other player sees KO and respawns after five seconds. Your private target updates without a self-target.
-- In two-player mode, confirm the same opponent remains the target after success and can be hunted again after protection expires.
-- With at least three players, KO a non-target: health/KO works, but your objective count does not increase and your target stays unchanged.
-- Test sprint/dash while attacking, mutual lethal attacks, and two attackers hitting one victim. Compare counts and health across devices.
-- Refresh during an active round, after earning credit, and during KO. Reconnect within ten seconds should preserve identity, target, credit, health, and countdown.
-- Let round 1 expire. Both screens enter intermission together, with identical counts/ranks and a synchronized NEXT ROUND countdown. Movement and attacks cannot alter results.
-- Confirm round 2 starts automatically after five seconds: fresh health/spawn/stamina/dash, round score zero, match total preserved, valid private targets. Repeat for round 3.
-- After round 3 verify MATCH COMPLETE, identical total scores and final placements, correct winner or shared tie (including all-zero scores). Wait longer than five seconds: final results must remain. Host returns to lobby, then start a fresh second match: all counts and history are cleared.
-- Refresh during intermission: same match, round, countdown, and totals return without duplicate players. Host returns everyone to lobby mid-round or intermission; ready states/targets/KO clear. Test host reconnect/transfer and a permanent target departure with three players; affected targets repair without free credit.
-- With two players, let one leave permanently: the remaining player returns to lobby cleanly.
-- In the lobby, refresh a non-host and host; check identity, host migration, and ready requirements. Reconnected players need to ready again in lobby.
-- Refresh while damaged, after scoring, during KO, shortly after protected respawn, in rounds 2/3, and on Match Complete. Check unchanged identities, health, targets, counts, deadlines, and final results. No duplicate bodies or host takeover.
-- Open a duplicate tab: the original player remains intact. The duplicate waits briefly and shows a controlled conflict if the original stays connected. Close the original and retry within the grace window to recover the same player.
-- Briefly interrupt one device's network and restore it. Old-connection cleanup may show Recovering session before resuming. Longer interruptions may exceed the reconnect window; the other player's room must stay healthy.
-- On mobile widths around 320–390px, check accessible buttons and uncut HUD/results. Hold direction plus Sprint, tap Dash/Attack, cancel a touch by dragging/releasing outside, then switch apps briefly; movement must stop when controls release or the tab loses focus.
-- After everyone leaves or disconnects past grace, the room code must stop accepting joins. Create a new room and complete a fresh match without leftover scores or players.
+Static decorative boxes/trim/skyline are instanced by cached material. Main collision meshes remain individually available to camera ray checks. Unit geometries, signs and materials are reused; floor/sign textures are generated locally. No large asset downloads, additional dependencies, heavy reflection/bloom/shadow systems or extra real-time lights were added. Resources are disposed when leaving/changing the arena, and the minimap shares the existing animation loop.
 
-Step 2 is ready for deployment/testing, not publicly accepted until this checklist passes. Report device/browser, the inputs used, and what each screen showed.
+This is a procedural playable interpretation of the concept, not final environment/character art. Vertical traversal is supported surfaces/ramps rather than general jumping/falling physics. Camera compression in tight spaces and real-phone frame rate still need public playtesting. WebGL/hardware acceleration is required. Existing single-instance in-memory hosting/restart limits, ten-second reconnect window and melee without latency rewind remain unchanged. Only Central Plaza is playable; future maps, random selection, radar and further gameplay features are not implemented.
 
-## Validation and known limits
-
-The production build and 57 automated tests pass, including actual independent WebSocket clients. Tests cover prior movement/combat regressions plus 2–6 private assignments, no self-targets, target/non-target credit, reassignment, mutual and multiple lethal contributors, protected respawn, expiration freeze, shared-rank results, reconnect state, permanent departure repair, and lobby reset.
-
-A local Chromium/WebGL smoke test passed with two independent browser sessions: scene rendering, camera-relative forward movement, view rotation, sprint/dash, reticle melee, synchronized health, refresh recovery, 11 viewport sizes with no horizontal/vertical overflow or clipped gameplay panels, all three round transitions, final results, and host lobby reset. Desktop/mobile screenshots were inspected. The browser test advances server time to test transitions; it does not replace a full-duration public match on real devices.
-
-## Step 2 public visual/control checks
-
-- Local avatar is visible from behind with cyan accents; the Bounty has gold accents. Names and health bars render in-world and disappear behind solid geometry.
-- Right-drag / Q E / touch Turn L/R rotate smoothly. Forward movement follows the new view; diagonal speed is normalized. Orbit at walls/corners and verify the camera pulls forward rather than showing inside a building.
-- Walk the current map routes and locate South Terminal, Central Plaza, West Storage, East Storage, and Workshop signage. Decorative façade panels are closed, not walkable doors.
-- Meet within melee distance, aim the center reticle, and use Click/F/Attack. Check wall misses, health, KO/respawn, score, and protection on both devices.
-- Complete a real three-round match, refresh during play and intermission, then return to lobby/start fresh. Test 3–6 players and phones where possible.
-- On actual touch devices, hold direction plus Sprint, turn, dash, attack, release outside buttons, and switch apps briefly. Confirm no stuck movement. Software browser layout checks do not certify physical touch behavior.
-
-## Remaining limitations and next follow-ups
-
-WebGL 2/hardware acceleration is required; failure shows a controlled graphics message, not a 2D fallback. The Three.js vendor chunk triggers Vite's advisory size warning; production compilation succeeds. Floor sheen comes from materials and painted lighting, not real mirrored players/buildings. No bloom, expensive shadows, final assets, camera pitch/orbit zoom, weapons, radar, or advanced animation pass.
-
-Near-wall camera compression can reduce visibility; this needs real-device playtesting. Mobile controls remain prototype buttons; the match view now fits the viewport, including portrait touch controls. Local aim pose is not replicated as an idle remote pose. Existing map/spawn locations are preserved, so they do not reproduce the concept's exact plaza composition. We should tune camera distance/framing and touch ergonomics after owner testing, then separately design the arena/characters/combat presentation.
-
-In-memory rooms/scores disappear on restart. Ten-second server-observed reconnect grace remains finite. Melee uses current server positions without latency rewind. All positions/health remain public; private target relationships remain recipient-only. Keep one server instance. The Step 1 audit remains in `FOUNDATION_AUDIT.md`.
-
-## Challenge deadline
-
-October 31, 2026 at 11:59 PM Pacific. Final submission needs title, public URL, and preview screenshot. This match-flow milestone is not the final submission. This is the first Step 2 presentation milestone; further redesign awaits owner feedback.
+The next step is owner testing and fixing Map 1 issues. Map 2 work waits for a separate instruction. Challenge deadline: October 31, 2026 at 11:59 PM Pacific; final submission needs the project title, public link and preview image.

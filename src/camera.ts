@@ -3,10 +3,10 @@ import { WORLD } from '../shared/map';
 import { VIEW, CONTROLLER } from '../shared/presentation';
 
 // A small five-ray camera footprint protects the near plane at wall corners.
-export function constrainOrbit(point:THREE.Vector3,target:THREE.Vector3,solids:THREE.Object3D[],ray=new THREE.Raycaster()){
- point.x=THREE.MathUtils.clamp(point.x,.15,WORLD.width*VIEW.scale-.15);
- point.z=THREE.MathUtils.clamp(point.z,.15,WORLD.height*VIEW.scale-.15);
- point.y=Math.max(CONTROLLER.floorClearance,point.y);
+export function constrainOrbit(point:THREE.Vector3,target:THREE.Vector3,solids:THREE.Object3D[],ray=new THREE.Raycaster(),bounds=WORLD,floorElevation=0){
+ point.x=THREE.MathUtils.clamp(point.x,.15,bounds.width*VIEW.scale-.15);
+ point.z=THREE.MathUtils.clamp(point.z,.15,bounds.height*VIEW.scale-.15);
+ point.y=Math.max(floorElevation+CONTROLLER.floorClearance,point.y);
  const direction=point.clone().sub(target),length=direction.length();if(length<.01)return;
  direction.normalize();let distance=length;
  for(const [x,y] of [[0,0],[.15,0],[-.15,0],[0,.15],[0,-.15]]){

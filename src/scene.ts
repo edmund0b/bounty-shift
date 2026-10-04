@@ -1,13 +1,15 @@
 import * as THREE from 'three';
-import { BUILDINGS, WORLD, PLAZA } from '../shared/map';
+import { ACTIVE_MAP, type MapDefinition } from '../shared/map';
+import {buildEnvironment} from './environment';
+import {displayElevation} from '../shared/traversal';
 import { ARENA, isWalkable, type Motion, type RoomView } from '../shared/game';
 import { COMBAT } from '../shared/combat';
 import { VIEW, cameraAim, CONTROLLER, smoothAngle } from '../shared/presentation';
 import { constrainOrbit } from './camera';
 
 const S=VIEW.scale;
-type Avatar={group:THREE.Group;limbs:THREE.Group[];materials:THREE.MeshStandardMaterial[];label:THREE.Sprite;labelCanvas:HTMLCanvasElement;labelTexture:THREE.CanvasTexture;ring:THREE.Mesh;arc:THREE.Mesh;lastLabel:string;version:number;x:number;z:number};
-export function createArenaScene(canvas:HTMLCanvasElement){
+type Avatar={group:THREE.Group;limbs:THREE.Group[];materials:THREE.MeshStandardMaterial[];label:THREE.Sprite;labelCanvas:HTMLCanvasElement;labelTexture:THREE.CanvasTexture;ring:THREE.Mesh;arc:THREE.Mesh;lastLabel:string;version:number;x:number;z:number;elevation:number};
+export function createArenaScene(canvas:HTMLCanvasElement,map:MapDefinition=ACTIVE_MAP){
  const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));renderer.outputColorSpace=THREE.SRGBColorSpace;
  renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;
@@ -19,45 +21,9 @@ export function createArenaScene(canvas:HTMLCanvasElement){
  const resources=new Set<{dispose:()=>void}>(),solids:THREE.Mesh[]=[],avatars=new Map<string,Avatar>();
  const track=<T extends {dispose:()=>void}>(r:T):T=>{resources.add(r);return r;};
  const material=(color:string,glow=false)=>track(new THREE.MeshStandardMaterial({color,roughness:glow?.35:.55,metalness:.45,emissive:glow?color:'#000000',emissiveIntensity:glow?2:0}));
- const stone=material('#263c55'),cap=material('#22354c'),dark=material('#070f1b'),blue=material('#37deff',true),pink=material('#f379ee',true);
  const cube=track(new THREE.BoxGeometry(1,1,1));
  const box=(parent:THREE.Object3D,x:number,y:number,z:number,w:number,h:number,d:number,mat:THREE.Material)=>{const mesh=new THREE.Mesh(cube,mat);mesh.position.set(x,y,z);mesh.scale.set(w,h,d);parent.add(mesh);return mesh;};
- const labelTexture=(text:string,color:string)=>{
-  const c=document.createElement('canvas');c.width=1024;c.height=192;const ctx=c.getContext('2d')!;
-  ctx.fillStyle='#081523';ctx.fillRect(0,0,c.width,c.height);ctx.strokeStyle=color;ctx.lineWidth=8;ctx.strokeRect(4,4,1016,184);
-  ctx.fillStyle='#e2f5ff';ctx.textAlign='center';ctx.font=`600 ${text.length>15?52:64}px Arial`;ctx.fillText(text,512,109);
-  ctx.fillStyle=color;ctx.fillRect(330,140,364,5);const texture=track(new THREE.CanvasTexture(c));texture.colorSpace=THREE.SRGBColorSpace;return texture;
- };
- const sign=(text:string,x:number,z:number,width:number,yaw:number,color:string,y=3.4)=>{
-  const mat=track(new THREE.MeshBasicMaterial({map:labelTexture(text,color),side:THREE.DoubleSide}));
-  const mesh=new THREE.Mesh(track(new THREE.PlaneGeometry(width,width*192/1024)),mat);mesh.position.set(x,y,z);mesh.rotation.y=yaw;scene.add(mesh);
- };
- // A painted floor texture provides restrained lane highlights without reflection passes.
- const floorCanvas=document.createElement('canvas');floorCanvas.width=2048;floorCanvas.height=1475;const ctx=floorCanvas.getContext('2d')!;
- ctx.fillStyle='#122337';ctx.fillRect(0,0,2048,1475);const fx=2048/WORLD.width,fy=1475/WORLD.height;
- ctx.strokeStyle='#263b52';ctx.lineWidth=2;for(let x=0;x<WORLD.width;x+=80){ctx.beginPath();ctx.moveTo(x*fx,0);ctx.lineTo(x*fx,1475);ctx.stroke();}for(let y=0;y<WORLD.height;y+=80){ctx.beginPath();ctx.moveTo(0,y*fy);ctx.lineTo(2048,y*fy);ctx.stroke();}
- ctx.strokeStyle='#41728b';ctx.lineWidth=4;ctx.strokeRect(PLAZA.x*fx,PLAZA.y*fy,PLAZA.width*fx,PLAZA.height*fy);
- for(const [x,c] of [[120,'#38718a'],[720,'#3c91aa'],[1380,'#795e9e'],[1880,'#416a94']] as const){ctx.strokeStyle=c;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x*fx,0);ctx.lineTo(x*fx,1475);ctx.stroke();}
- ctx.setLineDash([12,30]);ctx.strokeStyle='#688198';ctx.beginPath();ctx.moveTo(0,720*fy);ctx.lineTo(2048,720*fy);ctx.stroke();ctx.setLineDash([]);
- const floorTexture=track(new THREE.CanvasTexture(floorCanvas));floorTexture.colorSpace=THREE.SRGBColorSpace;
- const floor=new THREE.Mesh(track(new THREE.PlaneGeometry(WORLD.width*S,WORLD.height*S)),track(new THREE.MeshStandardMaterial({map:floorTexture,color:'#ffffff',roughness:.3,metalness:.6})));floor.rotation.x=-Math.PI/2;floor.position.set(WORLD.width*S/2,0,WORLD.height*S/2);scene.add(floor);
- for(const [i,b] of BUILDINGS.entries()){
-  const x=(b.x+b.width/2)*S,z=(b.y+b.height/2)*S,w=b.width*S,d=b.height*S,h=b.name?5.2+(i%3)*1.1:1.7;
-  const neon=i>=5?pink:blue;const solid=box(scene,x,h/2,z,w,h,d,stone);solids.push(solid);
-  box(scene,x,h+.15,z,w+.06,.3,d+.06,cap);
-  for(const zz of [z-d/2-.025,z+d/2+.025]){box(scene,x,.12,zz,w,.055,.055,neon);box(scene,x,h-.12,zz,w,.055,.055,neon);box(scene,x,1.9,zz,w-.5,.03,.03,neon);}
-  for(const xx of [x-w/2-.025,x+w/2+.025]){box(scene,xx,.12,z,.055,.055,d,neon);box(scene,xx,h/2,z,.055,h,.055,neon);}
-  if(b.name){const text=b.name==='SIGNAL STATION'?'CENTRAL PLAZA':b.name;const color=i>=5?'#f58df0':'#65e6ff';
-   sign(text,x,z+d/2+.04,Math.min(w-.6,9),0,color);sign(text,x,z-d/2-.04,Math.min(w-.6,9),Math.PI,color);
-   sign(text,x-w/2-.04,z,Math.min(d-.6,7),-Math.PI/2,color);sign(text,x+w/2+.04,z,Math.min(d-.6,7),Math.PI/2,color);
-   // Closed façade panels are decorative, never additional walkable doors.
-   for(const zz of [z-d/2-.06,z+d/2+.06]){box(scene,x,1.05,zz,1.8,2.1,.045,dark);box(scene,x,2.16,zz,1.9,.045,.07,neon);}
-  }
- }
- // Boundary curbs exactly enclose the authoritative playfield. Skyline stays outside it.
- for(const z of [0,WORLD.height*S])box(scene,WORLD.width*S/2,.3,z,WORLD.width*S,.6,.15,blue);
- for(const x of [0,WORLD.width*S])box(scene,x,.3,WORLD.height*S/2,.15,.6,WORLD.height*S,blue);
- for(let i=0;i<14;i++){const h=8+(i*7%12);box(scene,i*5-3,h/2,-5,3,h,3,stone);box(scene,i*5-3,h/2,WORLD.height*S+5,3,h,3,stone);}
+ const environment=buildEnvironment(scene,map);solids.push(...environment.solids as THREE.Mesh[]);
  const limbGeometry=track(new THREE.BoxGeometry(1,1,1));
  const makeAvatar=(id:string,color:string):Avatar=>{
   const group=new THREE.Group();scene.add(group);const armor=track(new THREE.MeshStandardMaterial({color:'#385772',roughness:.8,metalness:.2}));const glow=material(color,true);const mats=[armor,glow];
@@ -71,25 +37,25 @@ export function createArenaScene(canvas:HTMLCanvasElement){
   const arc=new THREE.Mesh(track(new THREE.RingGeometry(.6,COMBAT.range*S,32,1,-COMBAT.halfAngle,COMBAT.halfAngle*2)),track(new THREE.MeshBasicMaterial({color:'#bdeeff',transparent:true,opacity:.3,side:THREE.DoubleSide})));arc.rotation.x=-Math.PI/2;arc.rotation.z=-Math.PI/2;arc.position.y=.06;arc.visible=false;group.add(arc);
   const c=document.createElement('canvas');c.width=512;c.height=128;const t=track(new THREE.CanvasTexture(c));t.colorSpace=THREE.SRGBColorSpace;
   const label=new THREE.Sprite(track(new THREE.SpriteMaterial({map:t,depthTest:true,transparent:true})));label.position.y=2.25;label.scale.set(2.4,.6,1);group.add(label);
-  const a={group,limbs,materials:mats,label,labelCanvas:c,labelTexture:t,ring,arc,lastLabel:'',version:-1,x:0,z:0};avatars.set(id,a);return a;
+  const a={group,limbs,materials:mats,label,labelCanvas:c,labelTexture:t,ring,arc,lastLabel:'',version:-1,x:0,z:0,elevation:0};avatars.set(id,a);return a;
  };
  scene.updateMatrixWorld(true);
- const ray=new THREE.Raycaster(),target=new THREE.Vector3(),desired=new THREE.Vector3(),look=new THREE.Vector3();let first=true,lastWidth=0,lastHeight=0;
- const constrainCamera=(point:THREE.Vector3)=>constrainOrbit(point,target,solids,ray);
+ const ray=new THREE.Raycaster(),target=new THREE.Vector3(),desired=new THREE.Vector3(),look=new THREE.Vector3();let first=true,lastWidth=0,lastHeight=0,floorElevation=0;
+ const constrainCamera=(point:THREE.Vector3)=>constrainOrbit(point,target,solids,ray,map.bounds,floorElevation);
  function update(room:RoomView,id:string,predicted:Motion|null,yaw:number,pitch:number,dt:number,time:number){
   const width=canvas.clientWidth,height=canvas.clientHeight;if(!width||!height)return;
   if(lastWidth!==width||lastHeight!==height){lastWidth=width;lastHeight=height;renderer.setSize(width,height,false);camera.aspect=width/height;camera.updateProjectionMatrix();}
-  const self=room.players.find(p=>p.id===id);if(!self)return;const local=predicted||self,aim=cameraAim(yaw);
-  target.set(local.x*S,CONTROLLER.lookHeight,local.y*S);const orbit=VIEW.cameraDistance*Math.cos(pitch);desired.set(target.x-aim.x*orbit+Math.cos(yaw)*VIEW.shoulder,Math.max(CONTROLLER.floorClearance,target.y+CONTROLLER.cameraLift-Math.sin(pitch)*VIEW.cameraDistance),target.z-aim.y*orbit+Math.sin(yaw)*VIEW.shoulder);constrainCamera(desired);
+  const self=room.players.find(p=>p.id===id);if(!self)return;const local=predicted||self,aim=cameraAim(yaw);floorElevation=(local.elevation??0)*S;
+  target.set(local.x*S,(local.elevation??0)*S+CONTROLLER.lookHeight,local.y*S);const orbit=VIEW.cameraDistance*Math.cos(pitch);desired.set(target.x-aim.x*orbit+Math.cos(yaw)*VIEW.shoulder,Math.max(floorElevation+CONTROLLER.floorClearance,target.y+CONTROLLER.cameraLift-Math.sin(pitch)*VIEW.cameraDistance),target.z-aim.y*orbit+Math.sin(yaw)*VIEW.shoulder);constrainCamera(desired);
   if(first){camera.position.copy(desired);first=false;}else camera.position.lerp(desired,1-Math.exp(-dt*CONTROLLER.cameraSmoothing));constrainCamera(camera.position);
   look.set(target.x+aim.x*4.2*Math.cos(pitch),target.y+Math.sin(pitch)*4.2,target.z+aim.y*4.2*Math.cos(pitch));camera.lookAt(look);
   const ids=new Set(room.players.map(p=>p.id));for(const [key,a] of avatars)if(!ids.has(key)){scene.remove(a.group);avatars.delete(key);}
   for(const p of room.players){
    const color=p.id===id?'#46e7ff':p.id===room.objective.target?.id?'#f8d94a':p.color;
    const a=avatars.get(p.id)||makeAvatar(p.id,color),pos=p.id===id?local:p;
-   const oldX=a.x,oldZ=a.z;if(a.version!==p.spawnVersion||p.id===id){a.x=pos.x*S;a.z=pos.y*S;a.version=p.spawnVersion;}else{const f=1-Math.exp(-dt*18);const candidate={x:a.x/S+(p.x-a.x/S)*f,y:a.z/S+(p.y-a.z/S)*f};if(Math.hypot(a.x-p.x*S,a.z-p.y*S)<=180*S&&isWalkable(candidate)){a.x=candidate.x*S;a.z=candidate.y*S;}else{a.x=p.x*S;a.z=p.y*S;}}
-   a.group.position.set(a.x,p.health===0?-.65:0,a.z);const facing=p.attackFlash>0?{x:p.attackX,y:p.attackY}:{x:pos.facingX,y:pos.facingY};a.group.rotation.y=smoothAngle(a.group.rotation.y,Math.atan2(facing.x,facing.y),CONTROLLER.avatarTurnSpeed,dt);a.arc.rotation.z=-Math.PI/2+(p.attackFlash>0?Math.atan2(p.attackX,p.attackY)-a.group.rotation.y:0);
-   a.materials[1].color.set(p.hitFlash>0?'#ffffff':color);a.materials[1].emissive.set(p.hitFlash>0?'#ffffff':color);for(const mat of a.materials){mat.transparent=p.id===id&&camera.position.distanceTo(target)<1.25;mat.opacity=mat.transparent?.18:1;}
+   const oldX=a.x,oldZ=a.z;if(a.version!==p.spawnVersion||p.id===id){a.x=pos.x*S;a.z=pos.y*S;a.elevation=pos.elevation??0;a.version=p.spawnVersion;}else{const f=1-Math.exp(-dt*18);const candidate={x:a.x/S+(p.x-a.x/S)*f,y:a.z/S+(p.y-a.z/S)*f,elevation:0};const height=displayElevation(candidate,a.elevation+(p.elevation-a.elevation)*f,map);candidate.elevation=height??p.elevation;if(Math.hypot(a.x-p.x*S,a.z-p.y*S)<=180*S&&height!==null&&isWalkable(candidate,map)){a.x=candidate.x*S;a.z=candidate.y*S;a.elevation=candidate.elevation;}else{a.x=p.x*S;a.z=p.y*S;a.elevation=p.elevation;}}
+   a.group.position.set(a.x,a.elevation*S+(p.health===0?-.65:0),a.z);const facing=p.attackFlash>0?{x:p.attackX,y:p.attackY}:{x:pos.facingX,y:pos.facingY};a.group.rotation.y=smoothAngle(a.group.rotation.y,Math.atan2(facing.x,facing.y),CONTROLLER.avatarTurnSpeed,dt);a.arc.rotation.z=-Math.PI/2+(p.attackFlash>0?Math.atan2(p.attackX,p.attackY)-a.group.rotation.y:0);
+   a.materials[1].color.set(p.hitFlash>0?'#ffffff':color);a.materials[1].emissive.set(p.hitFlash>0?'#ffffff':color);for(const mat of a.materials){mat.transparent=p.id===id&&camera.position.distanceTo(target)<CONTROLLER.avatarFadeDistance;mat.opacity=mat.transparent?.18:1;}
    a.materials[0].color.set(p.health===0?'#141a25':p.hitFlash>0?'#d7f5ff':p.id===room.objective.target?.id?'#635931':'#385772');
    (a.ring.material as THREE.MeshBasicMaterial).color.set(p.protection>0?'#f8d94a':color);a.ring.visible=p.id===id||p.id===room.objective.target?.id||p.protection>0;a.arc.visible=p.attackFlash>0;
    // Simple articulation is movement feedback, not final character animation.
@@ -98,5 +64,5 @@ export function createArenaScene(canvas:HTMLCanvasElement){
   }
   renderer.render(scene,camera);
  }
- return {update,dispose(){for(const r of resources)r.dispose();resources.clear();avatars.clear();renderer.dispose();}};
+ return {update,dispose(){for(const r of resources)r.dispose();resources.clear();avatars.clear();environment.dispose();renderer.dispose();}};
 }

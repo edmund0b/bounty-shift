@@ -12,7 +12,7 @@ export const CONTROLLER = {
  minPitch:-55*Math.PI/180, maxPitch:70*Math.PI/180, defaultPitch:-0.18,
  lookSmoothing:30, avatarTurnSpeed:14, cameraSmoothing:18,
  lookHeight:1.3, cameraLift:0.85, floorClearance:0.35,
- obstructionPadding:0.32, joystickRadius:42, joystickDeadzone:0.12,
+ obstructionPadding:0.32, avatarFadeDistance:2, joystickRadius:42, joystickDeadzone:0.12,
 };
 export type CameraControl={targetYaw:number;targetPitch:number;pitch:number};
 export function clampPitch(pitch:number){return Math.max(CONTROLLER.minPitch,Math.min(CONTROLLER.maxPitch,pitch));}
