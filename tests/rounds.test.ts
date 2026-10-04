@@ -52,12 +52,12 @@ test('multiple lethal contributors award at most one completion with stable fina
  Object.assign(a,{id:'a',x:1000,y:700,targetId:c.id});Object.assign(b,{id:'b',x:1000,y:740,targetId:c.id});Object.assign(c,{x:1040,y:720,health:50});
  f.attack(0);f.attack(1);f.tick();assert.equal(c.health,0);assert.equal(a.eliminations,0);assert.equal(b.eliminations,1);
 });
-test('deadline rejects pending damage, freezes movement, publishes tied results, then resets lobby',()=>{
+test('deadline rejects pending damage, freezes movement, publishes tied results, then starts the next round',()=>{
  const f=fixture(3);const [a,b,c]=f.room.players;a.eliminations=2;b.eliminations=2;c.eliminations=0;f.arrange();b.health=25;f.attack(0);
- f.server.tick(f.room.round.endsAt);assert.equal(f.room.phase,'results');assert.equal(b.health,25);assert.equal(a.eliminations,2);assert.deepEqual(f.room.round.results.map(p=>p.rank),[1,1,3]);
+ f.server.tick(f.room.round.endsAt);assert.equal(f.room.phase,'intermission');assert.equal(b.health,25);assert.equal(a.eliminations,2);assert.deepEqual(f.room.round.results.map(p=>p.rank),[1,1,3]);
  const state=f.room.players.map(p=>({x:p.x,y:p.y,health:p.health}));
  f.send(0,{type:'input',seq:a.seq+1,dx:1,dy:1,sprint:true,dashId:1,attackId:2});f.server.tick(f.room.round.endsAt+1000);assert.deepEqual(f.room.players.map(p=>({x:p.x,y:p.y,health:p.health})),state);
- f.server.tick(f.room.round.returnAt);assert.equal(f.room.phase,'lobby');assert(f.room.players.every(p=>!p.ready&&p.targetId===null&&p.eliminations===0));assert.deepEqual(f.room.round.results,[]);
+ f.server.tick(f.room.round.returnAt);assert.equal(f.room.phase,'arena');assert.equal(f.room.match.roundNumber,2);f.send(0,{type:'lobby'});assert.equal(f.room.phase,'lobby');assert(f.room.players.every(p=>!p.ready&&p.targetId===null&&p.eliminations===0));assert.deepEqual(f.room.round.results,[]);
  for(let i=0;i<3;i++)f.send(i,{type:'ready',ready:true});f.send(0,{type:'start'});assert.equal(f.room.phase,'arena');assert(f.room.players.every(p=>p.health===100&&p.targetId&&p.eliminations===0));
 });
 test('reconnect keeps own private target and score; departure repairs targets and host return clears round',()=>{

@@ -33,7 +33,7 @@ test('wall corner blocks an otherwise in-range server attack',()=>{
 });
 test('KO freezes walking, sprint, dash and attack; safe protected respawn follows five seconds',()=>{
  const f=fixture();for(let i=0;i<4;i++){f.attack(0);f.ticks();if(i<3)f.ticks(20);}const target=f.players[1];assert.equal(target.health,0);assert.equal(target.koRemaining,5);
- const x=target.x,y=target.y;f.attack(1,-1,0,{dx:1,dy:1,sprint:true,dashId:1});f.ticks(149);assert.equal(target.x,x);assert.equal(target.y,y);assert.equal(f.players[0].health,100);assert.equal(target.health,0);f.ticks();assert.equal(target.health,100);assert.equal(target.koRemaining,0);assert.equal(target.protection,1.5);assert.equal(target.spawnVersion,1);assert(isWalkable(target));assert.equal(target.stamina,100);assert.equal(target.attackCooldown,0);
+ const x=target.x,y=target.y;f.attack(1,-1,0,{dx:1,dy:1,sprint:true,dashId:1});f.ticks(149);assert.equal(target.x,x);assert.equal(target.y,y);assert.equal(f.players[0].health,100);assert.equal(target.health,0);f.ticks();assert.equal(target.health,100);assert.equal(target.koRemaining,0);assert.equal(target.protection,1.5);assert.equal(target.spawnVersion,2);assert(isWalkable(target));assert.equal(target.stamina,100);assert.equal(target.attackCooldown,0);
  // Hit protection blocks damage, but the protected player's own valid swing ends it.
  f.players[0].x=target.x-40;f.players[0].y=target.y;f.attack(0);f.ticks();assert.equal(target.health,100);f.attack(1,-1,0);f.ticks();assert.equal(target.protection,0);assert.equal(f.players[0].health,75);
 });

@@ -23,7 +23,7 @@ export async function createGameServer(production = process.env.NODE_ENV==='prod
   ws.on('close',()=>{clearInterval(heartbeat);rooms.disconnect(ws);});ws.on('error',()=>{});
  });
  const timer=setInterval(()=>rooms.tick(),1000/30);
- app.get('/health',(_req,res)=>res.json({ok:true,phase:4}));
+ app.get('/health',(_req,res)=>res.json({ok:true,phase:5}));
  let vite: any;
  if(production){const here=dirname(fileURLToPath(import.meta.url));app.use(express.static(resolve(here,'../dist/client')));app.get('/',(_req,res)=>res.sendFile(resolve(here,'../dist/client/index.html')));}
  else {const {createServer}=await import('vite');vite=await createServer({server:{middlewareMode:true,hmr:false},appType:'spa'} as any);app.use(vite.middlewares);}
@@ -31,6 +31,6 @@ export async function createGameServer(production = process.env.NODE_ENV==='prod
 }
 if(process.env.BOUNTY_TEST!=='1') {
  const game=await createGameServer();const port=Number(process.env.PORT)||3000;
- game.server.listen(port,'0.0.0.0',()=>console.log(`Bounty Shift Phase 4 listening on port ${port}`));
+ game.server.listen(port,'0.0.0.0',()=>console.log(`Bounty Shift Phase 5 listening on port ${port}`));
  for(const signal of ['SIGINT','SIGTERM'] as const)process.on(signal,()=>{void game.close().then(()=>process.exit(0));});
 }
