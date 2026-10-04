@@ -18,7 +18,7 @@ test('two independent WebSockets: lobby, authority, movement, reconnect, host tr
  const game=await createGameServer(true);await new Promise<void>(r=>game.server.listen(0,'127.0.0.1',r));const address=game.server.address();assert(address&&typeof address==='object');const url=`ws://127.0.0.1:${address.port}/ws`;const clients:Client[]=[];
  const connect=async()=>{const c=new Client(url);clients.push(c);await c.open();return c;};
  try{
-  const http=`http://127.0.0.1:${address.port}`;assert.deepEqual(await (await fetch(http+'/health')).json(),{ok:true,phase:1});const html=await (await fetch(http+'/')).text();assert(html.includes('Bounty Shift'));const asset=html.match(/src=\"([^\"]+\.js)\"/);assert(asset);assert.equal((await fetch(http+asset[1])).status,200);
+  const http=`http://127.0.0.1:${address.port}`;assert.deepEqual(await (await fetch(http+'/health')).json(),{ok:true,phase:2});const html=await (await fetch(http+'/')).text();assert(html.includes('Bounty Shift'));const asset=html.match(/src=\"([^\"]+\.js)\"/);assert(asset);assert.equal((await fetch(http+asset[1])).status,200);
   const a=await connect();a.send({type:'create',name:'Edmund'});const wa=await a.wait(m=>m.type==='welcome');assert(wa.type==='welcome');const code=wa.room.code;assert.match(code,/^[A-F0-9]{6}$/);assert.equal(wa.room.hostId,wa.id);
   const invalid=await connect();invalid.send({type:'join',name:'Other',code:'ZZZZZZ'});await invalid.wait(m=>m.type==='error'&&m.message.includes('Room not found'));
   invalid.send({type:'join',name:'edmund',code});await invalid.wait(m=>m.type==='error'&&m.message.includes('already'));
@@ -34,6 +34,10 @@ test('two independent WebSockets: lobby, authority, movement, reconnect, host tr
   assert.deepEqual(movedA.players,movedB.players);const finalA=movedA.players.find(p=>p.id===wa.id)!;const finalB=movedA.players.find(p=>p.id===wb.id)!;assert(finalA.x<pa.x-40);assert(finalB.y>pb.y+40);assert(finalA.x>=pa.x-120,'Movement is server-speed-limited');
   invalid.send({type:'join',name:'Late',code});await invalid.wait(m=>m.type==='error'&&m.message.includes('already running'));
   a.send({type:'input',seq:12,dx:1000,dy:0});await new Promise(r=>setTimeout(r,80));const authoritative=await b.state(r=>r.tick>movedA.tick+2);assert.equal(authoritative.players.find(p=>p.id===wa.id)!.ack,11);
+  a.messages=[];b.messages=[];
+  for(let seq=12;seq<=23;seq++){a.send({type:'input',seq,dx:0,dy:-1,sprint:true,dashId:seq<15?0:1});b.send({type:'input',seq,dx:0,dy:1,sprint:true,dashId:0});await new Promise(r=>setTimeout(r,34));}
+  a.send({type:'input',seq:24,dx:0,dy:0,sprint:false,dashId:1});b.send({type:'input',seq:24,dx:0,dy:0,sprint:false,dashId:0});
+  const abilityA=await a.state(r=>r.players.every(p=>p.ack===24));const abilityB=await b.state(r=>r.tick===abilityA.tick);assert.deepEqual(abilityA.players,abilityB.players);const dasher=abilityA.players.find(p=>p.id===wa.id)!;assert(dasher.dashCooldown>0);assert.equal(dasher.dashSeen,1);assert(dasher.y>=474,'Dash cannot cross north building');assert(abilityA.players.every(p=>p.stamina<100));
   a.close();await b.state(r=>r.hostId===wb.id&&!r.players.find(p=>p.id===wa.id)!.connected);
   const resumed=await connect();resumed.send({type:'resume',code,token:wa.token});const wr=await resumed.wait(m=>m.type==='welcome');assert(wr.type==='welcome');assert.equal(wr.id,wa.id);assert.equal(wr.room.hostId,wb.id);assert.equal(wr.room.players.length,2);
   resumed.send({type:'lobby'});await resumed.wait(m=>m.type==='error'&&m.message.includes('host'));b.send({type:'lobby'});await b.state(r=>r.phase==='lobby'&&r.players.every(p=>!p.ready));
