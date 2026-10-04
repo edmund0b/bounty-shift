@@ -1,10 +1,12 @@
-# Bounty Shift — Phase 3: Combat
+# Bounty Shift — Phase 4: Bounty Rounds
 
-An extension of the deployed Phase 1 multiplayer foundation in https://github.com/edmund0b/bounty-shift. Phase 1 was approved after the owner tested rooms, readiness, live movement, lobby return, and reconnects on separate devices. Phase 2 was deployed and approved after a public two-device test. Phase 3 extends it with health, melee, damage, knockouts, and respawning. There is still no Bounty selection, scoring, rounds, radar, sound, weapons, or final art.
+Extends the working Phase 1–3 project at https://github.com/edmund0b/bounty-shift. The public deployment remains https://bounty-shift.onrender.com. One Node.js service serves the React/Canvas frontend and WebSocket server. No dependencies, hosting settings, or multiplayer architecture were replaced.
 
-## Local quick start
+Phase 4 follows the updated individual-target rules: every player secretly hunts another player. This is different from the original single Bounty versus Hunters concept. There are no multi-round matches, radar/scans, weapons, sound, cosmetics, or final art in this milestone.
 
-Node.js 22 or newer. In the repository folder:
+## Local build and test
+
+Use Node.js 22 or newer, inside the repository folder:
 
 ```sh
 npm ci --include=dev
@@ -13,137 +15,127 @@ npm test
 npm start
 ```
 
-Open http://localhost:3000 in two independent tabs/windows. The build comes before tests because the HTTP integration test checks the production frontend assets. For development, run `npm run dev`. `PORT` overrides the default 3000. Production remains one Node.js service serving frontend and `/ws` on one URL.
+Open http://localhost:3000 in two independent browser windows. Build before testing: the integration test checks production frontend assets. For development use `npm run dev`. `PORT` overrides 3000. Production uses the same URL for the frontend and `/ws`.
 
-## Controls and test rules
+## How to play this prototype
+
+1. Create a room, share its six-character code, and have 2–6 players join.
+2. Everyone readies up; only the host can start the Bounty round.
+3. Read your private `BOUNTY: name` HUD. Nobody can target themselves.
+4. Knock out that player to earn one Bounty elimination. Knockouts of anyone else earn zero. You can still fight any opponent.
+5. After a successful Bounty knockout, your target is reassigned. With two players, it must remain the same opponent; wait for their respawn. With more players, reassignment prefers a different connected opponent, then living candidates within that group. Multiple players may hunt the same person after reassignment.
+6. Play until the server's 90-second timer expires. Movement and combat freeze; the leaderboard ranks successful Bounty eliminations. Ties share ranks (for example 1, 1, 3).
+7. Results last five seconds, then everyone returns to the lobby with readiness cleared. Ready up to play another independent round. There is no match total or automatic next round.
+
+The host can return everyone to the lobby early, cancelling the current round. If a permanent departure leaves fewer than two players during play, the round is cancelled and the remaining player returns to the lobby without a fabricated winner.
+
+## Controls and preserved movement/combat
 
 | Action | Desktop | Touch |
 | --- | --- | --- |
-| Move | WASD / arrow keys | Directional buttons |
-| Sprint | Hold Shift while moving | Hold Sprint plus a direction |
-| Dash | Press Space | Tap Dash |
-| Attack | Left click inside arena to aim at cursor; F uses movement facing | Tap Attack toward movement facing |
+| Move | WASD / arrows | Directional buttons |
+| Sprint | Hold Shift while moving | Hold Sprint plus direction |
+| Dash | Space | Tap Dash |
+| Melee | Click inside arena to aim; F attacks facing forward | Tap Attack facing forward |
 
-- 2–6 connected players; everyone, including host, must be ready.
-- Only the host starts the arena session and returns everyone to the lobby.
-- The camera follows your player (white ring), clamped at world edges. It does not show the whole map. Other players render when nearby.
-- Buildings are solid and cannot be crossed with walking, sprint, or dash. Players do not collide with one another yet.
-- Walk: 220 world pixels/second. Sprint: 330 pixels/second.
-- Stamina starts at 100, drains at 28/second while sprinting, and regenerates at 22/second after a 0.6-second delay. Exhaustion ends sprint; release Shift/Sprint before starting again. Sprinting into a wall still uses stamina.
-- Dash: 850 pixels/second for 0.18 seconds, up to 153 pixels if unobstructed, with a three-second cooldown. It follows current movement or, while idle, last facing direction. Dash does not grant invulnerability.
-- Pressing dash during cooldown is discarded, not queued. Holding Space does not repeat dash. A short line indicates an active dash; the HUD shows ACTIVE, remaining cooldown, and READY.
-- There is no winner or score in this combat test. The purpose is to validate melee, damage, knockouts, respawn, and synchronized movement.
+- Camera follows your player, shown with a white ring. Nearby other players render normally.
+- Flat 2000 × 1440 city arena: central plaza, solid buildings, alleys, cross streets, and an outside loop. No extra floors or layered tunnels.
+- Walking: 220 pixels/second. Sprint: 330. Stamina starts at 100, drains at 28/second, regenerates at 22/second after a 0.6-second delay. Release Sprint after exhaustion before sprinting again.
+- Dash: 850 pixels/second for 0.18 seconds, three-second cooldown. Same server collision as walking/sprinting; no wall clipping or dash invulnerability. Rejected cooldown presses are discarded.
+- Health: 100. Melee: 25 damage, 80-pixel center distance, 120-degree forward arc, 0.6-second cooldown. One strike hits the nearest eligible player, with walls blocking hits. A nearby non-target may intercept a strike aimed at your Bounty.
+- KO lasts five seconds and disables movement/abilities/attacks. Respawn restores health and movement resources at a valid plaza spawn with the greatest available clearance from living opponents.
+- Spawn protection lasts 1.5 seconds; the protected player's own accepted attack ends it. Initial round spawn has no protection.
+- Same-tick mutual lethal attacks can trade. For multiple attackers hitting the same victim in one tick, stable server player-ID ordering determines the final damage contributor. Exactly one attacker can receive credit for that KO, and only if that victim was their assigned target. Both mutual Bounty completions are checked before any reassignment.
+- Respawning preserves your target and round progress. Reconnecting preserves identity, target, progress, health, KO, and cooldown while the server remains alive.
+- Disconnected players remain vulnerable during the existing ten-second reconnect window. Their targets remain valid. Permanent departures repair affected targets without awarding elimination credit. Departed participants remain in the end-of-round ranking.
 
-## Phase 3 combat rules
+## Multiplayer authority and target privacy
 
-- Everyone starts at 100 health. A valid strike deals 25 damage.
-- Melee checks an 80-pixel center-to-center range and a 120-degree forward arc. Aim toward the target with a canvas click, or use F / touch Attack in the last movement-facing direction.
-- Each strike hits at most one player: the closest unprotected, living target in range and arc, with an unblocked line through the buildings. Equal distances use a stable ID tie-break.
-- All successful swings and misses use a 0.6-second cooldown. Repeated clicks during cooldown are discarded, not queued. Holding F does not auto-repeat.
-- Clients send intent only. The server owns hit detection, damage, health, cooldown, KO, and respawn. No client endpoint accepts damage or health changes.
-- Simultaneous swings are gathered from the same server tick before damage is applied. Mutual lethal attacks can both knock out their targets. Multiple attackers can damage the same target in that tick.
-- At zero health, a player is knocked out for five seconds and cannot move, sprint, dash, or attack. The camera stays with their KO position until respawn. A KO label and countdown explain the state.
-- Respawn restores full health and movement resources. It selects a collision-free plaza spawn with the greatest minimum distance to living opponents. This is a best available position, not guaranteed isolation when all spawn points are occupied.
-- Respawn protection lasts 1.5 seconds. The player cannot receive damage during protection; their own accepted attack immediately ends it. Initial session start does not grant protection.
-- Dash provides no invulnerability. Sprint and dash can accompany attacks.
-- Hit feedback is a white flash, authoritative health bars, and a brief attack arc. The arc is a range indicator and may visually overlap a building; damage is still blocked by the wall.
-- Reconnecting retains health, KO countdown, protection, and cooldown while the server is alive. Disconnected players remain vulnerable during the reconnect grace window. Returning to lobby and starting a fresh test resets combat state.
+Clients send movement, dash, and attack intent only. The server runs about 30 Hz and sends about 15 Hz authoritative snapshots. Shared movement prediction/reconciliation and remote interpolation are preserved. The server owns collision, hit detection, health, KO attribution, respawn, private targets, objective counts, deadlines, and results.
 
-## City layout
+`Player.targetId` and objective progress are server-only fields. Each outgoing state/welcome is serialized for its recipient. The public player array never includes target assignments or reconnect tokens. A client receives only its own target's ID/name and its own elimination count under `room.objective`. Completed results contain everyone's counts, but no target relationships. Positions/health remain public, as in Phase 3; this is not server fog of war.
 
-The 2000 × 1440 flat map has a central plaza, eight major building blocks, two utility structures, inner alley routes, connecting cross streets, and an outside loop. Shared spawn positions are separated and collision-free in the plaza. Buildings have simple names and colored edges to establish orientation; these are prototype geometry, not final art. The rooftop-labeled block is a solid structure, with no additional floor or jumping system. There are no layered tunnels.
+Initial assignment uses a shuffled circular order: each player receives one other player, with one incoming target relationship per player. Reassignment does not preserve that one-to-one incoming property; it only guarantees a valid non-self target. This avoids introducing permanent elimination or complicated target chains.
 
-Collision uses the player radius as clearance around rectangular buildings, with axis sliding and movement steps no larger than five pixels. Dash uses the same collision routine. Corners have slightly conservative square clearance rather than exact rounded circle contact.
+The server checks the absolute deadline before processing movement/damage on a tick. Pending attacks at or after expiry cannot earn credit. Results are a frozen server snapshot. Round constants live in `shared/rounds.ts`; no gameplay endpoint lets clients choose targets, health, damage, credit, duration, or results.
 
-## Phase 3 files changed
+## Exact Phase 4 changed files
 
-- `shared/combat.ts` (new): combat constants/types, range/arc and building line checks, safe spawn selection.
-- `shared/game.ts`: attack intent and authoritative combat fields in shared message types.
-- `server/rooms.ts`: health, cooldown, same-tick attacks/damage, KO, protected respawn, state preservation on reconnect.
-- `server/index.ts`: Phase 3 health/status labels; transport and deployment unchanged.
-- `src/main.tsx`: click/F/touch Attack, combat instructions, KO/respawn prediction resets.
-- `src/Arena.tsx`: attack arc, hit flash, health bars, KO/protection feedback, temporary combat HUD, snapping on respawn.
-- `src/style.css`: temporary combat HUD styling.
-- `tests/combat.test.ts` (new): authority, wall/range/cooldown, simultaneous damage, KO/respawn/protection, movement during combat, and reconnect coverage.
-- `tests/multiplayer.test.ts`: existing regressions plus two live clients agreeing on damage, KO, reconnect, and protected respawn.
-- `README.md`: Phase 3 rules, update procedure, acceptance checklist.
+| File | Change |
+| --- | --- |
+| `shared/rounds.ts` | New round constants and public/private round types |
+| `shared/game.ts` | Results phase and recipient objective/round snapshots |
+| `server/rooms.ts` | Private assignment, credited KO attribution, reassignment, timer/results, departure repair |
+| `server/index.ts` | Phase 4 log and health label |
+| `src/main.tsx` | Target/count/timer HUD, results screen, updated rules |
+| `src/style.css` | Temporary objective HUD style |
+| `tests/rounds.test.ts` | New target/round/privacy/credit/lifecycle coverage |
+| `tests/multiplayer.test.ts` | Phase label and real WebSocket private-target/result checks |
+| `README.md` | Rules, deployment procedure, public test checklist |
 
-`shared/map.ts`, `tests/movement.test.ts`, package dependencies, build/start commands, and deployment configuration are unchanged. The server still runs about 30 Hz with about 15 Hz snapshots. New attack request IDs are monotonically increasing and consumed once; the client never predicts damage. All combat timers and outcomes appear in authoritative snapshots. The existing shared movement prediction and reconciliation remain in use. KO and respawn clear pending movement prediction to avoid replaying old inputs at a new spawn.
+`shared/map.ts`, `shared/combat.ts`, `src/Arena.tsx`, movement/combat tests, package dependencies, lockfile, build commands, and deployment configuration are unchanged.
 
-## Update the existing GitHub repository
+## Upload into the existing GitHub repository
 
-Do not create a replacement repository or Render service.
+1. Download and extract `Bounty_Shift_Phase_4.zip`.
+2. Open https://github.com/edmund0b/bounty-shift and select the existing deployed branch, normally `main`.
+3. Choose Add file → Upload files.
+4. From inside the extracted `bounty-shift` folder, drag the folders `server`, `shared`, `src`, `tests`, and the file `README.md` into the upload area. Folder drag-and-drop preserves nested paths. The unchanged files inside those folders are included deliberately.
+5. Do not upload the ZIP or enclosing `bounty-shift` folder itself. Do not flatten paths. Do not upload `node_modules`, `dist`, or `.git`.
+6. Check paths include `server/rooms.ts`, `shared/rounds.ts`, `src/main.tsx`, and `tests/rounds.test.ts`. If they show only filenames or a nested `bounty-shift/server/...`, cancel and fix the upload before committing.
+7. Commit to the existing deployed branch using `Add Phase 4 bounty rounds`.
+8. Verify the new files `shared/rounds.ts` and `tests/rounds.test.ts` appear at those exact repository paths.
 
-### Browser upload method
-
-1. Download and extract the Phase 3 ZIP on your computer.
-2. Open https://github.com/edmund0b/bounty-shift and select your existing deployed branch (normally `main`).
-3. Choose **Add file → Upload files**.
-4. Drag the folders `server`, `shared`, `src`, `tests`, and `README.md` from inside the extracted folder into the upload area. Use drag-and-drop folders so their paths are retained. Do not upload the ZIP or enclosing folder. Do not upload `.git`, `node_modules`, or `dist`.
-5. Confirm the upload paths include `server/rooms.ts`, `shared/combat.ts`, `src/Arena.tsx`, and `tests/combat.test.ts`. If paths are flattened, cancel and ask for help before committing.
-6. Enter `Add Phase 3 melee combat, health and respawning`. Commit to the existing deployed branch.
-7. Confirm GitHub has those files at the same paths. Existing files should be replaced, and the two new files should be added. No deployment setting or dependency change is required.
-
-### Git method, if you already have Git installed
-
-Clone the existing repository, copy the extracted updated files into that checkout, then use:
+If using Git instead, copy those folders/file into your existing checkout, inspect changes, then:
 
 ```sh
 git status
 git add README.md server shared src tests
-git commit -m "Add Phase 3 melee combat, health and respawning"
+git commit -m "Add Phase 4 bounty rounds"
 git push origin main
 ```
 
-Use your actual deployed branch if it is not `main`. Inspect `git status` first; do not delete the repository or old commits.
+Use your actual deployed branch if different. Do not create a new repository or service.
 
-## Update the existing Render deployment
+## Redeploy the existing Render service
 
-1. Open your existing `bounty-shift` Web Service in the Render dashboard.
-2. If auto-deploy is enabled, the GitHub commit should start deployment. Otherwise choose **Manual Deploy → Deploy latest commit**.
-3. Keep the same service, Free instance, region, and public URL. Build: `npm ci --include=dev && npm run build`; start: `npm start`; `NODE_ENV=production`; root directory empty; optional health check `/health`.
-4. Wait for **Live**, and verify the deployment references the new commit.
-5. Open the public game link, which ends in `.onrender.com`. A `dashboard.render.com/...` address is the management page, not the game.
-6. Reload both devices after deployment. Previous rooms are temporary and will expire across the server restart. Create a fresh room.
-7. Confirm the screen says **Phase 3 · Combat test**. `/health` now reports `phase: 3`.
+1. Open the existing Bounty Shift Web Service in the Render dashboard.
+2. Auto-deploy should run after the GitHub commit. If disabled, choose Manual Deploy → Deploy latest commit.
+3. Keep build `npm ci --include=dev && npm run build`, start `npm start`, `NODE_ENV=production`, and existing service/root-directory settings. No configuration or billing changes are needed.
+4. Wait for Live and confirm Render shows the new commit.
+5. Reload both devices at https://bounty-shift.onrender.com. Existing rooms expire on redeploy; create a fresh room.
+6. Confirm the header says `Phase 4 · Bounty rounds`. https://bounty-shift.onrender.com/health should report `{"ok":true,"phase":4}`.
 
-## Phase 3 public multiplayer acceptance checklist
+## Public two-device acceptance checklist
 
-Use the same public URL on two devices, preferably one on Wi-Fi and one on cellular.
+First use two devices on the same public URL, ideally on different networks. Then repeat objective tests with 3–6 players.
 
-1. Create/join a room; confirm names, host, readiness, and start requirements still work.
-2. Enter the arena; confirm both players spawn in the central plaza.
-3. Move away from spawn; confirm the camera follows and map content extends beyond the view.
-4. Meet up again; confirm each screen sees the other player's movements when nearby.
-5. Try walking and sprinting into every side of a building; neither should pass through.
-6. Move diagonally against walls and corners; verify sliding without clipping or getting stuck.
-7. Hold Shift while moving; confirm increased speed and stamina drain. Release it; confirm delayed regeneration. Exhaust stamina; confirm normal movement continues and sprint resumes after release/recharge.
-8. Press Space while moving in different directions; confirm a short burst. Press again before three seconds; confirm no second dash. Wait for READY and try again.
-9. Dash directly into buildings, at corners, and along map edges; verify no wall penetration or out-of-bounds movement.
-10. Sprint/dash simultaneously near the other player. Stop and compare positions. Verify no persistent disagreement or teleporting through walls.
-11. Refresh during a cooldown; reconnect should preserve identity, health/KO, and remaining stamina/cooldown, not create a duplicate or reset abilities.
-12. Return to lobby and start again; confirm clean spawns, full stamina, and available dash.
-13. Repeat with 3–6 players when possible. On phones, check movement plus Sprint and Dash buttons.
+- Create/join, verify room code, host, ready requirements, and host-only start.
+- Both players spawn with 100 health, full stamina, and available dash. Each sees only their own target HUD; neither targets themselves. In two-player mode each targets the other.
+- Walking, sprint/stamina, dash cooldown, camera, map collision, and movement synchronization still work.
+- Land a normal hit: both screens agree on health. Wall-blocked and out-of-range attacks still miss; cooldown still applies.
+- KO your assigned target: your elimination count increases exactly once. The other player sees KO and respawns after five seconds. Your private target updates without a self-target.
+- In two-player mode, confirm the same opponent remains the target after success and can be hunted again after protection expires.
+- With at least three players, KO a non-target: health/KO works, but your objective count does not increase and your target stays unchanged.
+- Test sprint/dash while attacking, mutual lethal attacks, and two attackers hitting one victim. Compare counts and health across devices.
+- Refresh during an active round, after earning credit, and during KO. Reconnect within ten seconds should preserve identity, target, credit, health, and countdown.
+- Let the full 90 seconds expire. Both screens enter results together, with identical counts/ranks. Movement and attack inputs cannot alter the results.
+- Check ties (including everyone on zero). Results show shared ranks and return everyone to lobby after five seconds.
+- Ready/start again: health/resources/progress reset and new valid targets are assigned.
+- Host returns everyone to lobby mid-round; ready states/targets clear. Test host reconnect/transfer and a permanent target departure with three players; affected targets repair without free credit.
+- With two players, let one leave permanently: the remaining player returns to lobby cleanly.
+- On mobile, verify direction, Sprint, Dash, and Attack remain usable.
 
-14. Meet in the plaza. Aim at the other player and attack once: target health should become 75 on both screens. Spam click/F: cooldown must prevent rapid damage.
-15. Attack from beyond range or facing away: health should not change. Test opposite sides of a building corner: walls must block damage.
-16. Land four separated hits: the target reaches zero, cannot move/sprint/dash/attack, and sees the five-second KO countdown.
-17. After respawn, check full health, safe position, and the gold protection ring. Try hitting during protection; health should stay full. The protected player's accepted attack must remove protection.
-18. Sprint/dash while attacking, then test simultaneous strikes. Verify identical health/KO outcomes on both screens.
-19. Refresh after taking damage or during KO: same identity and combat state should return. Test multiple attackers with 3–6 players if available.
+Phase 4 is ready for deployment/testing, not publicly accepted until this checklist passes. Report device/browser, the inputs used, and what each screen showed.
 
-Phase 3 remains awaiting acceptance until this public test passes. Send the game URL and any issues with device/browser, input sequence, and what each screen showed. A screenshot/video of clipping or desync is useful.
+## Validation and known limits
 
-## Validation and limits
+The production build and 27 automated tests pass, including actual independent WebSocket clients. Tests cover prior movement/combat regressions plus 2–6 private assignments, no self-targets, target/non-target credit, reassignment, mutual and multiple lethal contributors, protected respawn, expiration freeze, shared-rank results, reconnect state, permanent departure repair, and lobby reset.
 
-- Automated checks cover the existing real WebSocket room flow, two-client matching snapshots with sprint/dash, six-player capacity, wall blocking from every side, fast movement collision, diagonal wall sliding, connected map routes, stamina exhaustion/recovery, dash cooldown, camera clamping, prediction agreement, ability spoof rejection, and reconnect state.
-- Browser visual/input verification is not claimed unless separately reported. A browser executable was not available during the original build workflow; public physical-device testing is the final acceptance gate.
-- All player positions are still delivered to each client, although the camera only renders nearby players. This is not server-enforced fog of war or hiding; that belongs to a later phase.
-- No player-player collision, dash invulnerability, weapons, Bounty mechanics, scoring, rounds, or role-based abilities. Melee uses current server positions without latency rewind, so high latency may produce a visible miss/correction.
-- Basic touch controls are retained, with temporary Sprint/Dash buttons. Mobile browser suspension can exceed the ten-second reconnect window.
-- Render Free may sleep or restart. Rooms disappear on server restart/redeploy. Use one server instance; no scaling/database/account infrastructure was added.
-- High latency can cause visible corrections; please report persistent jitter. Position interpolation avoids drawing a player inside a solid block by snapping to its valid authoritative position when necessary.
+Browser visual/input QA and public physical-device testing are not claimed by this build. Those remain the owner's acceptance gate. Temporary UI is intentional. No new browser dependency was introduced.
+
+Results disappear after five seconds; no history or persistent match score exists. Basic touch controls are retained. High latency can cause movement corrections and melee misses because hit detection uses current server positions without latency rewind. Render Free sleep/restarts can discard in-memory rooms. Keep one server instance. All player positions are sent to clients; no fog-of-war privacy guarantee exists yet. Target assignments themselves are recipient-private, but players can of course tell one another their targets outside the game.
 
 ## Challenge deadline
 
-October 31, 2026 at 11:59 PM Pacific. Final deliverables will be title, public game URL, and preview screenshot. This Phase 3 combat milestone is not the finished game submission.
+October 31, 2026 at 11:59 PM Pacific. Final submission needs title, public URL, and preview screenshot. This single-round milestone is not the final submission. Phase 5 has not begun.

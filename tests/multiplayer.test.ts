@@ -18,7 +18,7 @@ test('two independent WebSockets: lobby, authority, movement, reconnect, host tr
  const game=await createGameServer(true);await new Promise<void>(r=>game.server.listen(0,'127.0.0.1',r));const address=game.server.address();assert(address&&typeof address==='object');const url=`ws://127.0.0.1:${address.port}/ws`;const clients:Client[]=[];
  const connect=async()=>{const c=new Client(url);clients.push(c);await c.open();return c;};
  try{
-  const http=`http://127.0.0.1:${address.port}`;assert.deepEqual(await (await fetch(http+'/health')).json(),{ok:true,phase:3});const html=await (await fetch(http+'/')).text();assert(html.includes('Bounty Shift'));const asset=html.match(/src=\"([^\"]+\.js)\"/);assert(asset);assert.equal((await fetch(http+asset[1])).status,200);
+  const http=`http://127.0.0.1:${address.port}`;assert.deepEqual(await (await fetch(http+'/health')).json(),{ok:true,phase:4});const html=await (await fetch(http+'/')).text();assert(html.includes('Bounty Shift'));const asset=html.match(/src=\"([^\"]+\.js)\"/);assert(asset);assert.equal((await fetch(http+asset[1])).status,200);
   const a=await connect();a.send({type:'create',name:'Edmund'});const wa=await a.wait(m=>m.type==='welcome');assert(wa.type==='welcome');const code=wa.room.code;assert.match(code,/^[A-F0-9]{6}$/);assert.equal(wa.room.hostId,wa.id);
   const invalid=await connect();invalid.send({type:'join',name:'Other',code:'ZZZZZZ'});await invalid.wait(m=>m.type==='error'&&m.message.includes('Room not found'));
   invalid.send({type:'join',name:'edmund',code});await invalid.wait(m=>m.type==='error'&&m.message.includes('already'));
@@ -26,7 +26,7 @@ test('two independent WebSockets: lobby, authority, movement, reconnect, host tr
   b.send({type:'start'});await b.wait(m=>m.type==='error'&&m.message.includes('host'));
   a.send({type:'start'});await a.wait(m=>m.type==='error'&&m.message.includes('ready'));
   a.send({type:'ready',ready:true});b.send({type:'ready',ready:true});await a.state(r=>r.players.every(p=>p.ready));a.send({type:'start'});
-  const initial=await a.state(r=>r.phase==='arena');await b.state(r=>r.phase==='arena');const pa=initial.players.find(p=>p.id===wa.id)!;const pb=initial.players.find(p=>p.id===wb.id)!;
+  const initial=await a.state(r=>r.phase==='arena');const initialB=await b.state(r=>r.phase==='arena');assert.equal(initial.objective.target?.id,wb.id);assert.equal(initialB.objective.target?.id,wa.id);assert(initial.players.every(p=>!('targetId' in p)));const pa=initial.players.find(p=>p.id===wa.id)!;const pb=initial.players.find(p=>p.id===wb.id)!;
   a.messages=[];b.messages=[];
   for(let seq=1;seq<=10;seq++){a.send({type:'input',seq,dx:-1,dy:0});b.send({type:'input',seq,dx:0,dy:1});await new Promise(r=>setTimeout(r,34));}
   a.send({type:'input',seq:11,dx:0,dy:0});b.send({type:'input',seq:11,dx:0,dy:0});
@@ -72,8 +72,10 @@ test('two live WebSocket clients agree on combat, KO, reconnect, and protected r
   for(let attackId=1;attackId<=4;attackId++){
    if(attackId>1)await new Promise(r=>setTimeout(r,650));a.send({type:'input',seq:attackId,dx:0,dy:0,attackId,aimX:1,aimY:0});const health=100-attackId*25;const ra=await a.state(r=>r.players.find(p=>p.id===wb.id)?.health===health);const rb=await b.state(r=>r.tick===ra.tick);assert.deepEqual(ra.players,rb.players);
   }
+  assert.equal(room.players[0].eliminations,1);assert.equal(room.players[1].eliminations,0);
   const dead=room.players.find(p=>p.id===wb.id)!;const x=dead.x,y=dead.y;b.send({type:'input',seq:1,dx:1,dy:0,sprint:true,dashId:1,attackId:1,aimX:-1,aimY:0});await b.state(r=>r.players.find(p=>p.id===wb.id)!.ack===1);assert.equal(dead.x,x);assert.equal(dead.y,y);assert.equal(room.players[0].health,100);
   b.close();await a.state(r=>r.players.some(p=>p.id===wb.id&&!p.connected));const resumed=await connect();resumed.send({type:'resume',code:wa.room.code,token:wb.token});const welcome=await resumed.wait(m=>m.type==='welcome');assert(welcome.type==='welcome');assert.equal(welcome.id,wb.id);assert.equal(welcome.room.players.find(p=>p.id===wb.id)!.health,0);
   const respawn=await resumed.wait(m=>m.type==='state'&&m.room.players.find(p=>p.id===wb.id)?.spawnVersion===1,6500);assert(respawn.type==='state');const ra=await a.state(r=>r.tick===respawn.room.tick);assert.deepEqual(ra.players,respawn.room.players);const p=ra.players.find(p=>p.id===wb.id)!;assert.equal(p.health,100);assert.equal(p.koRemaining,0);assert(p.protection>0);const {isWalkable}=await import('../shared/game.js');assert(isWalkable(p));
+  a.messages=[];resumed.messages=[];game.rooms.tick(room.round.endsAt);const resultsA=await a.state(r=>r.phase==='results');const resultsB=await resumed.state(r=>r.phase==='results');assert.deepEqual(resultsA.round,resultsB.round);assert.equal(resultsA.round.results[0].id,wa.id);assert.equal(resultsA.round.results[0].eliminations,1);assert.equal(resultsB.objective.target?.id,wa.id);
  }finally{for(const c of clients)c.ws.terminate();await game.close();}
 });

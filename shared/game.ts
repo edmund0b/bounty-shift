@@ -1,3 +1,4 @@
+import type { RoundView, PrivateObjective } from './rounds.js';
 import type { CombatState } from './combat.js';
 import { BUILDINGS, WORLD } from './map.js';
 export const ARENA = { ...WORLD, radius: 14, speed: 220 };
@@ -10,7 +11,7 @@ export type Position = { x: number; y: number };
 export type Input = { seq: number; dx: number; dy: number; sprint?: boolean; dashId?: number; attackId?: number; aimX?: number; aimY?: number };
 export type Motion = Position & { stamina: number; regenWait: number; exhausted: boolean; dashCooldown: number; dashRemaining: number; dashX: number; dashY: number; facingX: number; facingY: number; dashSeen: number; sprinting: boolean };
 export type PlayerView = Motion & CombatState & { id: string; name: string; color: string; ready: boolean; connected: boolean; ack: number };
-export type RoomView = { code: string; hostId: string; phase: 'lobby'|'arena'; players: PlayerView[]; tick: number; serverTime: number; notice: string };
+export type RoomView = { code: string; hostId: string; phase: 'lobby'|'arena'|'results'; round: RoundView; objective: PrivateObjective; players: PlayerView[]; tick: number; serverTime: number; notice: string };
 export type ClientMessage =
  | { type: 'create'; name: string }
  | { type: 'join'; name: string; code: string }
