@@ -43,7 +43,7 @@ test('camera follows and clamps without exposing the whole world',()=>{
 test('authoritative room state agrees with prediction and rejects ability spoofing',()=>{
  const rooms=new RoomServer(),messages:string[]=[];
  const fake=()=>({readyState:1,send:(s:string)=>messages.push(s)}) as unknown as WebSocket;
- const a=fake(),b=fake();const send=(ws:WebSocket,m:unknown)=>rooms.message(ws,JSON.stringify(m));
+ const a=fake(),b=fake();const send=(ws:WebSocket,m:unknown)=>rooms.message(ws,JSON.stringify((m as any)?.type==='input'?{matchId:rooms.sessions.get(ws)!.room.match.id,roundNumber:rooms.sessions.get(ws)!.room.match.roundNumber,...(m as object)}:m));
  send(a,{type:'create',name:'A'});const code=rooms.sessions.get(a)!.room.code;send(b,{type:'join',code,name:'B'});send(a,{type:'ready',ready:true});send(b,{type:'ready',ready:true});send(a,{type:'start'});
  const player=rooms.sessions.get(a)!.player;let predicted:Motion={...player};const now=Date.now();
  for(let seq=1;seq<=90;seq++){

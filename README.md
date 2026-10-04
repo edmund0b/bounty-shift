@@ -1,8 +1,8 @@
-# Bounty Shift — Phase 5: Complete Match Flow
+# Bounty Shift — Phase 6: Foundation Hardening
 
-Extends the working Phase 1–4 project at https://github.com/edmund0b/bounty-shift. The public deployment remains https://bounty-shift.onrender.com. One Node.js service serves the React/Canvas frontend and WebSocket server. No dependencies, hosting settings, or multiplayer architecture were replaced.
+Completes Step 1 on the working Phase 1–5 project at https://github.com/edmund0b/bounty-shift. The public deployment remains https://bounty-shift.onrender.com. One Node.js service serves the React/Canvas frontend and WebSocket server. No dependencies, hosting settings, or multiplayer architecture were replaced.
 
-Phase 5 follows the updated individual-target rules: every player secretly hunts another player. This is different from the original single Bounty versus Hunters concept. This milestone adds three-round matches; radar/scans, weapons, sound, cosmetics, and final art remain out of scope.
+Phase 6 follows the updated individual-target rules: every player secretly hunts another player. This is different from the original single Bounty versus Hunters concept. This milestone hardens the existing three-round matches; radar/scans, weapons, sound, cosmetics, and final art remain out of scope.
 
 ## Local build and test
 
@@ -59,40 +59,44 @@ Initial assignment uses a shuffled circular order: each player receives one othe
 
 The server checks the absolute deadline before processing movement/damage on a tick. Pending attacks at or after expiry cannot earn credit. Results are a frozen server snapshot. Match state distinguishes lobby, active round (`arena`), `intermission`, and `complete`. `room.match` contains the match ID, round number, countdown, final ranking, winners, and completed-round history. History stores immutable score snapshots without targets. Round constants live in `shared/rounds.ts`; no gameplay endpoint lets clients choose targets, health, damage, credit, duration, or results.
 
-## Exact Phase 5 changed files
+## Foundation hardening
+
+Read [FOUNDATION_AUDIT.md](FOUNDATION_AUDIT.md) for the full transition audit, bug fixes, validation boundary, and centralized constants. No balance values changed. Resume conflicts now retry conservatively without stealing the connected player. Repeated lobby return preserves freshly chosen ready states. Inputs require the current match ID and round number, so reload every device after deployment. Permanent departures release their transport references; earned score records remain until match cleanup. Touch capture/cancellation and narrow-screen containment were fixed without redesign.
+
+## Exact Phase 6 changed files
 
 | File | Change |
 | --- | --- |
-| `shared/rounds.ts` | Match constants/types and private match totals |
-| `shared/game.ts` | Intermission/complete phases and match snapshots |
-| `server/rooms.ts` | Match lifecycle, persistent credit, round reset/transition, final ranking |
-| `server/index.ts` | Phase 5 log and health label |
-| `src/main.tsx` | Round number, round/match totals, countdown, final winner/tie screen |
-| `tests/rounds.test.ts` | Existing round tests adapted to automatic next round |
-| `tests/match.test.ts` | New complete-match, totals, reset, tie, reconnect, departure tests |
-| `tests/combat.test.ts` | Spawn revision assertion updated for round initialization |
-| `tests/multiplayer.test.ts` | Phase label, intermission state, spawn revision checks |
-| `README.md` | Rules, deployment procedure, public test checklist |
+| `server/rooms.ts` | Retryable resume, input context validation, phase/idempotence guards, safe removal/send, shared tick constants |
+| `server/index.ts` | Phase 6 label, shared tick duration, safe heartbeat/shutdown cleanup |
+| `shared/game.ts` | Input context, retryable error type, centralized networking constants |
+| `src/main.tsx` | Resume retries, obsolete callback protection, storage fallback, pointer-tracked touch input |
+| `src/Arena.tsx` | Remove departed interpolation metadata; dash HUD uses shared constant |
+| `src/style.css` | Narrow-screen functional containment |
+| `tests/hardening.test.ts` | New lifecycle, reconnect, validation, replay, resource, cleanup coverage |
+| `tests/multiplayer.test.ts` | Protocol context, retryable conflict, actual duplicate connection recovery |
+| `tests/combat.test.ts`, `tests/movement.test.ts`, `tests/rounds.test.ts`, `tests/match.test.ts` | Supply current input context in existing gameplay fixtures |
+| `README.md`, `FOUNDATION_AUDIT.md` | Completed foundation instructions, audit, public checklist |
 
-`shared/map.ts`, `shared/combat.ts`, `src/Arena.tsx`, `src/style.css`, movement tests, package dependencies, lockfile, build commands, and deployment configuration are unchanged.
+Map/combat constants, round/match values, dependencies, lockfile, build commands, and deployment configuration are unchanged.
 
 ## Upload into the existing GitHub repository
 
-1. Download and extract `Bounty_Shift_Phase_5.zip`.
+1. Download and extract `Bounty_Shift_Phase_6.zip`.
 2. Open https://github.com/edmund0b/bounty-shift and select the existing deployed branch, normally `main`.
 3. Choose Add file → Upload files.
-4. From inside the extracted `bounty-shift` folder, drag the folders `server`, `shared`, `src`, `tests`, and the file `README.md` into the upload area. Folder drag-and-drop preserves nested paths. The unchanged files inside those folders are included deliberately.
+4. From inside the extracted `bounty-shift` folder, drag the folders `server`, `shared`, `src`, `tests`, and the files `README.md` and `FOUNDATION_AUDIT.md` into the upload area. Folder drag-and-drop preserves nested paths. The unchanged files inside those folders are included deliberately.
 5. Do not upload the ZIP or enclosing `bounty-shift` folder itself. Do not flatten paths. Do not upload `node_modules`, `dist`, or `.git`.
-6. Check paths include `server/rooms.ts`, `shared/rounds.ts`, `src/main.tsx`, and `tests/match.test.ts`. If they show only filenames or a nested `bounty-shift/server/...`, cancel and fix the upload before committing.
-7. Commit to the existing deployed branch using `Add Phase 5 complete match flow`.
-8. Verify the new file `tests/match.test.ts` appears at that exact repository path.
+6. Check paths include `server/rooms.ts`, `shared/rounds.ts`, `src/main.tsx`, and `tests/hardening.test.ts`. If they show only filenames or a nested `bounty-shift/server/...`, cancel and fix the upload before committing.
+7. Commit to the existing deployed branch using `Complete Phase 6 foundation hardening`.
+8. Verify the new files `tests/hardening.test.ts` and `FOUNDATION_AUDIT.md` appear at those exact repository paths.
 
 If using Git instead, copy those folders/file into your existing checkout, inspect changes, then:
 
 ```sh
 git status
-git add README.md server shared src tests
-git commit -m "Add Phase 5 complete match flow"
+git add README.md FOUNDATION_AUDIT.md server shared src tests
+git commit -m "Complete Phase 6 foundation hardening"
 git push origin main
 ```
 
@@ -105,9 +109,11 @@ Use your actual deployed branch if different. Do not create a new repository or 
 3. Keep build `npm ci --include=dev && npm run build`, start `npm start`, `NODE_ENV=production`, and existing service/root-directory settings. No configuration or billing changes are needed.
 4. Wait for Live and confirm Render shows the new commit.
 5. Reload both devices at https://bounty-shift.onrender.com. Existing rooms expire on redeploy; create a fresh room.
-6. Confirm the header says `Phase 5 · Complete match flow`. https://bounty-shift.onrender.com/health should report `{"ok":true,"phase":5}`.
+6. Confirm the header says `Phase 6 · Step 1 foundation`. https://bounty-shift.onrender.com/health should report `{"ok":true,"phase":6}`.
 
-## Public two-device acceptance checklist
+## Final Step 1 public-device acceptance checklist
+
+Reload every device after deployment. A full match takes about 4 minutes 40 seconds. Test first with two devices, then at least three players where practical. This is the acceptance gate before reviewing Step 2.
 
 First use two devices on the same public URL, ideally on different networks. Then repeat objective tests with 3–6 players.
 
@@ -125,18 +131,23 @@ First use two devices on the same public URL, ideally on different networks. The
 - After round 3 verify MATCH COMPLETE, identical total scores and final placements, correct winner or shared tie (including all-zero scores). Wait longer than five seconds: final results must remain. Host returns to lobby, then start a fresh second match: all counts and history are cleared.
 - Refresh during intermission: same match, round, countdown, and totals return without duplicate players. Host returns everyone to lobby mid-round or intermission; ready states/targets/KO clear. Test host reconnect/transfer and a permanent target departure with three players; affected targets repair without free credit.
 - With two players, let one leave permanently: the remaining player returns to lobby cleanly.
-- On mobile, verify direction, Sprint, Dash, and Attack remain usable.
+- In the lobby, refresh a non-host and host; check identity, host migration, and ready requirements. Reconnected players need to ready again in lobby.
+- Refresh while damaged, after scoring, during KO, shortly after protected respawn, in rounds 2/3, and on Match Complete. Check unchanged identities, health, targets, counts, deadlines, and final results. No duplicate bodies or host takeover.
+- Open a duplicate tab: the original player remains intact. The duplicate waits briefly and shows a controlled conflict if the original stays connected. Close the original and retry within the grace window to recover the same player.
+- Briefly interrupt one device's network and restore it. Old-connection cleanup may show Recovering session before resuming. Longer interruptions may exceed the reconnect window; the other player's room must stay healthy.
+- On mobile widths around 320–390px, check accessible buttons and uncut HUD/results. Hold direction plus Sprint, tap Dash/Attack, cancel a touch by dragging/releasing outside, then switch apps briefly; movement must stop when controls release or the tab loses focus.
+- After everyone leaves or disconnects past grace, the room code must stop accepting joins. Create a new room and complete a fresh match without leftover scores or players.
 
-Phase 5 is ready for deployment/testing, not publicly accepted until this checklist passes. Report device/browser, the inputs used, and what each screen showed.
+Phase 6 is ready for deployment/testing, not publicly accepted until this checklist passes. Report device/browser, the inputs used, and what each screen showed.
 
 ## Validation and known limits
 
-The production build and 31 automated tests pass, including actual independent WebSocket clients. Tests cover prior movement/combat regressions plus 2–6 private assignments, no self-targets, target/non-target credit, reassignment, mutual and multiple lethal contributors, protected respawn, expiration freeze, shared-rank results, reconnect state, permanent departure repair, and lobby reset.
+The production build and 55 automated tests pass, including actual independent WebSocket clients. Tests cover prior movement/combat regressions plus 2–6 private assignments, no self-targets, target/non-target credit, reassignment, mutual and multiple lethal contributors, protected respawn, expiration freeze, shared-rank results, reconnect state, permanent departure repair, and lobby reset.
 
-Browser visual/input QA and public physical-device testing are not claimed by this build. Those remain the owner's acceptance gate. Temporary UI is intentional. No new browser dependency was introduced.
+Browser visual/input QA and public physical-device testing are not claimed by this build. Those remain the owner's acceptance gate. Temporary UI is intentional. No new browser dependency was introduced. Physical touch/layout and network suspension tests remain manual. The completed authoritative audit is in `FOUNDATION_AUDIT.md`.
 
 Completed-round score history is held in memory during the match. Final results stay until host return; no cross-match persistence exists. Basic touch controls are retained. High latency can cause movement corrections and melee misses because hit detection uses current server positions without latency rewind. Render Free sleep/restarts can discard in-memory rooms. Keep one server instance. All player positions are sent to clients; no fog-of-war privacy guarantee exists yet. Target assignments themselves are recipient-private, but players can of course tell one another their targets outside the game.
 
 ## Challenge deadline
 
-October 31, 2026 at 11:59 PM Pacific. Final submission needs title, public URL, and preview screenshot. This match-flow milestone is not the final submission. Phase 6 has not begun.
+October 31, 2026 at 11:59 PM Pacific. Final submission needs title, public URL, and preview screenshot. This match-flow milestone is not the final submission. Step 2 has not begun.

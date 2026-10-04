@@ -7,7 +7,7 @@ import { ROUND } from '../shared/rounds.js';
 function fixture(count=2){
  const server=new RoomServer();const packets:string[][]=[];
  const sockets=Array.from({length:count},(_,i)=>{packets[i]=[];return {readyState:1,send:(s:string)=>packets[i].push(s)} as unknown as WebSocket;});
- const send=(i:number,m:unknown)=>server.message(sockets[i],JSON.stringify(m));send(0,{type:'create',name:'P0'});const room=server.sessions.get(sockets[0])!.room;
+ const send=(i:number,m:unknown)=>server.message(sockets[i],JSON.stringify((m as any)?.type==='input'?{matchId:room.match.id,roundNumber:room.match.roundNumber,...(m as object)}:m));send(0,{type:'create',name:'P0'});const room=server.sessions.get(sockets[0])!.room;
  for(let i=1;i<count;i++)send(i,{type:'join',name:`P${i}`,code:room.code});
  const start=()=>{sockets.forEach((_,i)=>send(i,{type:'ready',ready:true}));send(0,{type:'start'});};start();
  const credit=(attacker=0)=>{const a=room.players[attacker],b=room.players.find(p=>p.id===a.targetId)!;room.players.forEach((p,i)=>Object.assign(p,{x:800+i*150,y:850}));Object.assign(a,{x:1000,y:700,health:100,koRemaining:0,attackCooldown:0});Object.assign(b,{x:1040,y:700,health:25,koRemaining:0,protection:0});const now=room.round.endsAt-ROUND.durationMs+100;a.lastInput=now;

@@ -5,10 +5,11 @@ export const ARENA = { ...WORLD, radius: 14, speed: 220 };
 export const STEP = 1 / 30;
 export const MAX_PLAYERS = 6;
 export const RECONNECT_MS = 10_000;
+export const NETWORK = { inputTimeoutMs:300, maxInputAdvance:120, resumeRetryMs:1000, resumeAttempts:15 };
 export const COLORS = ['#60cfff','#ffbc66','#b6a2ff','#77d8a4','#ff8da5','#e9df78'];
 export const MOVEMENT = { sprintMultiplier: 1.5, staminaMax: 100, staminaDrain: 28, staminaRegen: 22, regenDelay: 0.6, dashSpeed: 850, dashDuration: 0.18, dashCooldown: 3 };
 export type Position = { x: number; y: number };
-export type Input = { seq: number; dx: number; dy: number; sprint?: boolean; dashId?: number; attackId?: number; aimX?: number; aimY?: number };
+export type Input = { matchId: string; roundNumber: number; seq: number; dx: number; dy: number; sprint?: boolean; dashId?: number; attackId?: number; aimX?: number; aimY?: number };
 export type Motion = Position & { stamina: number; regenWait: number; exhausted: boolean; dashCooldown: number; dashRemaining: number; dashX: number; dashY: number; facingX: number; facingY: number; dashSeen: number; sprinting: boolean };
 export type PlayerView = Motion & CombatState & { id: string; name: string; color: string; ready: boolean; connected: boolean; ack: number };
 export type RoomView = { code: string; hostId: string; phase: 'lobby'|'arena'|'intermission'|'complete'; match: MatchView; round: RoundView; objective: PrivateObjective; players: PlayerView[]; tick: number; serverTime: number; notice: string };
@@ -22,7 +23,7 @@ export type ClientMessage =
 export type ServerMessage =
  | { type: 'welcome'; id: string; token: string; room: RoomView }
  | { type: 'state'; room: RoomView }
- | { type: 'error'; message: string; fatal?: boolean }
+ | { type: 'error'; message: string; fatal?: boolean; retryable?: boolean }
  | { type: 'left'|'pong' };
 export function freshMotion(position:Position):Motion {
  return {...position,stamina:MOVEMENT.staminaMax,regenWait:0,exhausted:false,dashCooldown:0,dashRemaining:0,dashX:0,dashY:1,facingX:0,facingY:1,dashSeen:0,sprinting:false};

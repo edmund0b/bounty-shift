@@ -6,10 +6,10 @@ import { move, ARENA } from '../shared/game.js';
 process.env.BOUNTY_TEST='1';
 const {createGameServer}=await import('../server/index.js');
 class Client {
- ws:WebSocket;messages:ServerMessage[]=[];
- constructor(url:string){this.ws=new WebSocket(url);this.ws.on('message',raw=>this.messages.push(JSON.parse(raw.toString())));}
+ room:RoomView|null=null;ws:WebSocket;messages:ServerMessage[]=[];
+ constructor(url:string){this.ws=new WebSocket(url);this.ws.on('message',raw=>{const m=JSON.parse(raw.toString());if(m.room)this.room=m.room;this.messages.push(m);});}
  async open(){await new Promise<void>((resolve,reject)=>{this.ws.once('open',resolve);this.ws.once('error',reject);});}
- send(m:unknown){this.ws.send(JSON.stringify(m));}
+ send(m:unknown){this.ws.send(JSON.stringify((m as any)?.type==='input'?{matchId:this.room?.match.id,roundNumber:this.room?.match.roundNumber,...(m as object)}:m));}
  async wait(predicate:(m:ServerMessage)=>boolean,timeout=2500){const end=Date.now()+timeout;while(Date.now()<end){const index=this.messages.findIndex(predicate);if(index>=0)return this.messages.splice(index,1)[0];await new Promise(r=>setTimeout(r,10));}throw new Error('Timed out waiting for message');}
  async state(predicate:(r:RoomView)=>boolean){const m=await this.wait(m=>m.type==='state'&&predicate(m.room));return (m as Extract<ServerMessage,{type:'state'}>).room;}
  close(){this.ws.close();}
@@ -18,7 +18,7 @@ test('two independent WebSockets: lobby, authority, movement, reconnect, host tr
  const game=await createGameServer(true);await new Promise<void>(r=>game.server.listen(0,'127.0.0.1',r));const address=game.server.address();assert(address&&typeof address==='object');const url=`ws://127.0.0.1:${address.port}/ws`;const clients:Client[]=[];
  const connect=async()=>{const c=new Client(url);clients.push(c);await c.open();return c;};
  try{
-  const http=`http://127.0.0.1:${address.port}`;assert.deepEqual(await (await fetch(http+'/health')).json(),{ok:true,phase:5});const html=await (await fetch(http+'/')).text();assert(html.includes('Bounty Shift'));const asset=html.match(/src=\"([^\"]+\.js)\"/);assert(asset);assert.equal((await fetch(http+asset[1])).status,200);
+  const http=`http://127.0.0.1:${address.port}`;assert.deepEqual(await (await fetch(http+'/health')).json(),{ok:true,phase:6});const html=await (await fetch(http+'/')).text();assert(html.includes('Bounty Shift'));const asset=html.match(/src=\"([^\"]+\.js)\"/);assert(asset);assert.equal((await fetch(http+asset[1])).status,200);
   const a=await connect();a.send({type:'create',name:'Edmund'});const wa=await a.wait(m=>m.type==='welcome');assert(wa.type==='welcome');const code=wa.room.code;assert.match(code,/^[A-F0-9]{6}$/);assert.equal(wa.room.hostId,wa.id);
   const invalid=await connect();invalid.send({type:'join',name:'Other',code:'ZZZZZZ'});await invalid.wait(m=>m.type==='error'&&m.message.includes('Room not found'));
   invalid.send({type:'join',name:'edmund',code});await invalid.wait(m=>m.type==='error'&&m.message.includes('already'));
@@ -41,7 +41,7 @@ test('two independent WebSockets: lobby, authority, movement, reconnect, host tr
   a.close();await b.state(r=>r.hostId===wb.id&&!r.players.find(p=>p.id===wa.id)!.connected);
   const resumed=await connect();resumed.send({type:'resume',code,token:wa.token});const wr=await resumed.wait(m=>m.type==='welcome');assert(wr.type==='welcome');assert.equal(wr.id,wa.id);assert.equal(wr.room.hostId,wb.id);assert.equal(wr.room.players.length,2);
   resumed.send({type:'lobby'});await resumed.wait(m=>m.type==='error'&&m.message.includes('host'));b.send({type:'lobby'});await b.state(r=>r.phase==='lobby'&&r.players.every(p=>!p.ready));
-  const dup=await connect();dup.send({type:'resume',code,token:wa.token});await dup.wait(m=>m.type==='error'&&m.fatal===true);
+  const dup=await connect();dup.send({type:'resume',code,token:wa.token});await dup.wait(m=>m.type==='error'&&m.retryable===true);
   resumed.close();await b.state(r=>!r.players.find(p=>p.id===wa.id)!.connected);game.rooms.tick(Date.now()+10001);await b.state(r=>r.players.length===1);
   b.send({type:'leave'});await b.wait(m=>m.type==='left');assert.equal(game.rooms.rooms.size,0);
  }finally{for(const c of clients)c.ws.terminate();await game.close();}
@@ -87,4 +87,13 @@ test('two live WebSocket clients agree on combat, KO, reconnect, and protected r
   }
 
  }finally{for(const c of clients)c.ws.terminate();await game.close();}
+});
+test('real duplicate connection cannot steal session and can resume after old socket closes',async()=>{
+ const game=await createGameServer(true);await new Promise<void>(r=>game.server.listen(0,'127.0.0.1',r));const address=game.server.address();assert(address&&typeof address==='object');const clients:Client[]=[];
+ const connect=async()=>{const c=new Client(`ws://127.0.0.1:${address.port}/ws`);clients.push(c);await c.open();return c;};
+ try{
+  const a=await connect();a.send({type:'create',name:'Original'});const wa=await a.wait(m=>m.type==='welcome');assert(wa.type==='welcome');const b=await connect();b.send({type:'join',code:wa.room.code,name:'Friend'});const wb=await b.wait(m=>m.type==='welcome');assert(wb.type==='welcome');
+  const duplicate=await connect();duplicate.send({type:'resume',code:wa.room.code,token:wa.token});const conflict=await duplicate.wait(m=>m.type==='error'&&!!m.retryable);assert(conflict.type==='error'&&!conflict.fatal);assert.equal(game.rooms.sessions.size,2);
+  a.close();await b.state(r=>r.hostId===wb.id);duplicate.send({type:'resume',code:wa.room.code,token:wa.token});const resumed=await duplicate.wait(m=>m.type==='welcome');assert(resumed.type==='welcome');assert.equal(resumed.id,wa.id);assert.equal(resumed.room.hostId,wb.id);assert.equal(resumed.room.players.length,2);
+ }finally{for(const c of clients)c.ws.terminate();await game.close();assert.equal(game.rooms.rooms.size,0);assert.equal(game.rooms.sessions.size,0);}
 });

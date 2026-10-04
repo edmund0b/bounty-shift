@@ -8,7 +8,7 @@ import { ROUND } from '../shared/rounds.js';
 function fixture(count=2){
  const server=new RoomServer();const packets:string[][]=[];
  const sockets=Array.from({length:count},(_,i)=>{packets[i]=[];return {readyState:1,send:(s:string)=>packets[i].push(s)} as unknown as WebSocket;});
- const send=(i:number,m:unknown)=>server.message(sockets[i],JSON.stringify(m));
+ const send=(i:number,m:unknown)=>server.message(sockets[i],JSON.stringify((m as any)?.type==='input'?{matchId:room.match.id,roundNumber:room.match.roundNumber,...(m as object)}:m));
  send(0,{type:'create',name:'P0'});const room=server.sessions.get(sockets[0])!.room;
  for(let i=1;i<count;i++)send(i,{type:'join',name:`P${i}`,code:room.code});
  for(let i=0;i<count;i++)send(i,{type:'ready',ready:true});send(0,{type:'start'});
