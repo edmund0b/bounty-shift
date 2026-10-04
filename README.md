@@ -1,6 +1,6 @@
 # Bounty Shift — Step 2: Third-person Arena
 
-Continues the approved Step 1 foundation at https://github.com/edmund0b/bounty-shift, based on deployed commit `42e0ed1`. The Render service remains https://bounty-shift.onrender.com. The server, WebSocket protocol, map collision rectangles, combat values, targets, scores, and three-round match lifecycle are unchanged.
+Continues the approved Step 1 foundation at https://github.com/edmund0b/bounty-shift, viewport correction based on deployed Step 2 commit `5a839b2`. The Render service remains https://bounty-shift.onrender.com. The server, WebSocket protocol, map collision rectangles, combat values, targets, scores, and three-round match lifecycle are unchanged.
 
 Step 2 adds a Three.js WebGL presentation layer: physical neon buildings, façade signage, simple humanoid avatars, a collision-aware third-person chase camera, camera-relative controls, in-world names/health, reticle, and an updated HUD. The supplied concept guides the dark-blue/cyan/magenta palette and framing; these are prototype meshes, not final art.
 
@@ -108,33 +108,37 @@ npm run test:browser
 
 If you already have a compatible Chromium binary, use `BOUNTY_QA_BROWSER=/absolute/path/to/chromium npm run test:browser` on a Unix shell. Screenshots go into the temporary `bounty-shift-qa` directory; `BOUNTY_QA_OUTPUT` can override that directory. Test fixtures only arrange server positions/advance timers inside the local test process; no debug endpoint is shipped. The script is not run during normal Render startup or `npm test`.
 
-## Upload into the existing GitHub repository
+## Upload the viewport correction into the existing repository
 
-1. Download and extract `Bounty_Shift_Step_2_Third_Person.zip`.
-2. Open https://github.com/edmund0b/bounty-shift and select the existing deployed branch, normally `main`.
-3. Choose Add file → Upload files.
-4. From inside the extracted `bounty-shift` folder, drag the folders `shared`, `src`, `tests`, `scripts`, and the files `package.json`, `package-lock.json`, `vite.config.ts`, `README.md`, `STEP2_PREVIEW.png`, and `STEP2_MOBILE_PREVIEW.png` into the upload area. Folder drag-and-drop preserves nested paths. The unchanged files inside those folders are included deliberately.
-5. Do not upload the ZIP or enclosing `bounty-shift` folder itself. Do not flatten paths. Do not upload `node_modules`, `dist`, or `.git`.
-6. Check paths include `src/scene.ts`, `shared/presentation.ts`, `scripts/browser-smoke.mjs`, and `tests/presentation.test.ts`. If they show only filenames or a nested `bounty-shift/server/...`, cancel and fix the upload before committing.
-7. Commit to the existing deployed branch using `Add Step 2 third-person neon arena`.
-8. Verify the new files `src/scene.ts` and `shared/presentation.ts` appear at those exact repository paths.
+1. Download and extract `Bounty_Shift_Viewport_Fix.zip`.
+2. Open https://github.com/edmund0b/bounty-shift on the existing deployed branch (`main`). Select Add file → Upload files.
+3. From inside the extracted `bounty-shift` folder, drag `src`, `scripts`, `README.md`, `STEP2_PREVIEW.png`, and `STEP2_MOBILE_PREVIEW.png` into the upload area. Uploading folders preserves their paths and includes unchanged files deliberately.
+4. Confirm paths include `src/main.tsx`, `src/style.css`, and `scripts/browser-smoke.mjs`. Do not upload the ZIP, enclosing folder, `node_modules`, `dist`, or `.git`.
+5. Commit using `Fix gameplay viewport layout and HUD sizing`.
+6. Let the existing Render service auto-deploy. If auto-deploy is disabled, open that service and select Manual Deploy → Deploy latest commit. No settings or dependency changes are needed.
+7. After deployment succeeds, refresh both devices and run the viewport checklist below.
 
-If using Git instead, copy those folders/file into your existing checkout, inspect changes, then:
+### Viewport correction and checks
 
-```sh
-git status
-git add README.md STEP2_PREVIEW.png STEP2_MOBILE_PREVIEW.png shared src tests scripts package.json package-lock.json vite.config.ts
-git commit -m "Add Step 2 third-person neon arena"
-git push origin main
-```
+The match-only `game-screen` shell uses `100vh` with a `100dvh` override, compact header/objective, and a flexible arena section. Both flex containers have `min-height: 0`. The canvas fills the remaining arena rectangle instead of imposing a fixed minimum height or aspect ratio; the existing Three.js resize handling adjusts its camera and renderer. Health/stamina/attack/dash, hints, player legend, and touch controls reserve compact space beneath it. Round/room information and host/leave controls moved into the header; the redundant developer footer is omitted during matches. Gameplay data and controls remain available.
 
-Use your actual deployed branch if different. Do not create a new repository or service.
+The `match-open` class constrains document/root overflow only while in a match (including results/intermission); it is removed when returning to menus/lobby. Short-height and narrow-width rules reduce spacing/fonts and reorganize the HUD/touch buttons. Gameplay, server, networking, collision, and camera logic are unchanged.
+
+Local browser checks cover 1920×1080, 1440×900, 1366×768, 1280×720, 1024×600, 800×450, 640×360, 390×844, 375×667, 320×568, and 844×390. They check document dimensions and visible content bounds, arena height, mouse-wheel scrolling, results, and lobby cleanup. Physical devices/browser chrome still require the public check:
+
+- Start a match on two devices. Confirm title/round/room/connection, target/scores/timer, arena, and health/stamina/attack/dash are visible together.
+- Resize the desktop window. Confirm no scrollbar and no cut-off HUD, hints, or legend; no zoom adjustment should be needed.
+- On mobile, rotate and expand/collapse browser chrome. Confirm touch movement/turn/sprint/dash/attack remain reachable.
+- Use movement, sprint, dash, attack, and mouse wheel; the match page must stay still.
+- Complete rounds and inspect final results. Return to lobby; normal page scrolling must work again.
+
+Changed files: `src/main.tsx`, `src/style.css`, `scripts/browser-smoke.mjs`, `README.md`, `STEP2_PREVIEW.png`, `STEP2_MOBILE_PREVIEW.png`. The source ZIP preserves the existing repository structure and includes unchanged project files.
 
 ## Redeploy the existing Render service
 
 1. Open the existing Bounty Shift Web Service in the Render dashboard.
 2. Auto-deploy should run after the GitHub commit. If disabled, choose Manual Deploy → Deploy latest commit.
-3. Keep build `npm ci --include=dev && npm run build`, start `npm start`, `NODE_ENV=production`, and existing service/root-directory settings. No configuration or billing changes are needed. Upload the updated package manifest AND lockfile so Render installs Three.js.
+3. Keep build `npm ci --include=dev && npm run build`, start `npm start`, `NODE_ENV=production`, and existing service/root-directory settings. No configuration or billing changes are needed. The existing Three.js dependency and lockfile are unchanged by this layout correction.
 4. Wait for Live and confirm Render shows the new commit.
 5. Reload both devices at https://bounty-shift.onrender.com. Existing rooms expire on redeploy; create a fresh room.
 6. Confirm the header says `Step 2 · Third-person prototype`. https://bounty-shift.onrender.com/health should report `{"ok":true,"phase":6}`.
@@ -172,7 +176,7 @@ Step 2 is ready for deployment/testing, not publicly accepted until this checkli
 
 The production build and 57 automated tests pass, including actual independent WebSocket clients. Tests cover prior movement/combat regressions plus 2–6 private assignments, no self-targets, target/non-target credit, reassignment, mutual and multiple lethal contributors, protected respawn, expiration freeze, shared-rank results, reconnect state, permanent departure repair, and lobby reset.
 
-A local Chromium/WebGL smoke test passed with two independent browser sessions: scene rendering, camera-relative forward movement, view rotation, sprint/dash, reticle melee, synchronized health, refresh recovery, 390px layout without horizontal overflow, all three round transitions, final results, and host lobby reset. Desktop/mobile screenshots were inspected. The browser test advances server time to test transitions; it does not replace a full-duration public match on real devices.
+A local Chromium/WebGL smoke test passed with two independent browser sessions: scene rendering, camera-relative forward movement, view rotation, sprint/dash, reticle melee, synchronized health, refresh recovery, 11 viewport sizes with no horizontal/vertical overflow or clipped gameplay panels, all three round transitions, final results, and host lobby reset. Desktop/mobile screenshots were inspected. The browser test advances server time to test transitions; it does not replace a full-duration public match on real devices.
 
 ## Step 2 public visual/control checks
 
@@ -187,7 +191,7 @@ A local Chromium/WebGL smoke test passed with two independent browser sessions: 
 
 WebGL 2/hardware acceleration is required; failure shows a controlled graphics message, not a 2D fallback. The Three.js vendor chunk triggers Vite's advisory size warning; production compilation succeeds. Floor sheen comes from materials and painted lighting, not real mirrored players/buildings. No bloom, expensive shadows, final assets, camera pitch/orbit zoom, weapons, radar, or advanced animation pass.
 
-Near-wall camera compression can reduce visibility; this needs real-device playtesting. Mobile controls are usable prototype buttons; portrait mode needs scrolling to the controls. Local aim pose is not replicated as an idle remote pose. Existing map/spawn locations are preserved, so they do not reproduce the concept's exact plaza composition. We should tune camera distance/framing and touch ergonomics after owner testing, then separately design the arena/characters/combat presentation.
+Near-wall camera compression can reduce visibility; this needs real-device playtesting. Mobile controls remain prototype buttons; the match view now fits the viewport, including portrait touch controls. Local aim pose is not replicated as an idle remote pose. Existing map/spawn locations are preserved, so they do not reproduce the concept's exact plaza composition. We should tune camera distance/framing and touch ergonomics after owner testing, then separately design the arena/characters/combat presentation.
 
 In-memory rooms/scores disappear on restart. Ten-second server-observed reconnect grace remains finite. Melee uses current server positions without latency rewind. All positions/health remain public; private target relationships remain recipient-only. Keep one server instance. The Step 1 audit remains in `FOUNDATION_AUDIT.md`.
 
