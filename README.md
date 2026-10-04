@@ -1,8 +1,23 @@
-# Bounty Shift — Phase 6: Foundation Hardening
+# Bounty Shift — Step 2: Third-person Arena
 
-Completes Step 1 on the working Phase 1–5 project at https://github.com/edmund0b/bounty-shift. The public deployment remains https://bounty-shift.onrender.com. One Node.js service serves the React/Canvas frontend and WebSocket server. No dependencies, hosting settings, or multiplayer architecture were replaced.
+Continues the approved Step 1 foundation at https://github.com/edmund0b/bounty-shift, based on deployed commit `42e0ed1`. The Render service remains https://bounty-shift.onrender.com. The server, WebSocket protocol, map collision rectangles, combat values, targets, scores, and three-round match lifecycle are unchanged.
 
-Phase 6 follows the updated individual-target rules: every player secretly hunts another player. This is different from the original single Bounty versus Hunters concept. This milestone hardens the existing three-round matches; radar/scans, weapons, sound, cosmetics, and final art remain out of scope.
+Step 2 adds a Three.js WebGL presentation layer: physical neon buildings, façade signage, simple humanoid avatars, a collision-aware third-person chase camera, camera-relative controls, in-world names/health, reticle, and an updated HUD. The supplied concept guides the dark-blue/cyan/magenta palette and framing; these are prototype meshes, not final art.
+
+![Desktop preview](STEP2_PREVIEW.png)
+
+## Step 2 architecture and controls
+
+- `src/scene.ts` owns the 3D scene/renderer, static structures, camera, avatar meshes/labels, interpolation, and disposal. One render loop exists only while the arena is mounted; hidden tabs skip rendering.
+- `src/Arena.tsx` hosts the scene, camera-drag input, reticle, graphics errors, and health/stamina/ability HUD.
+- `shared/presentation.ts` centralizes world-to-render scale and camera-relative movement/aim conversion. The server still simulates positions in the original two dimensions; visual height is decorative. No physics engine, extra floor, or jump system was added.
+- Three.js is a frontend dependency; its vendor chunk is separated for caching. `playwright-core` is a development-only dependency for the optional browser smoke test. Render needs no account/configuration change.
+- WASD/arrows move relative to camera yaw. Shift sprints; Space dashes in movement/last-facing direction. Right mouse drag or Q/E turns the camera. Touch Turn L/R buttons rotate it.
+- Left click, F, and touch Attack all strike along camera yaw/center-reticle direction. This is close-range melee, not cursor targeting or a projectile; the server still enforces 80-pixel range, arc, walls, and cooldown. Looking around alone does not change idle dash's last movement direction.
+- Each client sees their local avatar in cyan and their own Bounty in gold; other avatars retain player colors. This does not reveal anyone else's target. Names/health use depth-tested floating labels.
+- Local body faces the camera's aim direction; remote bodies show authoritative movement/attack direction. Camera orientation itself is local, and idle aiming poses are not networked in this version.
+- Static meshes are derived directly from `shared/map.ts`, so visible solid buildings match authoritative collision. SOUTH TERMINAL, WEST STORAGE, EAST STORAGE, and WORKSHOP have signage on their existing structures. SIGNAL STATION's façade is presented as CENTRAL PLAZA to mark the central approach. No map geometry was redesigned.
+- The camera shortens its trailing distance near buildings/boundaries. The local body fades when the camera is very close. Room and round transitions still unmount/remount the scene cleanly.
 
 ## Local build and test
 
@@ -33,12 +48,13 @@ The host can return everyone to the lobby early, cancelling the current match. I
 
 | Action | Desktop | Touch |
 | --- | --- | --- |
-| Move | WASD / arrows | Directional buttons |
+| Move | WASD / arrows relative to camera | Directional buttons relative to camera |
 | Sprint | Hold Shift while moving | Hold Sprint plus direction |
 | Dash | Space | Tap Dash |
-| Melee | Click inside arena to aim; F attacks facing forward | Tap Attack facing forward |
+| Melee | Left click / F toward center reticle | Tap Attack toward center reticle |
+| Turn view | Right-drag / Q E | Hold Turn L / Turn R |
 
-- Camera follows your player, shown with a white ring. Nearby other players render normally.
+- Chase camera follows behind your cyan humanoid avatar, slightly elevated. Visible opponents render as physical avatars with floating labels and health bars.
 - Flat 2000 × 1440 city arena: central plaza, solid buildings, alleys, cross streets, and an outside loop. No extra floors or layered tunnels.
 - Walking: 220 pixels/second. Sprint: 330. Stamina starts at 100, drains at 28/second, regenerates at 22/second after a 0.6-second delay. Release Sprint after exhaustion before sprinting again.
 - Dash: 850 pixels/second for 0.18 seconds, three-second cooldown. Same server collision as walking/sprinting; no wall clipping or dash invulnerability. Rejected cooldown presses are discarded.
@@ -63,40 +79,52 @@ The server checks the absolute deadline before processing movement/damage on a t
 
 Read [FOUNDATION_AUDIT.md](FOUNDATION_AUDIT.md) for the full transition audit, bug fixes, validation boundary, and centralized constants. No balance values changed. Resume conflicts now retry conservatively without stealing the connected player. Repeated lobby return preserves freshly chosen ready states. Inputs require the current match ID and round number, so reload every device after deployment. Permanent departures release their transport references; earned score records remain until match cleanup. Touch capture/cancellation and narrow-screen containment were fixed without redesign.
 
-## Exact Phase 6 changed files
+## Exact Step 2 changed files
 
 | File | Change |
 | --- | --- |
-| `server/rooms.ts` | Retryable resume, input context validation, phase/idempotence guards, safe removal/send, shared tick constants |
-| `server/index.ts` | Phase 6 label, shared tick duration, safe heartbeat/shutdown cleanup |
-| `shared/game.ts` | Input context, retryable error type, centralized networking constants |
-| `src/main.tsx` | Resume retries, obsolete callback protection, storage fallback, pointer-tracked touch input |
-| `src/Arena.tsx` | Remove departed interpolation metadata; dash HUD uses shared constant |
-| `src/style.css` | Narrow-screen functional containment |
-| `tests/hardening.test.ts` | New lifecycle, reconnect, validation, replay, resource, cleanup coverage |
-| `tests/multiplayer.test.ts` | Protocol context, retryable conflict, actual duplicate connection recovery |
-| `tests/combat.test.ts`, `tests/movement.test.ts`, `tests/rounds.test.ts`, `tests/match.test.ts` | Supply current input context in existing gameplay fixtures |
-| `README.md`, `FOUNDATION_AUDIT.md` | Completed foundation instructions, audit, public checklist |
+| `src/scene.ts` | New Three.js physical arena, avatars, signage, camera, labels, disposal |
+| `src/Arena.tsx` | Third-person viewport, camera drag, reticle, upgraded HUD |
+| `src/main.tsx` | Camera-relative movement, aim, Q/E and touch turn controls, instructions |
+| `src/style.css` | Neon presentation and responsive HUD |
+| `shared/presentation.ts` | New rendering/camera/control constants and conversion helpers |
+| `tests/presentation.test.ts` | New camera-relative speed/direction and collision regressions |
+| `scripts/browser-smoke.mjs` | New reproducible two-browser rendering/control/match smoke test |
+| `package.json`, `package-lock.json` | Three.js/types, development browser test dependency/script |
+| `vite.config.ts` | Separate Three.js vendor chunk |
+| `README.md` | Step 2 architecture, controls, deployment, acceptance instructions |
+| `STEP2_PREVIEW.png`, `STEP2_MOBILE_PREVIEW.png` | Browser-captured prototype previews |
 
-Map/combat constants, round/match values, dependencies, lockfile, build commands, and deployment configuration are unchanged.
+All server files, map/combat/round/game definitions, foundation tests, hosting commands, and `FOUNDATION_AUDIT.md` are unchanged.
+
+## Optional browser smoke test
+
+After building, install a local test browser and run:
+
+```sh
+npx playwright-core install chromium
+npm run test:browser
+```
+
+If you already have a compatible Chromium binary, use `BOUNTY_QA_BROWSER=/absolute/path/to/chromium npm run test:browser` on a Unix shell. Screenshots go into the temporary `bounty-shift-qa` directory; `BOUNTY_QA_OUTPUT` can override that directory. Test fixtures only arrange server positions/advance timers inside the local test process; no debug endpoint is shipped. The script is not run during normal Render startup or `npm test`.
 
 ## Upload into the existing GitHub repository
 
-1. Download and extract `Bounty_Shift_Phase_6.zip`.
+1. Download and extract `Bounty_Shift_Step_2_Third_Person.zip`.
 2. Open https://github.com/edmund0b/bounty-shift and select the existing deployed branch, normally `main`.
 3. Choose Add file → Upload files.
-4. From inside the extracted `bounty-shift` folder, drag the folders `server`, `shared`, `src`, `tests`, and the files `README.md` and `FOUNDATION_AUDIT.md` into the upload area. Folder drag-and-drop preserves nested paths. The unchanged files inside those folders are included deliberately.
+4. From inside the extracted `bounty-shift` folder, drag the folders `shared`, `src`, `tests`, `scripts`, and the files `package.json`, `package-lock.json`, `vite.config.ts`, `README.md`, `STEP2_PREVIEW.png`, and `STEP2_MOBILE_PREVIEW.png` into the upload area. Folder drag-and-drop preserves nested paths. The unchanged files inside those folders are included deliberately.
 5. Do not upload the ZIP or enclosing `bounty-shift` folder itself. Do not flatten paths. Do not upload `node_modules`, `dist`, or `.git`.
-6. Check paths include `server/rooms.ts`, `shared/rounds.ts`, `src/main.tsx`, and `tests/hardening.test.ts`. If they show only filenames or a nested `bounty-shift/server/...`, cancel and fix the upload before committing.
-7. Commit to the existing deployed branch using `Complete Phase 6 foundation hardening`.
-8. Verify the new files `tests/hardening.test.ts` and `FOUNDATION_AUDIT.md` appear at those exact repository paths.
+6. Check paths include `src/scene.ts`, `shared/presentation.ts`, `scripts/browser-smoke.mjs`, and `tests/presentation.test.ts`. If they show only filenames or a nested `bounty-shift/server/...`, cancel and fix the upload before committing.
+7. Commit to the existing deployed branch using `Add Step 2 third-person neon arena`.
+8. Verify the new files `src/scene.ts` and `shared/presentation.ts` appear at those exact repository paths.
 
 If using Git instead, copy those folders/file into your existing checkout, inspect changes, then:
 
 ```sh
 git status
-git add README.md FOUNDATION_AUDIT.md server shared src tests
-git commit -m "Complete Phase 6 foundation hardening"
+git add README.md STEP2_PREVIEW.png STEP2_MOBILE_PREVIEW.png shared src tests scripts package.json package-lock.json vite.config.ts
+git commit -m "Add Step 2 third-person neon arena"
 git push origin main
 ```
 
@@ -106,14 +134,14 @@ Use your actual deployed branch if different. Do not create a new repository or 
 
 1. Open the existing Bounty Shift Web Service in the Render dashboard.
 2. Auto-deploy should run after the GitHub commit. If disabled, choose Manual Deploy → Deploy latest commit.
-3. Keep build `npm ci --include=dev && npm run build`, start `npm start`, `NODE_ENV=production`, and existing service/root-directory settings. No configuration or billing changes are needed.
+3. Keep build `npm ci --include=dev && npm run build`, start `npm start`, `NODE_ENV=production`, and existing service/root-directory settings. No configuration or billing changes are needed. Upload the updated package manifest AND lockfile so Render installs Three.js.
 4. Wait for Live and confirm Render shows the new commit.
 5. Reload both devices at https://bounty-shift.onrender.com. Existing rooms expire on redeploy; create a fresh room.
-6. Confirm the header says `Phase 6 · Step 1 foundation`. https://bounty-shift.onrender.com/health should report `{"ok":true,"phase":6}`.
+6. Confirm the header says `Step 2 · Third-person prototype`. https://bounty-shift.onrender.com/health should report `{"ok":true,"phase":6}`.
 
-## Final Step 1 public-device acceptance checklist
+## Step 2 public-device acceptance checklist
 
-Reload every device after deployment. A full match takes about 4 minutes 40 seconds. Test first with two devices, then at least three players where practical. This is the acceptance gate before reviewing Step 2.
+Reload every device after deployment. A full match takes about 4 minutes 40 seconds. Test first with two devices, then at least three players where practical. This is the public acceptance gate for the first third-person version.
 
 First use two devices on the same public URL, ideally on different networks. Then repeat objective tests with 3–6 players.
 
@@ -138,16 +166,31 @@ First use two devices on the same public URL, ideally on different networks. The
 - On mobile widths around 320–390px, check accessible buttons and uncut HUD/results. Hold direction plus Sprint, tap Dash/Attack, cancel a touch by dragging/releasing outside, then switch apps briefly; movement must stop when controls release or the tab loses focus.
 - After everyone leaves or disconnects past grace, the room code must stop accepting joins. Create a new room and complete a fresh match without leftover scores or players.
 
-Phase 6 is ready for deployment/testing, not publicly accepted until this checklist passes. Report device/browser, the inputs used, and what each screen showed.
+Step 2 is ready for deployment/testing, not publicly accepted until this checklist passes. Report device/browser, the inputs used, and what each screen showed.
 
 ## Validation and known limits
 
-The production build and 55 automated tests pass, including actual independent WebSocket clients. Tests cover prior movement/combat regressions plus 2–6 private assignments, no self-targets, target/non-target credit, reassignment, mutual and multiple lethal contributors, protected respawn, expiration freeze, shared-rank results, reconnect state, permanent departure repair, and lobby reset.
+The production build and 57 automated tests pass, including actual independent WebSocket clients. Tests cover prior movement/combat regressions plus 2–6 private assignments, no self-targets, target/non-target credit, reassignment, mutual and multiple lethal contributors, protected respawn, expiration freeze, shared-rank results, reconnect state, permanent departure repair, and lobby reset.
 
-Browser visual/input QA and public physical-device testing are not claimed by this build. Those remain the owner's acceptance gate. Temporary UI is intentional. No new browser dependency was introduced. Physical touch/layout and network suspension tests remain manual. The completed authoritative audit is in `FOUNDATION_AUDIT.md`.
+A local Chromium/WebGL smoke test passed with two independent browser sessions: scene rendering, camera-relative forward movement, view rotation, sprint/dash, reticle melee, synchronized health, refresh recovery, 390px layout without horizontal overflow, all three round transitions, final results, and host lobby reset. Desktop/mobile screenshots were inspected. The browser test advances server time to test transitions; it does not replace a full-duration public match on real devices.
 
-Completed-round score history is held in memory during the match. Final results stay until host return; no cross-match persistence exists. Basic touch controls are retained. High latency can cause movement corrections and melee misses because hit detection uses current server positions without latency rewind. Render Free sleep/restarts can discard in-memory rooms. Keep one server instance. All player positions are sent to clients; no fog-of-war privacy guarantee exists yet. Target assignments themselves are recipient-private, but players can of course tell one another their targets outside the game.
+## Step 2 public visual/control checks
+
+- Local avatar is visible from behind with cyan accents; the Bounty has gold accents. Names and health bars render in-world and disappear behind solid geometry.
+- Right-drag / Q E / touch Turn L/R rotate smoothly. Forward movement follows the new view; diagonal speed is normalized. Orbit at walls/corners and verify the camera pulls forward rather than showing inside a building.
+- Walk the current map routes and locate South Terminal, Central Plaza, West Storage, East Storage, and Workshop signage. Decorative façade panels are closed, not walkable doors.
+- Meet within melee distance, aim the center reticle, and use Click/F/Attack. Check wall misses, health, KO/respawn, score, and protection on both devices.
+- Complete a real three-round match, refresh during play and intermission, then return to lobby/start fresh. Test 3–6 players and phones where possible.
+- On actual touch devices, hold direction plus Sprint, turn, dash, attack, release outside buttons, and switch apps briefly. Confirm no stuck movement. Software browser layout checks do not certify physical touch behavior.
+
+## Remaining limitations and next follow-ups
+
+WebGL 2/hardware acceleration is required; failure shows a controlled graphics message, not a 2D fallback. The Three.js vendor chunk triggers Vite's advisory size warning; production compilation succeeds. Floor sheen comes from materials and painted lighting, not real mirrored players/buildings. No bloom, expensive shadows, final assets, camera pitch/orbit zoom, weapons, radar, or advanced animation pass.
+
+Near-wall camera compression can reduce visibility; this needs real-device playtesting. Mobile controls are usable prototype buttons; portrait mode needs scrolling to the controls. Local aim pose is not replicated as an idle remote pose. Existing map/spawn locations are preserved, so they do not reproduce the concept's exact plaza composition. We should tune camera distance/framing and touch ergonomics after owner testing, then separately design the arena/characters/combat presentation.
+
+In-memory rooms/scores disappear on restart. Ten-second server-observed reconnect grace remains finite. Melee uses current server positions without latency rewind. All positions/health remain public; private target relationships remain recipient-only. Keep one server instance. The Step 1 audit remains in `FOUNDATION_AUDIT.md`.
 
 ## Challenge deadline
 
-October 31, 2026 at 11:59 PM Pacific. Final submission needs title, public URL, and preview screenshot. This match-flow milestone is not the final submission. Step 2 has not begun.
+October 31, 2026 at 11:59 PM Pacific. Final submission needs title, public URL, and preview screenshot. This match-flow milestone is not the final submission. This is the first Step 2 presentation milestone; further redesign awaits owner feedback.
