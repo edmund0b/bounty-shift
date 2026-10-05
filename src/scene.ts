@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ACTIVE_MAP, type MapDefinition } from '../shared/map';
+import {mapEnvironment} from '../shared/map';
 import {buildEnvironment} from './environment';
 import {displayElevation} from '../shared/traversal';
 import { ARENA, isWalkable, type Motion, type RoomView } from '../shared/game';
@@ -9,13 +10,14 @@ import { constrainOrbit } from './camera';
 
 const S=VIEW.scale;
 type Avatar={group:THREE.Group;limbs:THREE.Group[];materials:THREE.MeshStandardMaterial[];label:THREE.Sprite;labelCanvas:HTMLCanvasElement;labelTexture:THREE.CanvasTexture;ring:THREE.Mesh;arc:THREE.Mesh;lastLabel:string;version:number;x:number;z:number;elevation:number};
-export function createArenaScene(canvas:HTMLCanvasElement,map:MapDefinition=ACTIVE_MAP){
+export function createArenaScene(canvas:HTMLCanvasElement,map:MapDefinition=ACTIVE_MAP,variant:string|null=null){
+ const env=mapEnvironment(map,variant);
  const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
  renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));renderer.outputColorSpace=THREE.SRGBColorSpace;
  renderer.toneMapping=THREE.ACESFilmicToneMapping;renderer.toneMappingExposure=1.25;
- const scene=new THREE.Scene();scene.background=new THREE.Color(map.environment.fog);scene.fog=new THREE.Fog(map.environment.fog,28,78);
+ const scene=new THREE.Scene();scene.background=new THREE.Color(env.fog);scene.fog=new THREE.Fog(env.fog,28,78);
  const camera=new THREE.PerspectiveCamera(VIEW.fov,16/9,.08,110);
- const lighting=map.environment.lighting;
+ const lighting=env.lighting;
  scene.add(new THREE.HemisphereLight(lighting?.sky??'#94dcff',lighting?.ground??'#102039',2.2));const sun=new THREE.DirectionalLight(lighting?.sun??'#c5ddff',2.2);sun.position.set(10,20,8);scene.add(sun);
  for(const p of lighting?.points??[{color:'#ff62db',intensity:30,distance:35,x:43,y:6,z:28},{color:'#3edcff',intensity:35,distance:35,x:21,y:6,z:20}]){const light=new THREE.PointLight(p.color,p.intensity,p.distance,2);light.position.set(p.x,p.y,p.z);scene.add(light);}
  const resources=new Set<{dispose:()=>void}>(),solids:THREE.Mesh[]=[],avatars=new Map<string,Avatar>();
@@ -23,7 +25,7 @@ export function createArenaScene(canvas:HTMLCanvasElement,map:MapDefinition=ACTI
  const material=(color:string,glow=false)=>track(new THREE.MeshStandardMaterial({color,roughness:glow?.35:.55,metalness:.45,emissive:glow?color:'#000000',emissiveIntensity:glow?2:0}));
  const cube=track(new THREE.BoxGeometry(1,1,1));
  const box=(parent:THREE.Object3D,x:number,y:number,z:number,w:number,h:number,d:number,mat:THREE.Material)=>{const mesh=new THREE.Mesh(cube,mat);mesh.position.set(x,y,z);mesh.scale.set(w,h,d);parent.add(mesh);return mesh;};
- const environment=buildEnvironment(scene,map);solids.push(...environment.solids as THREE.Mesh[]);
+ const environment=buildEnvironment(scene,map,variant);solids.push(...environment.solids as THREE.Mesh[]);
  const limbGeometry=track(new THREE.BoxGeometry(1,1,1));
  const makeAvatar=(id:string,color:string):Avatar=>{
   const group=new THREE.Group();scene.add(group);const armor=track(new THREE.MeshStandardMaterial({color:'#385772',roughness:.8,metalness:.2}));const glow=material(color,true);const mats=[armor,glow];

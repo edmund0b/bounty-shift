@@ -8,3 +8,5 @@ export function selectRoundMap(roundNumber:number,previous:string,chooseIndex:(s
  const alternatives=ids.filter(id=>id!==previous),pool=alternatives.length?alternatives:ids;
  return pool[chooseIndex(pool.length)];
 }
+
+export function selectMapVariant(mapId:string,chooseIndex:(size:number)=>number):string|null {const variants=Object.keys(MAPS[mapId]?.variants??{});return variants.length?variants[chooseIndex(variants.length)]:null;}

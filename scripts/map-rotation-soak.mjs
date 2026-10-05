@@ -19,7 +19,7 @@ try{
  const started=Date.now();
  for(let n=1;n<=3;n++){
   await wait(()=>clients.every(c=>c.room.phase==='arena'&&c.room.match.roundNumber===n),10000);
-  const mapId=n===2?'scorched_point':'central_plaza';assert(clients.every(c=>c.room.mapId===mapId));assert(clients.every(c=>c.room.round.endsAt===clients[0].room.round.endsAt));
+  const mapId=clients[0].room.mapId;assert(MAPS[mapId]);if(n===1)assert.equal(mapId,'central_plaza');else assert.notEqual(mapId,clients[0].room.match.mapHistory[n-2]);assert(clients.every(c=>c.room.mapVariant===clients[0].room.mapVariant));if(mapId==='aerie_sky_port')assert(['day','night'].includes(clients[0].room.mapVariant));assert(clients.every(c=>c.room.mapId===mapId));assert(clients.every(c=>c.room.round.endsAt===clients[0].room.round.endsAt));
   clients.forEach(c=>assert(c.room.players.every(p=>isWalkable(p,MAPS[mapId]))));
   console.log(`Real-time Round ${n}: ${mapId}; three WebSocket clients agree`);
   const c=clients[0],self=c.room.players.find(p=>p.id===c.id);let seq=self.ack;
@@ -28,11 +28,11 @@ try{
   if(n===2){const token=c.token,id=c.id;c.ws.close();await delay(150);const replacement=await connect();send(replacement,{type:'resume',code,token});await wait(()=>replacement.room);assert.equal(replacement.id,id);assert.equal(replacement.room.mapId,mapId);assert.equal(replacement.room.players.length,3);clients[0]=replacement;console.log('Real-time Round 2 reconnect restored the same identity/map');}
   await wait(()=>clients.every(c=>c.room.phase!=='arena'),100000);
   assert(clients.every(c=>c.room.match.roundNumber===n&&c.room.round.remainingSeconds===0));
-  if(n<3){assert(clients.every(c=>c.room.phase==='intermission'));assert(clients.every(c=>c.room.nextMapId===(n===1?'scorched_point':'central_plaza')));}
+  if(n<3){assert(clients.every(c=>c.room.phase==='intermission'));assert(clients.every(c=>c.room.nextMapId===clients[0].room.nextMapId&&c.room.nextMapVariant===clients[0].room.nextMapVariant));assert(MAPS[clients[0].room.nextMapId]);assert.notEqual(clients[0].room.nextMapId,mapId);}
  }
  assert(Date.now()-started>=279000,'All three real 90-second rounds and intermissions must run');
  assert(clients.every(c=>c.room.phase==='complete'));
- assert(clients.every(c=>JSON.stringify(c.room.match.mapHistory)==='["central_plaza","scorched_point","central_plaza"]'));
+ assert(clients.every(c=>JSON.stringify(c.room.match.mapHistory)===JSON.stringify(clients[0].room.match.mapHistory)));assert.equal(clients[0].room.match.mapHistory.length,3);
  assert(clients.every(c=>c.room.match.winners.length===3));const host=clients.find(c=>c.id===c.room.hostId);send(host,{type:'lobby'});await wait(()=>clients.every(c=>c.room.phase==='lobby'));
  clients.forEach(c=>send(c,{type:'ready',ready:true}));await wait(()=>host.room.players.every(p=>p.ready));send(host,{type:'start'});await wait(()=>clients.every(c=>c.room.phase==='arena'));assert(clients.every(c=>c.room.mapId==='central_plaza'&&c.room.match.roundNumber===1));
  assert(clients.every(c=>c.errors.length===0));console.log(`PASS: full-duration three-client match, ${((Date.now()-started)/1000).toFixed(1)} seconds, rotation/reconnect/results/fresh opening`);

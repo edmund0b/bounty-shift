@@ -1,143 +1,78 @@
-# Bounty Shift — Step 2, Stage 3: Scorched Point + Map Rotation
+# Bounty Shift — Step 2, Stage 3: Aerie Sky-Port
 
-This is an additive Map 2 update to the completed Central Plaza build. Central Plaza's map-definition file, geometry, spawns, controller tuning, player colors and responsive CSS are preserved. The existing one-service Render/WebSocket architecture and Bounty match rules remain.
 
-![Scorched Point desktop preview](SCORCHED_POINT_PREVIEW.png)
+## Map 3 implementation
+
+Aerie Sky-Port extends the existing map definition, renderer, traversal, spawns, minimap and round lifecycle. Both prior map definitions, third-person camera/controller, responsive CSS, movement/combat logic and dependency versions remain unchanged.
+
+![Aerie Day](AERIE_DAY_PREVIEW.png)
+![Aerie Night](AERIE_NIGHT_PREVIEW.png)
+
+### Layout and vertical traversal
+
+Aerie uses a 2200 × 2400 suspended footprint with unsupported open-sky gaps. Aerie Plaza is the central circular hub and blue navigation beacon. West Sunset Gate and compact west Stardust loading pocket contrast with the longer eastern Stardust Dock. The north Cloudhaven Terminal has a dome, elevated bridges, two side stair approaches and paired stairs to its observation level. South High Observatory has a smaller dome, terrace and accessible ramp. Lower side connectors join both docks to the observatory approach as alternatives to the central route.
+
+Main platforms are elevation 0; the terminal/bridges and observatory terrace are 90; the upper terminal overlook is 180. Stair visuals use the existing smooth shared ramp collision. No jumping or falling system was added. Unsupported edges stop movement and dash; railings protect selected high edges. Eight map-owned spawns are validated across west/east docks, both terminal landings and the observatory outer deck. Respawn uses the existing safe-spawn/protection system.
+
+### Authoritative Day / Night
+
+The server chooses `nextMapVariant` once alongside `nextMapId` during intermission. `selectMapVariant` receives server cryptographic randomness and uses the registered map's variant keys. Aerie supports `day` and `night`; other maps use null. At round start, `mapId` and `mapVariant` activate atomically before spawning and broadcasting. Resume packets carry the same active variant; forged client map/variant fields cannot change it. Lobby return clears both pending values. There is no real-time sun cycle or client randomization.
+
+`mapEnvironment` resolves only environment colors and lighting. Day/Night share all physical map data. The existing scene effect also keys on variant, disposes its prior resources and uses the same environment builder. The HUD adds Day/Night beside the existing map name. Map changes still happen only between rounds.
+
+### Minimap and performance
+
+The north-up minimap draws Aerie's actual ground footprints, elevated surfaces, ramps, buildings and labels from its definition. The cyan local-player arrow uses the existing X/Z/facing updates; enemies are not revealed. Sky-specific map colors replace lava colors without changing sizing or placement.
+
+Static low-poly cloud banks are instanced below the arena, with a distant cloud-colored horizon surface. Domes use low-poly hemispheres and metallic wire ribs; simple shuttles are decorative. Common primitives/materials and trim batching are reused. The existing light budget is retained; there are no volumetric clouds, real-time reflections, new animation loops or texture downloads. Previous scene resources are disposed by the existing lifecycle.
+
+### Map 3 verification and public testing
+
+Validation completed: production build passes; all 88 automated tests pass. Two independent Chromium/WebGL sessions pass both shared variants, Aerie keyboard stair ascent, multi-touch joystick/look/Sprint, touch Dash/Attack, refresh, three-round scene switching, results/lobby reset and 11 viewport sizes. No page runtime errors occurred. A separate three-client, unmodified-timer match passed in 280.2 seconds through Central Plaza → Scorched Point → Aerie Sky-Port, with matching state, reconnect and a fresh Central Plaza opening. These are local tests; the owner must deploy and run physical-device acceptance.
+
+Run `npm run build`, `npm test`, and (with a Chromium executable) `BOUNTY_QA_BROWSER=/path/to/chromium npm run test:browser`. `node --import tsx scripts/map-rotation-soak.mjs` runs a real-duration three-client match without timer or position fixtures. Browser QA selects maps/variants in its private fixture to guarantee coverage of both Aerie variants; production rotation is unchanged.
+
+The automated suite covers valid spawns, all main connections, upper ascent/descent, flank routes, unsupported edges, dash, vertical/blocked melee, authoritative Bounty KO/protected respawn, both shared variants, reconnect, spoof rejection, scores and final flow. Renderer tests replace all three maps repeatedly and verify GPU resource disposal.
+
+After uploading/redeployment, test on two separate devices:
+
+1. Create/join, ready up and start. Round 1 must always be Central Plaza.
+2. Complete matches until Aerie is selected by the random pool. Verify both devices show Aerie and the same Day/Night label. Random selection means it may take more than one match.
+3. Traverse plaza → west/east docks → south observatory, then climb the north main stairs, both side stairs and paired upper stairs. Sprint/dash on bridges and slopes; verify edges stop escape.
+4. Check local position/direction on the Aerie minimap. Look around while stationary; steer while moving. Verify nameplates, gold Bounty distinction and combat/health/KO/respawn.
+5. On mobile, use joystick + right-side look simultaneously; test Sprint, Dash and Attack. Verify complete HUD/minimap containment without scrolling.
+6. Refresh during Aerie. Verify identity, scores, health, target, map and variant recover. Finish all three rounds, return to lobby and start a fresh match.
+7. Repeat until both Day and Night are seen. Check that layouts match and previous-map objects/collision do not remain.
+
+Remaining limits: procedural prototype assets; no falling/jumping; static clouds; closed dome landmark bases rather than enterable interiors; capacity remains 2–6. Hardware FPS and actual phone/Render behavior require owner testing. No Maps 4–5 or new modes are included.
+
+Commit message: `Add Aerie Sky-Port with synchronized day and night variants`
+
+### Exact Map 3 file changes
+
+| Files | Change |
+| --- | --- |
+| `shared/maps/aerie-sky-port.ts` (new) | Geometry, ramps, blocks, spawns, labels, decorations and Day/Night palette |
+| `shared/maps/types.ts`, `shared/map.ts` | Environment variants, dome/shuttle types, registration and palette resolver |
+| `shared/map-rotation.ts`, `shared/game.ts`, `server/rooms.ts` | Variant selection and synchronized current/pending variant fields |
+| `src/environment.ts`, `src/scene.ts`, `src/Arena.tsx` | Sky environment, variant rendering and lifecycle key |
+| `src/main.tsx`, `src/Minimap.tsx` | Variant subtitle and map-specific minimap colors |
+| `tests/aerie.test.ts` (new), `tests/maps.test.ts`, `tests/environment.test.ts` | Map 3 and expanded-pool regression coverage |
+| `scripts/browser-smoke.mjs`, `scripts/map-rotation-soak.mjs` | Shared variants, rendering/control coverage and three-map rotation checks |
+| `README.md`, three `AERIE_*_PREVIEW.png` (new) | Documentation and browser previews |
 
 ## Authoritative map rotation
 
-`MAPS` contains exactly two playable entries: `central_plaza` and `scorched_point`. Maps 3–5 are not implemented or registered.
+`MAPS` contains three playable entries: `central_plaza`, `scorched_point`, and `aerie_sky_port`. Maps 4–5 are not implemented or registered.
 
 - Every fresh match starts Round 1 on Central Plaza.
 - `selectRoundMap` in `shared/map-rotation.ts` obtains its eligible pool from registered maps, excludes the previous map when alternatives exist, and accepts a server-supplied random-index function. The server supplies cryptographic `randomInt`; no client chooses maps.
-- With two maps, the current sequence is Central Plaza → Scorched Point → Central Plaza. Registering more completed maps automatically expands the later-round pool without changing this helper or introducing a shuffle bag. The helper is independent of mode/scoring and does not hard-code three rounds.
+- Round 1 remains Central Plaza. Later rounds choose any registered alternative except the immediately previous map. Aerie joins the existing pool without rewriting selection. The helper remains independent of mode/scoring and does not hard-code three rounds.
 - At round expiry, the server freezes the old round/results and chooses `nextMapId` exactly once. During intermission, `mapId` still describes the frozen previous round; the existing transition panel announces the next map.
 - At the next round's start, the server atomically activates the chosen `mapId`, resets players using that map's own spawns, assigns fresh targets and broadcasts the resulting state. The client clears old prediction input, creates the matching environment and updates its minimap. There is no active mid-round map switch.
 - `mapId`, `nextMapId` and `match.mapHistory` are synchronized server state. Refresh/reconnect obtains the current map directly from the welcome packet. Client-supplied map IDs are ignored. Lobby return clears pending/history state and restores the Central Plaza opening.
 
 The existing arena lifecycle unmounts the scene during intermission and disposes geometry, materials, textures, instances and the renderer; listeners/render loops are cleaned up too. The new scene uses only its own map definition for camera obstacles, movement, melee, spawns and minimap data. No cross-map global collision cache is used.
-
-## Scorched Point regions and traversal
-
-Scorched Point is 2400 × 2200 units, approximately the same footprint as Central Plaza but with different geometry, lava-separated sectors and three actual height bands:
-
-| Region | Playable identity |
-| --- | --- |
-| The Crucible | Raised circular fighting platform at elevation 90; a solid furnace core, molten vent rings and four wide approaches |
-| Magma Refinery | Northern machinery/furnace sector, tanks/chimneys and access to both the Crucible and upper overlook |
-| Obsidian Mines | Dark rock/support silhouettes and tighter lower routes |
-| Lava Fields | More open eastern platform lanes surrounded by visible molten ground |
-| Hell's Forge | Western furnace sector and ramp/bridge toward the center |
-| Hell's Depot | Eastern storage/logistics sector, cargo, main bridge and outer lane |
-| Volcanic Depot | Southern machinery/spawn approach with alternate maintenance connections |
-
-Lower ground is elevation 0, main bridges/Crucible/maintenance landings are 90 (2.7 rendered metres), and the refinery overlook/catwalk circuit is 190 (5.7 metres). Four primary center approaches and five low/mid/upper access ramps connect the network. Stair stripes sit on smooth authoritative slopes. West ascent → refinery overlook → east descent is traversable; a separate north ramp reaches high ground. Lower routes connect sectors without forcing every chase across the Crucible.
-
-Optional map definition fields extend the existing model: elliptical footprints, an explicit ground union, map-specific minimap labels, reusable decoration modules, palette/theme and lighting configuration. The same environment builder, support-height integrator, camera and minimap render both maps. Elliptical movement/solid checks match the circular center; melee includes the existing height/range rules and circular core/deck obstruction checks.
-
-### Lava boundaries
-
-Lava is a lightweight generated emissive-looking floor below the actual platforms. It does not grant walkable support. Server and prediction both require valid map ground or a reachable deck/ramp. At unsupported edges, walking/sprint/dash stop safely; upper rails make major boundaries readable. No damage-over-time, falling, jump or client-only KO mechanic was added. Players cannot naturally fall into lava in the current supported-surface controller, so no new recovery rule is needed and they cannot become trapped below the map.
-
-### Own spawns and minimap
-
-Eight safe ground spawn positions are spread around Refinery (1190,390), Mines (380,570), Lava Fields (2050,600), Forge (180,980), Hell's Depot (2210,1200), Volcanic Depot (1240,1900), west maintenance (350,1880) and east logistics (1900,1710). Capacity remains 2–6; the extra positions prepare future expansion. Round start and protected respawn use only the active map's positions and existing reset/clearance rules.
-
-The preserved top-right, fixed-north minimap draws Scorched Point's actual ground regions, circular Crucible, bridges, ramps, cover and sector labels. The cyan local arrow uses the same world coordinates at every elevation. It shows no opponents. Size/input transparency/no-scroll behavior is preserved.
-
-### Performance and visual identity
-
-The same procedural pipeline builds dark iron architecture, orange/ember trim, facade signs, tanks, pipes, vents, crates, cliffs, chimneys and distant lavafalls. Generated small lava texture and cached floor/sign textures avoid external asset downloads. Static box decorations are instanced; primitives/materials are reused. The lower rectangle union is tessellated once into one ground mesh, avoiding overlapping-floor flicker and per-tile draw calls. Only the existing small lighting budget is used with map-specific warm colors; no particles, additional dynamic lights, heavy shadows, mirrored reflections or physics props were added. Universal cyan/gold player and HUD readability remains unchanged.
-
-## Map 2 validation
-
-- Production build passes; the existing Three.js advisory chunk-size warning remains.
-- All 80 automated tests pass. New tests cover rotation/future registered pools, three-band routes, all center approaches, ground/lava support, dash/edge boundaries, valid spread spawns, circular/vertical melee, Scorched Point Bounty KO/respawn and simultaneous trades, privacy, atomic map changes, score/reset integrity, elevated reconnect, host migration and fresh matches.
-- Resource tests construct alternating maps repeatedly, verify map-specific signage/collision counts and require every geometry/material/texture/instance to dispose exactly once. Central Plaza's definition remains byte-for-byte unchanged.
-- Two independent Chromium/WebGL sessions pass the existing controller/combat flow plus authoritative map/minimap switching, real client-controlled refinery ascent, dash, melee and synchronized damage, Scorched Point refresh on an upper route, multi-touch joystick/look/Sprint, touch Dash/Attack, three rounds, final results and the current host's lobby return. No page runtime errors were observed. Eleven viewport sizes pass containment on both maps.
-- A separate full-duration integration run uses three real WebSocket clients with unmodified 90-second timers: Central Plaza → Scorched Point → Central Plaza, reconnect/host migration, identical deadlines/map history/results and a fresh second opening. It passed in 280.2 seconds. It does not replace public-network or physical-phone acceptance.
-
-Reproduce the full-duration check after building with:
-
-```sh
-node --import tsx scripts/map-rotation-soak.mjs
-```
-
-It takes about 4 minutes 40 seconds and uses no accelerated timer/position fixtures. Normal `npm test` remains fast. Browser smoke fixtures accelerate transitions separately and are not production endpoints.
-
-## Exact Map 2 changed files
-
-| Files | Change |
-| --- | --- |
-| `shared/maps/scorched-point.ts` (new) | Scorched Point geometry, ground/lava support, sectors, routes, cover, spawns, labels, decorations and warm lighting |
-| `shared/map-rotation.ts` (new), `shared/map.ts` | Generic opening/non-repeat selection and two-map registry |
-| `shared/maps/types.ts` | Optional circular footprints, ground regions, minimap labels and environment modules |
-| `shared/traversal.ts`, `shared/combat.ts` | Map-specific ground/ellipse support and circular solid hit obstruction |
-| `shared/game.ts`, `shared/rounds.ts`, `server/rooms.ts` | Synchronized pending map/history and atomic round activation/reset |
-| `src/environment.ts`, `src/scene.ts` | Shared warm industrial rendering, ground union/lava and map lighting; existing city rendering retained |
-| `src/Minimap.tsx`, `src/Arena.tsx`, `src/main.tsx` | Map-specific minimap shapes/labels, map canvas identity, dynamic header/transition name |
-| `tests/maps.test.ts`, `tests/environment.test.ts` (new) | Rotation/traversal/combat/server/lifecycle regressions |
-| `tests/multiplayer.test.ts`, `tests/traversal.test.ts`, `tests/match.test.ts` | Existing tests now resolve the actual active map while retaining Central Plaza checks |
-| `scripts/browser-smoke.mjs`, `scripts/map-rotation-soak.mjs` (new) | Two-browser controls/map transitions and full-duration three-client match |
-| `README.md`, `SCORCHED_POINT_PREVIEW.png`, `SCORCHED_POINT_MOBILE_PREVIEW.png` (new previews) | Documentation and browser-captured screenshots |
-
-`shared/maps/central-plaza.ts`, `src/camera.ts`, `src/style.css`, controller constants, dependencies/lockfile and hosting configuration are unchanged from the Map 1 delivery.
-
-## Public Scorched Point acceptance
-
-1. Deploy server/client together using the instructions below. Refresh both devices and create a new room. Ready/start: Round 1 must always be Central Plaza, including a fresh second match.
-2. Play to Round 1 expiry. Both screens must show the same next-map name and countdown. Round 2 must load Scorched Point's own positions, world and minimap, with no Central Plaza objects or invisible collision.
-3. Navigate the Refinery ramp to The Crucible. Cross west/east/south bridges; use a lower side route. Reach upper catwalks, cross the overlook and descend on another side. Walk/sprint/dash on each height band and confirm safe edges/lava boundaries.
-4. Check stationary mouse-look/pointer lock/Esc and near-wall/under-catwalk camera obstruction. Compare remote positions/facing/height. Test melee, health, target credit, KO, safe protected respawn and score retention on both devices.
-5. Refresh on Scorched Point while elevated, damaged, scored or KO. Restore the same identity/map/state without duplicate players. Test host transfer and the new host's controls.
-6. Finish Round 2. Both clients must switch to a valid registered map (currently Central Plaza) for Round 3. No lava/warm lights/old geometry/minimap or Scorched Point collision may remain. Finish the match, compare totals/winner/tie, return to lobby and start fresh.
-7. On physical mobile, use joystick plus right-side swipe plus Sprint simultaneously, then Dash/Attack. Traverse slopes/bridges and rotate the phone. HUD/minimap/buttons must remain reachable with no page scrolling.
-8. Repeat with three or more players when practical. Observe frame rate during repeat matches, tight machinery corners and camera compression. Report map/sector, device/browser, input and both screens' state for any issue.
-
-Remaining polish: stylized procedural props/architecture, static lava/haze rather than final effects, near-wall camera framing and actual-device touch ergonomics/performance. No damage lava, new mode, balance change, final art pass or Maps 3–5 were added. Stop here for owner testing.
-
-## Preserved Map 1 foundation reference
-
-Central Plaza is the first playable map in the existing Bounty Shift project. It extends the Step 1 multiplayer/match foundation and Step 2 third-person renderer/controller. Central Plaza remains the opening map. Scorched Point is the second registered map; no other maps are registered.
-
-Repository: https://github.com/edmund0b/bounty-shift
-
-Existing public service: https://bounty-shift.onrender.com
-
-![Central Plaza desktop preview](STEP2_PREVIEW.png)
-
-## The map
-
-The playable district is 2600 × 2100 world units, approximately 1.9 times the previous arena's ground area. Five connected regions have different layouts:
-
-- Central Plaza: an open middle with a solid monument base, twin cyan energy pylons, surrounding cover and routes on every side.
-- West Depot: industrial buildings, cargo cover, magenta signage, ground lanes and a west loading balcony/catwalk.
-- East Storage: asymmetric storage blocks and tighter cargo corners, pink facade lighting, ground connections and an east upper route.
-- South Terminal: cyan landmark signage, an open spawn approach, side lanes and nearby cover.
-- North Bridge: a raised cross-map route connecting both side catwalks, with a central stair approach and skyline beyond.
-
-The upper network has three wide approaches: west stairs, east ramp and north stairs. Players can ascend on one side, cross the North Bridge and descend elsewhere. Side balconies overlook the plaza without sealing its central approach. Decks permit ground-level passage underneath where there is sufficient clearance; ramps are solid wedges. Building facades and door-shaped lighting panels are closed solids, not entrances. Open lanes around the buildings are real routes.
-
-The rendering is procedural and stylized: dark navy architecture, cyan/magenta trim, generated facade signs, cargo, barriers, sparse planter trees, lane markings and lightweight distant towers. Floor sheen uses materials/painted lighting rather than costly real-time reflections.
-
-## Map architecture and authoritative traversal
-
-- `shared/maps/types.ts` defines bounds, blocks with bottom/top heights, walkable surfaces/ramps, spawns, districts and environment settings.
-- `shared/maps/central-plaza.ts` is the single source of map geometry, collision volumes, upper routes and spawn points.
-- `shared/map.ts` registers `central_plaza`. `scorched_point` is also registered; no fake future entries are selectable. Rooms carry a map ID; the server, client prediction, renderer and minimap resolve the same definition. The server-only rotation helper now selects post-opening maps.
-- `shared/traversal.ts` supplies common support-height and volume checks. World X/Y remain horizontal coordinates, rendered as X/Z at `VIEW.scale` (0.03). `elevation` is authoritative feet height in world units. Upper decks are at 100 units, or 3 rendered metres.
-- Walking, sprint and dash use the existing shared movement integrator with small collision substeps. Slopes change height continuously; visually marked stairs use smooth collision ramps. Players cannot step directly from the ground onto a bridge, dash through a solid, or walk off an unsupported upper edge. Rails guard edges while leaving ramp mouths and route joins open.
-- Prediction uses the same map/traversal functions as the server. Clients continue sending input intent, never their position or elevation. Snapshots/reconnect restore authoritative elevation. Remote interpolation samples the matching support to keep feet on slopes.
-- Melee preserves damage, range, arc and cooldown. Hit checks now include vertical distance and a chest-height line through solid volumes/ramp wedges. Ground players cannot hit through an overhead deck at players above them. Low cover below the strike line can be struck over.
-- The camera retains Stage 2 free look/obstruction rays, now following the player's elevation and staying above their current floor. Close obstruction slightly increases avatar fading to preserve visibility. Round spawn facing points toward the plaza. No controller replacement, jump, falling/gravity or new ability was introduced.
-
-Eight valid ground spawn positions are spread across outer districts and approaches. Current room capacity remains 2–6. Round starts use these spread positions; respawn retains the existing greatest-clearance choice among valid spawns and existing protection. Round/lobby resets restore ground elevation and all existing reset rules.
-
-## Navigation minimap
-
-The top-right, north-up SVG minimap is generated directly from the active map's bounds, buildings, cover, walkways, ramps and district locations. The cyan arrow shows only your authoritative position and facing. Upper-floor movement uses the same horizontal X/Y coordinates. No enemy markers, target radar or reveal mechanics were added.
-
-The marker updates in the existing arena render loop. The panel is pointer-transparent and responsively clamped, so it does not capture camera input, displace the arena or add page height. Desktop and narrow/short mobile sizes preserve the existing one-viewport layout.
 
 ## Preserved controls
 
@@ -167,93 +102,39 @@ Walking remains 220 units/second; sprint remains 330. Stamina max 100, drain 28/
 
 Server authority still covers movement, health, hit/KO attribution, targets, score, timers, transitions and results. Only the recipient's own target is sent in their objective HUD; public player snapshots never contain other target assignments. Camera position/rotation stays local. Reconnect grace remains ten seconds; identity, health, elevation, target, scores, cooldowns and deadlines are preserved while the room/server exists. Duplicate tabs cannot steal an active identity. Permanent departures repair targets, migrate host authority and cancel play gracefully if too few players remain. See `FOUNDATION_AUDIT.md` for the Step 1 audit history.
 
-## Build and automated validation
-
-Use Node.js 22 or newer inside the repository:
+## Local build and tests
 
 ```sh
 npm ci --include=dev
 npm run build
 npm test
-npm start
+npm run dev
 ```
 
-Open http://localhost:3000 in two independent browser sessions. The one Node service serves both frontend assets and `/ws`; `PORT` can override 3000. For development, use `npm run dev`. Build before integration/browser tests so production frontend assets exist.
-
-Optional Chromium browser checks:
+Open the local URL printed by the server. Browser QA needs an installed Chromium/WebGL-capable executable:
 
 ```sh
-npx playwright-core install chromium
-npm run test:browser
+BOUNTY_QA_BROWSER=/path/to/chromium npm run test:browser
+node --import tsx scripts/map-rotation-soak.mjs
 ```
 
-On a Unix shell, an existing compatible binary can be selected with `BOUNTY_QA_BROWSER=/absolute/path/to/chromium npm run test:browser`. `BOUNTY_QA_OUTPUT` selects a screenshot directory. The script arranges local server fixtures and advances test time; it adds no production debug endpoint and is not part of normal startup.
+## Upload into the same GitHub repository
 
-Local validation for this delivery:
+1. Download and extract `Bounty_Shift_Step_2_Stage_3_Aerie_Sky_Port.zip`.
+2. Open the extracted `bounty-shift` folder. Its contents include `src`, `shared`, `server`, `tests`, `scripts`, `package.json` and `README.md`.
+3. Open https://github.com/edmund0b/bounty-shift on the branch Render already deploys. Choose Add file → Upload files.
+4. Drag the CONTENTS of the extracted `bounty-shift` folder into the upload area. Do not upload the outer folder or the ZIP itself. Preserve nested `shared/maps/aerie-sky-port.ts`; do not flatten folders. The repository root must still directly contain `package.json`.
+5. Review the upload. Confirm both old maps remain and the new Aerie definition, variant fields and README are included. Do not delete existing files.
+6. Commit: `Add Aerie Sky-Port with synchronized day and night variants`.
+7. Wait for the existing Render automatic deploy. If disabled, use the same service's Manual Deploy → Deploy latest commit. Keep build `npm ci --include=dev && npm run build`, start `npm start` and all existing settings. No new service/account is needed.
+8. After Render reports Live for the new commit, refresh every client at https://bounty-shift.onrender.com and create a fresh room. Deploy restarts clear in-memory rooms. Use the Map 3 public checklist above. Central Plaza must remain Round 1; Aerie is randomly eligible later.
 
-- Production TypeScript/frontend/server build passes. Vite retains the advisory Three.js chunk-size warning.
-- All 80 automated tests pass, including real independent WebSocket sessions. Added coverage checks map/spawn validity, all approaches, sprint/dash on slopes, a complete west-to-north-to-east upper route and descent, deck underpasses, upper edge constraints, vertical melee, authoritative/predicted elevation agreement, forged-height rejection, elevated reconnect, KO respawn and round reset. Previous room, combat, privacy, scoring, host, reconnect and full-match tests remain.
-- Chromium/WebGL checks pass with two independent sessions: stationary pointer-lock yaw/pitch, camera steering, sprint/dash, reticle melee and synchronized health, refresh, actual client-controlled stair ascent, map marker coordinates, real multi-touch joystick/look, three-round transitions, final results and lobby reset. No page runtime errors were observed.
-- Eleven viewport sizes pass containment/HUD visibility checks: 1920×1080, 1440×900, 1366×768, 1280×720, 1024×600, 800×450, 640×360, 390×844, 375×667, 320×568 and 844×390.
+## Preserved foundations and limits
 
-Browser timers are accelerated for transition checks. Physical phones, public network latency, full-duration matches and performance on actual devices remain owner acceptance checks after deployment.
+Central Plaza remains the 2600 × 2100 cyan/magenta urban opening map with South Terminal, Central Plaza, West Depot, East Storage and North Bridge. Scorched Point remains the 2400 × 2200 lava/industrial map with The Crucible, Magma Refinery, Obsidian Mines, Lava Fields, Hell's Forge, Hell's Depot and Volcanic Depot. Their definition files are unchanged.
 
-## Map 1 implementation files (reference; current Map 2 changes listed above)
+The single Node service still serves React/Three.js and authoritative WebSockets on one Render URL. Camera orientation is local-only; player motion/facing and combat/match state remain authoritative. Health, stamina, abilities, target privacy, KO/respawn, host migration and match scoring use the existing implementation. No dependency, balance, controller tuning, mobile UI or responsive CSS change was made.
 
-Relative to the completed Stage 2 controller:
+WebGL/hardware acceleration is required. Existing in-memory single-instance/restart behavior, ten-second reconnect grace and melee without latency rewind remain. Real desktop/phone FPS and public-network behavior require owner acceptance. This delivery stops at Map 3; no Maps 4–5, modes or final art pass.
 
-| Files | Change |
-| --- | --- |
-| `shared/maps/types.ts`, `shared/maps/central-plaza.ts` (new) | Reusable map model and Central Plaza definition |
-| `shared/map.ts` | Registry, active map and compatibility exports |
-| `shared/traversal.ts` (new) | Shared support heights, ramp/volume collision and render support sampling |
-| `shared/game.ts` | Elevation/map-aware authoritative and predicted movement; snapshot map ID |
-| `shared/combat.ts` | Map-aware safe spawns and height/volume-aware hit checks |
-| `shared/presentation.ts` | Close-obstruction avatar fade threshold |
-| `server/rooms.ts` | Room map identity, map-aware movement/combat/spawns and elevation snapshots |
-| `src/environment.ts` (new) | Procedural map geometry, landmarks, signs, skyline and batching |
-| `src/Minimap.tsx` (new) | Actual-layout, local-player-only navigation minimap |
-| `src/scene.ts`, `src/camera.ts` | Map rendering, elevation-aware avatars/camera and support interpolation |
-| `src/Arena.tsx` | Active-map scene/minimap integration and defensive pointer-lock release handling |
-| `src/main.tsx` | Active-map prediction, spawn-facing camera initialization and map heading |
-| `src/style.css` | Responsive minimap rules only; no-scroll gameplay layout preserved |
-| `tests/traversal.test.ts` (new) | Map/height/traversal/network regression tests |
-| `tests/camera.test.ts`, `tests/combat.test.ts`, `tests/movement.test.ts`, `tests/multiplayer.test.ts`, `tests/presentation.test.ts` | New-map geometry regressions and elevated network/camera checks |
-| `scripts/browser-smoke.mjs` | Minimap, elevated client traversal and Central Plaza preview checks |
-| `README.md`, `STEP2_PREVIEW.png`, `STEP2_MOBILE_PREVIEW.png` | Current documentation and browser-captured previews |
-
-No dependency, lockfile, Render configuration, match-rule, room-capacity or scoring changes. The ZIP includes unchanged repository files too.
-
-## Upload to the existing GitHub repository and redeploy
-
-1. Download and extract `Bounty_Shift_Step_2_Stage_3_Scorched_Point.zip`. Open its `bounty-shift` folder.
-2. Open https://github.com/edmund0b/bounty-shift on the branch connected to Render. Choose Add file → Upload files.
-3. Drag the folders `src`, `shared`, `server`, `tests`, `scripts`, plus `README.md`, `SCORCHED_POINT_PREVIEW.png`, `SCORCHED_POINT_MOBILE_PREVIEW.png`. Upload their contents with the paths intact. Do not drag the enclosing `bounty-shift` folder or the ZIP. Do not upload `node_modules`, `dist` or `.git`.
-4. Before committing, confirm these new paths: `shared/maps/scorched-point.ts`, `shared/map-rotation.ts`, `tests/maps.test.ts`, `tests/environment.test.ts`, `scripts/map-rotation-soak.mjs`. Also confirm the updated `server/rooms.ts`; both server and client must receive this update together.
-5. Commit message: `Add Scorched Point and authoritative map rotation`.
-6. Wait for the existing Render auto-deploy. If disabled, open the existing service and choose Manual Deploy → Deploy latest commit. Keep build `npm ci --include=dev && npm run build`, start `npm start`, and existing environment/root-directory settings. No new service or account is needed.
-7. Wait for Live and verify the new commit. Refresh all devices at https://bounty-shift.onrender.com. Redeploy resets in-memory rooms, so create a fresh room. Round 1 should say `Step 2 · Central Plaza`; Round 2 should say `Step 2 · Scorched Point`, with the matching minimap. Do not leave an older client tab running against the updated map/height protocol.
-
-## Public-device acceptance checklist
-
-Start with two separate devices, ideally on different networks; repeat with at least three players when practical.
-
-- Create/join, ready up and start with existing host controls. Check separate safe spawns, correct private targets, initial health/resources and the minimap.
-- From South Terminal, reach Central Plaza, West Depot and East Storage using main and side routes. Use cover to break sightlines. Confirm solid buildings block movement and open lanes remain open.
-- Ascend west stairs, cross the North Bridge to the east catwalk and descend the east ramp. Try the central north stairs in both directions. Sprint/dash on slopes and decks: no height jumps, sinking, falling through floors, edge escape or wall clipping. Walk underneath a deck on the ground where clearance permits.
-- Orbit/tilt while stationary and while climbing. Test near-wall camera compression/recovery. Confirm remote players' positions/facing/height agree on both devices.
-- Check your cyan minimap arrow follows actual horizontal position and facing on ground and high ground; opponents never appear on it.
-- Test camera-facing melee on ground, on a slope and on the upper route. Out-of-range, wall/deck-blocked and wrong-elevation hits must fail. Both devices must agree on damage, KO and Bounty credit. A non-target KO still earns zero objective credit.
-- KO and respawn: valid ground spawn, full health, protection, existing cooldown/reset behavior, target and score retention. Refresh while elevated/damaged/KO and reconnect within grace; there must be no duplicate body or reset score.
-- Finish the full three-round match. Confirm synchronized expiry/intermission, fresh spawns/health/round scores, persistent match totals, refreshed private targets, final winner/tie and host lobby return. Start a fresh second match and verify old state is cleared.
-- Test host disconnect/migration and a permanent target departure with three players. With fewer than two remaining, play must end cleanly.
-- On a physical phone, stand still and swipe to look; simultaneously use the left joystick and right look region. Test touch Sprint/Dash/Attack, all ramps and turns, release/cancel/app switch and portrait/landscape. The minimap must not obstruct controls.
-- Resize desktop and rotate mobile: header, target/timer, arena, bottom HUD and buttons remain visible together with no page scrolling or zoom adjustment.
-
-## Performance and remaining limits
-
-Static decorative boxes/trim/skyline are instanced by cached material. Main collision meshes remain individually available to camera ray checks. Unit geometries, signs and materials are reused; floor/sign textures are generated locally. No large asset downloads, additional dependencies, heavy reflection/bloom/shadow systems or extra real-time lights were added. Resources are disposed when leaving/changing the arena, and the minimap shares the existing animation loop.
-
-This is a procedural playable interpretation of the concept, not final environment/character art. Vertical traversal is supported surfaces/ramps rather than general jumping/falling physics. Camera compression in tight spaces and real-phone frame rate still need public playtesting. WebGL/hardware acceleration is required. Existing single-instance in-memory hosting/restart limits, ten-second reconnect window and melee without latency rewind remain unchanged. Only Central Plaza and Scorched Point are playable. Further maps, radar and additional modes are not implemented.
-
-The next step is owner testing and fixing Map 1 issues. Map 3 work waits for a separate instruction. Challenge deadline: October 31, 2026 at 11:59 PM Pacific; final submission needs the project title, public link and preview image.
+Challenge deadline: October 31, 2026 at 11:59 PM Pacific. Submission needs project title, public link and preview image.

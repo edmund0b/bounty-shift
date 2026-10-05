@@ -13,7 +13,7 @@ export type Position = { x: number; y: number; elevation?:number };
 export type Input = { matchId: string; roundNumber: number; seq: number; dx: number; dy: number; sprint?: boolean; dashId?: number; attackId?: number; aimX?: number; aimY?: number };
 export type Motion = Position & { elevation:number; stamina: number; regenWait: number; exhausted: boolean; dashCooldown: number; dashRemaining: number; dashX: number; dashY: number; facingX: number; facingY: number; dashSeen: number; sprinting: boolean };
 export type PlayerView = Motion & CombatState & { id: string; name: string; color: string; ready: boolean; connected: boolean; ack: number };
-export type RoomView = { mapId:string; nextMapId:string|null; code: string; hostId: string; phase: 'lobby'|'arena'|'intermission'|'complete'; match: MatchView; round: RoundView; objective: PrivateObjective; players: PlayerView[]; tick: number; serverTime: number; notice: string };
+export type RoomView = { mapId:string; mapVariant:string|null; nextMapId:string|null; nextMapVariant:string|null; code: string; hostId: string; phase: 'lobby'|'arena'|'intermission'|'complete'; match: MatchView; round: RoundView; objective: PrivateObjective; players: PlayerView[]; tick: number; serverTime: number; notice: string };
 export type ClientMessage =
  | { type: 'create'; name: string }
  | { type: 'join'; name: string; code: string }
