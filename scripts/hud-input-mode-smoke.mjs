@@ -12,9 +12,9 @@ try {
  const context = await browser.newContext({viewport:{width:844,height:390},hasTouch:true,isMobile:true});
  const player = await context.newPage();
  const url = `http://127.0.0.1:${game.server.address().port}`;
- await host.goto(url);await host.getByLabel('Display name').fill('Mode Host');await host.getByRole('button',{name:'Create room'}).click();await host.locator('.code').waitFor();const code=await host.locator('.code').textContent();
- await player.goto(url);await player.getByLabel('Display name').fill('Mode Player');await player.getByLabel('Room code').fill(code);await player.getByRole('button',{name:'Join room'}).click();
- await player.getByRole('button',{name:'Ready up'}).click();await host.getByRole('button',{name:'Ready up'}).click();await host.getByRole('button',{name:'Start match',exact:true}).click();await player.locator('.viewport canvas').waitFor();
+ await host.goto(url);await host.getByLabel('Display name').fill('Mode Host');await host.getByRole('button',{name:'Create room'}).click();await host.locator('.code').waitFor();const code=await host.locator('.code').getAttribute('data-room-code');
+ await player.goto(url);await player.getByLabel('Display name').fill('Mode Player');await player.getByLabel('Room code').fill(code);await player.getByRole('button',{name:'JOIN'}).click();
+ await player.getByRole('button',{name:'Ready up'}).click();await host.getByRole('button',{name:'Ready up'}).click();await host.getByRole('button',{name:'START MATCH',exact:true}).click();await player.locator('.viewport canvas').waitFor();
  const room=game.rooms.rooms.get(code),self=room.players.find(p=>p.name==='Mode Player'),before={id:self.id,x:self.x,y:self.y,map:room.mapId,round:room.match.roundNumber};
  const canvas=await player.locator('canvas').elementHandle();
  const input=await context.newCDPSession(player);

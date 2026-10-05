@@ -1,3 +1,7 @@
+## Latest update: multiplayer entry flow
+
+Login and waiting lobby now use the connected cinematic entry presentation. See [ENTRY_FLOW_IMPLEMENTATION.md](ENTRY_FLOW_IMPLEMENTATION.md) for real-state wiring, controls, preservation and validation. Start with `npm install`, `npm run build`, then `npm start`. This update leaves the existing full-screen match HUD and gameplay systems intact.
+
 # Bounty Shift — full-screen mobile and desktop gameplay
 
 The existing match now fills the viewport with a shared responsive HUD. Mobile places health/stamina below the top-left match information, joystick bottom-left and Sprint/Dash/Attack bottom-right. Desktop places portrait/health/stamina bottom-left and keeps bottom-right empty. Maps, multiplayer, balance and rotation are preserved.

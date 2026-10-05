@@ -11,8 +11,8 @@ let browser;
 try{
  browser=await browserEngine.launch({executablePath:process.env.BOUNTY_QA_BROWSER||undefined,args:['--no-sandbox','--no-zygote','--enable-webgl','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'],headless:true});
  const ca=await browser.newContext({viewport:{width:1440,height:1050}}),cb=await browser.newContext({viewport:{width:844,height:390},hasTouch:true,isMobile:true});const a=await ca.newPage(),b=await cb.newPage();const errors=[];for(const p of [a,b])p.on('pageerror',e=>errors.push(e.message));
- await a.goto(url);await a.getByLabel('Display name').fill('goichi');await a.getByRole('button',{name:'Create room'}).click();await a.locator('.code').waitFor();const code=await a.locator('.code').textContent();
- await b.goto(url);await b.getByLabel('Display name').fill('Aizen');await b.getByLabel('Room code').fill(code);await b.getByRole('button',{name:'Join room'}).click();await b.getByRole('button',{name:'Ready up'}).click();await a.getByRole('button',{name:'Ready up'}).click();await a.getByRole('button',{name:'Start match',exact:true}).click();await a.locator('.viewport canvas').waitFor();await b.locator('.viewport canvas').waitFor();await a.waitForTimeout(1300);
+ await a.goto(url);await a.getByLabel('Display name').fill('goichi');await a.getByRole('button',{name:'Create room'}).click();await a.locator('.code').waitFor();const code=await a.locator('.code').getAttribute('data-room-code');
+ await b.goto(url);await b.getByLabel('Display name').fill('Aizen');await b.getByLabel('Room code').fill(code);await b.getByRole('button',{name:'JOIN'}).click();await b.getByRole('button',{name:'Ready up'}).click();await a.getByRole('button',{name:'Ready up'}).click();await a.getByRole('button',{name:'START MATCH',exact:true}).click();await a.locator('.viewport canvas').waitFor();await b.locator('.viewport canvas').waitFor();await a.waitForTimeout(1300);
  // Verify containment of actual gameplay content, not only hidden document overflow.
  const sizes=[[1920,1080],[1440,900],[1366,768],[1280,720],[1024,600],[800,450],[640,360],[390,844],[375,667],[320,568],[844,390]];
  async function checkLayout(page){
@@ -88,7 +88,7 @@ try{
  await b.screenshot({path:resolve(output,'STAGE2_MOBILE_PREVIEW.png'),fullPage:true});
  await a.keyboard.down('e');await a.waitForTimeout(250);await a.keyboard.up('e');await a.keyboard.down('Shift');await a.keyboard.down('w');await a.waitForTimeout(200);await a.keyboard.press('Space');await a.keyboard.up('w');await a.keyboard.up('Shift');await a.waitForTimeout(200);assert(self.stamina<100);assert(self.dashCooldown>0);await a.waitForFunction(()=>document.querySelector('#stamina')?.value<100);await a.waitForFunction(()=>document.querySelector('#stamina')?.value>=99);
  // Server fixture places an opponent within the reticle-facing range; no test endpoint added.
- await a.getByRole('button',{name:'Return everyone to lobby'}).click();await a.getByRole('button',{name:'Ready up'}).click();await b.getByRole('button',{name:'Ready up'}).click();await a.getByRole('button',{name:'Start match',exact:true}).click();await a.locator('.viewport canvas').waitFor();await a.waitForTimeout(200);const victim=room.players.find(p=>p.name==='Aizen');
+ await a.getByRole('button',{name:'Return everyone to lobby'}).click();await a.getByRole('button',{name:'Ready up'}).click();await b.getByRole('button',{name:'Ready up'}).click();await a.getByRole('button',{name:'START MATCH',exact:true}).click();await a.locator('.viewport canvas').waitFor();await a.waitForTimeout(200);const victim=room.players.find(p=>p.name==='Aizen');
  // Walk the real client up the west stairs. A/D/W vectors are relative to the retained local camera.
  Object.assign(self,{x:730,y:1900,elevation:0,spawnVersion:self.spawnVersion+1});await a.waitForTimeout(200);
  await a.keyboard.down('q');await a.waitForTimeout(280);await a.keyboard.up('q');await a.waitForTimeout(100);

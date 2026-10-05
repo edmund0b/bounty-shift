@@ -114,6 +114,6 @@ test('two live clients agree on stair elevation, elevated reconnect, KO respawn 
   // KO fixture exercises the same authoritative timer/respawn path used by combat.
   p.health=0;p.koRemaining=STEP;p.dx=0;p.dy=0;c.messages=[];b.messages=[];game.rooms.tick(Date.now());
   const spawn=await c.state(r=>r.players[0].health===100&&r.players[0].spawnVersion===2),other=await b.state(r=>r.tick===spawn.tick);assert.deepEqual(spawn.players,other.players);assert.equal(spawn.players[0].elevation,0);assert(spawn.players[0].protection>0);assert(isWalkable(spawn.players[0]));
-  Object.assign(p,freshMotion({x:730,y:1000,elevation:100}));game.rooms.tick(room.round.endsAt);game.rooms.tick(room.round.returnAt);assert(room.players.every(p=>p.elevation===0&&isWalkable(p,MAPS[room.mapId])));assert.equal(room.match.roundNumber,2);
+  Object.assign(p,freshMotion({x:730,y:1000,elevation:100}));game.rooms.tick(room.round.endsAt);game.rooms.tick(room.round.returnAt);assert(room.players.every((p,i)=>p.elevation===freshMotion(MAPS[room.mapId].spawns[i]).elevation&&isWalkable(p,MAPS[room.mapId])));assert.equal(room.match.roundNumber,2);
  }finally{clients.forEach(c=>c.ws.terminate());await game.close();}
 });
