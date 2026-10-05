@@ -1,78 +1,118 @@
-# Bounty Shift — Step 2, Stage 3: Aerie Sky-Port
+# Bounty Shift — Step 2, Stage 3: Outlaw's Canyon
 
+Map 4 extends the current four-map registry and existing renderer. Central Plaza, Scorched Point and Aerie Sky-Port definitions are preserved, as are authoritative rotation, three-round matches, Aerie variants, combat, movement/controller, room flow and responsive UI. No Map 5 or new mode is included.
 
-## Map 3 implementation
+![Outlaw's Canyon desktop](OUTLAW_CANYON_PREVIEW.png)
+![Outlaw's Canyon mobile](OUTLAW_CANYON_MOBILE_PREVIEW.png)
 
-Aerie Sky-Port extends the existing map definition, renderer, traversal, spawns, minimap and round lifecycle. Both prior map definitions, third-person camera/controller, responsive CSS, movement/combat logic and dependency versions remain unchanged.
+## Map roster and authoritative rotation
 
-![Aerie Day](AERIE_DAY_PREVIEW.png)
-![Aerie Night](AERIE_NIGHT_PREVIEW.png)
+| Map ID | Display name | Environment |
+| --- | --- | --- |
+| `central_plaza` | Central Plaza | Cyan/magenta city; guaranteed Round 1 |
+| `scorched_point` | Scorched Point | Volcanic industrial/lava |
+| `aerie_sky_port` | Aerie Sky-Port | Sky platforms; server-selected Day/Night |
+| `outlaws_canyon` | Outlaw's Canyon | Warm dusty late-afternoon canyon town |
 
-### Layout and vertical traversal
+Only `shared/map.ts` registration is extended. The existing `selectRoundMap` is unchanged: Round 1 always Central Plaza; later rounds select from registered maps excluding the immediate previous map when alternatives exist. The server's cryptographic random index determines one shared selection. Map count does not change the three-round match length.
 
-Aerie uses a 2200 × 2400 suspended footprint with unsupported open-sky gaps. Aerie Plaza is the central circular hub and blue navigation beacon. West Sunset Gate and compact west Stardust loading pocket contrast with the longer eastern Stardust Dock. The north Cloudhaven Terminal has a dome, elevated bridges, two side stair approaches and paired stairs to its observation level. South High Observatory has a smaller dome, terrace and accessible ramp. Lower side connectors join both docks to the observatory approach as alternatives to the central route.
+The existing server selects `nextMapId` and `nextMapVariant` during intermission. Canyon has no variants, so `selectMapVariant` returns null without drawing randomness. Aerie alone retains Day/Night. At round start the server activates map/variant, resets health/round state and places players at that map's spawns before broadcasting. Identity, host, membership and match score persist. Reconnect packets carry the current map and state. Clients cannot select maps or variants.
 
-Main platforms are elevation 0; the terminal/bridges and observatory terrace are 90; the upper terminal overlook is 180. Stair visuals use the existing smooth shared ramp collision. No jumping or falling system was added. Unsupported edges stop movement and dash; railings protect selected high edges. Eight map-owned spawns are validated across west/east docks, both terminal landings and the observatory outer deck. Respawn uses the existing safe-spawn/protection system.
+No server, rotation-helper, combat or controller rewrite was necessary. The scene uses its existing map-ID lifecycle; old geometry/materials/textures/instances and the renderer are disposed when replaced. The map definition used for collision, spawn, minimap and camera solids changes together. Canyon has no clouds, lava, dome props or variant lighting.
 
-### Authoritative Day / Night
+## Outlaw's Canyon layout
 
-The server chooses `nextMapVariant` once alongside `nextMapId` during intermission. `selectMapVariant` receives server cryptographic randomness and uses the registered map's variant keys. Aerie supports `day` and `night`; other maps use null. At round start, `mapId` and `mapVariant` activate atomically before spawning and broadcasting. Resume packets carry the same active variant; forged client map/variant fields cannot change it. Lobby return clears both pending values. There is no real-time sun cycle or client randomization.
+The 1900 × 2600 map uses an irregular supported-ground union and solid cliff volumes instead of an empty enclosing rectangle. Its long north–south street branches into alleys and raised routes.
 
-`mapEnvironment` resolves only environment colors and lighting. Day/Night share all physical map data. The existing scene effect also keys on variant, disposes its prior resources and uses the same environment builder. The HUD adds Day/Night beside the existing map name. Map changes still happen only between rounds.
+| Region | Playable role |
+| --- | --- |
+| Dust-Up Plaza | Northern open junction with irregular adobe storefronts, cover and access around the saloon |
+| Deadwood Saloon | Main landmark with wood facade, shutters, porch, lanterns, usable balcony/roof and upper bridge |
+| Last Chance Mine | Compact western mining pocket with timber/scrap headframes, track marks, cover and raised overlook; no underground maze |
+| Scrap Canyon Mine | World-building sign on the adjacent mining store, part of the same mine district |
+| West Renegade | Lower western roof/outpost beside the mine-side walkway |
+| East Renegade | Asymmetric larger eastern outpost with its own stairs/landing and street-cover approaches |
+| Ghost Town Crossing | Southern dusty junction, broken/storefront masses, gate sign, cart/barrel cover and multiple routes north |
 
-### Minimap and performance
+The main street has short open stretches interrupted by cover and structures. Ground alleys offer alternate approaches. A connected raised route runs from the southern west stairs through the mine-side walkway to the saloon porch. Saloon stairs reach the selected rooftop and upper town bridge; the eastern roof stairs return to the ground. The Renegade bridge crosses the street at the middle height and links both outposts to another eastern descent. Major areas have ground and elevated alternatives.
 
-The north-up minimap draws Aerie's actual ground footprints, elevated surfaces, ramps, buildings and labels from its definition. The cyan local-player arrow uses the existing X/Z/facing updates; enemies are not revealed. Sky-specific map colors replace lava colors without changing sizing or placement.
+## Traversal, collision and spawns
 
-Static low-poly cloud banks are instanced below the arena, with a distant cloud-colored horizon surface. Domes use low-poly hemispheres and metallic wire ribs; simple shuttles are decorative. Common primitives/materials and trim batching are reused. The existing light budget is retained; there are no volumetric clouds, real-time reflections, new animation loops or texture downloads. Previous scene resources are disposed by the existing lifecycle.
+Height bands are 0 (streets), 80 (porches/outposts/mine overlook), and 160 (selected roofs/upper bridge), equivalent to 0 / 2.4 / 4.8 rendered metres. Stairs use existing smooth ramp surfaces. No jump, ladder, mantling, falling or hazard mechanics were added.
 
-### Map 3 verification and public testing
+The same shared traversal code handles client prediction and server authority. Supported ground is the actual footprint union; blocks have vertical intervals; roofs have explicit support surfaces; ramps are solid wedges. Small movement/dash substeps prevent tunneling. Unsupported edges stop movement instead of letting players fall or escape. Canyon walls, buildings, cargo/cart bodies and barrel footprints have collision. Cosmetic slats/lanterns/roof patches stay light and avoid snagging.
 
-Validation completed: production build passes; all 88 automated tests pass. Two independent Chromium/WebGL sessions pass both shared variants, Aerie keyboard stair ascent, multi-touch joystick/look/Sprint, touch Dash/Attack, refresh, three-round scene switching, results/lobby reset and 11 viewport sizes. No page runtime errors occurred. A separate three-client, unmodified-timer match passed in 280.2 seconds through Central Plaza → Scorched Point → Aerie Sky-Port, with matching state, reconnect and a fresh Central Plaza opening. These are local tests; the owner must deploy and run physical-device acceptance.
+Eight dedicated ground spawns are spread at (580,390), (1150,350), (260,1370), (1550,1285), (300,1900), (1500,2010), (550,2380), and (1200,2370). All are walkable and separated by over 250 units. The existing spawn-facing behavior points toward the map's plaza; respawn/protection uses the unchanged safe-spawn system. Capacity remains 2–6, with eight positions available for future scaling.
 
-Run `npm run build`, `npm test`, and (with a Chromium executable) `BOUNTY_QA_BROWSER=/path/to/chromium npm run test:browser`. `node --import tsx scripts/map-rotation-soak.mjs` runs a real-duration three-client match without timer or position fixtures. Browser QA selects maps/variants in its private fixture to guarantee coverage of both Aerie variants; production rotation is unchanged.
+## Minimap, camera and mobile
 
-The automated suite covers valid spawns, all main connections, upper ascent/descent, flank routes, unsupported edges, dash, vertical/blocked melee, authoritative Bounty KO/protected respawn, both shared variants, reconnect, spoof rejection, scores and final flow. Renderer tests replace all three maps repeatedly and verify GPU resource disposal.
+The existing north-up SVG minimap draws Canyon's actual ground union, buildings, cover, ramps and decks from its map definition. Canyon geometry uses dusty brown/gold tones inside the existing cyan HUD frame. The local cyan arrow follows the same world X/Z and facing transform on all levels. Opponents are not revealed. The header/HUD read `Outlaw's Canyon` directly from map metadata.
 
-After uploading/redeployment, test on two separate devices:
+Desktop pointer lock/mouse-look and camera-relative movement are unchanged. Camera obstruction uses the new map's solid meshes through the existing ray checks. Mobile joystick, right-side swipe and Sprint/Dash/Attack buttons are unchanged. The same no-scroll CSS and responsive minimap sizing are retained.
 
-1. Create/join, ready up and start. Round 1 must always be Central Plaza.
-2. Complete matches until Aerie is selected by the random pool. Verify both devices show Aerie and the same Day/Night label. Random selection means it may take more than one match.
-3. Traverse plaza → west/east docks → south observatory, then climb the north main stairs, both side stairs and paired upper stairs. Sprint/dash on bridges and slopes; verify edges stop escape.
-4. Check local position/direction on the Aerie minimap. Look around while stationary; steer while moving. Verify nameplates, gold Bounty distinction and combat/health/KO/respawn.
-5. On mobile, use joystick + right-side look simultaneously; test Sprint, Dash and Attack. Verify complete HUD/minimap containment without scrolling.
-6. Refresh during Aerie. Verify identity, scores, health, target, map and variant recover. Finish all three rounds, return to lobby and start a fresh match.
-7. Repeat until both Day and Night are seen. Check that layouts match and previous-map objects/collision do not remain.
+## Visual construction and performance
 
-Remaining limits: procedural prototype assets; no falling/jumping; static clouds; closed dome landmark bases rather than enterable interiors; capacity remains 2–6. Hardware FPS and actual phone/Render behavior require owner testing. No Maps 4–5 or new modes are included.
+Canyon has adobe/wood/rust materials, corrugated roof strips, timber beams, windows/shutters, lantern accents, plank walkways, mine track marks, barrel/cart props, layered low-poly sandstone cliffs and distant mesas. Warm sunlight and dusty fog replace neon/sky/lava styling. No new lights beyond the existing small lighting budget, animated particle loops, texture downloads, volumetric effects, real-time reflections, physics scenery or dependencies were added.
 
-Commit message: `Add Aerie Sky-Port with synchronized day and night variants`
+Primitives/materials are reused; static boxes/trim/planks are instanced by material. Resource-disposal tests exercise repeated swaps among all four maps and both Aerie variants.
 
-### Exact Map 3 file changes
+## Changed files for Map 4
 
 | Files | Change |
 | --- | --- |
-| `shared/maps/aerie-sky-port.ts` (new) | Geometry, ramps, blocks, spawns, labels, decorations and Day/Night palette |
-| `shared/maps/types.ts`, `shared/map.ts` | Environment variants, dome/shuttle types, registration and palette resolver |
-| `shared/map-rotation.ts`, `shared/game.ts`, `server/rooms.ts` | Variant selection and synchronized current/pending variant fields |
-| `src/environment.ts`, `src/scene.ts`, `src/Arena.tsx` | Sky environment, variant rendering and lifecycle key |
-| `src/main.tsx`, `src/Minimap.tsx` | Variant subtitle and map-specific minimap colors |
-| `tests/aerie.test.ts` (new), `tests/maps.test.ts`, `tests/environment.test.ts` | Map 3 and expanded-pool regression coverage |
-| `scripts/browser-smoke.mjs`, `scripts/map-rotation-soak.mjs` | Shared variants, rendering/control coverage and three-map rotation checks |
-| `README.md`, three `AERIE_*_PREVIEW.png` (new) | Documentation and browser previews |
+| `shared/maps/outlaws-canyon.ts` (new) | Layout, collision, spawns, ramps/decks, districts, props and desert environment |
+| `shared/maps/types.ts`, `shared/map.ts` | Canyon theme/cart/barrel types and registry entry |
+| `src/environment.ts` | Canyon-only procedural architecture, props, cliffs and materials |
+| `src/Minimap.tsx` | Canyon-specific geometry colors; existing layout/marker system preserved |
+| `tests/outlaw.test.ts` (new), `tests/maps.test.ts`, `tests/environment.test.ts` | Canyon traversal/combat/authority tests, expanded pool and cleanup regression checks |
+| `scripts/browser-smoke.mjs` | Canyon desktop/mobile, shared load, Aerie-to-Canyon cleanup and full-match checks |
+| `README.md`, two `OUTLAW_CANYON_*_PREVIEW.png` (new) | Documentation and actual browser previews |
 
-## Authoritative map rotation
+Both prior arena/controller code and map definitions remain intact. In particular, all three completed map files, `shared/map-rotation.ts`, `server/rooms.ts`, `shared/game.ts`, `shared/combat.ts`, `shared/traversal.ts`, `src/camera.ts`, `src/Arena.tsx`, `src/main.tsx`, `src/scene.ts`, `src/style.css`, dependencies and hosting configuration are unchanged from Map 3.
 
-`MAPS` contains three playable entries: `central_plaza`, `scorched_point`, and `aerie_sky_port`. Maps 4–5 are not implemented or registered.
+## Automated/local validation
 
-- Every fresh match starts Round 1 on Central Plaza.
-- `selectRoundMap` in `shared/map-rotation.ts` obtains its eligible pool from registered maps, excludes the previous map when alternatives exist, and accepts a server-supplied random-index function. The server supplies cryptographic `randomInt`; no client chooses maps.
-- Round 1 remains Central Plaza. Later rounds choose any registered alternative except the immediately previous map. Aerie joins the existing pool without rewriting selection. The helper remains independent of mode/scoring and does not hard-code three rounds.
-- At round expiry, the server freezes the old round/results and chooses `nextMapId` exactly once. During intermission, `mapId` still describes the frozen previous round; the existing transition panel announces the next map.
-- At the next round's start, the server atomically activates the chosen `mapId`, resets players using that map's own spawns, assigns fresh targets and broadcasts the resulting state. The client clears old prediction input, creates the matching environment and updates its minimap. There is no active mid-round map switch.
-- `mapId`, `nextMapId` and `match.mapHistory` are synchronized server state. Refresh/reconnect obtains the current map directly from the welcome packet. Client-supplied map IDs are ignored. Lobby return clears pending/history state and restores the Central Plaza opening.
+Completed locally: production build passes; all 97 automated tests pass. Two independent Chromium/WebGL sessions pass rendering and controls on Central Plaza, Scorched Point, Aerie Day/Night and Canyon. Canyon checks include keyboard sprint up the porch stairs, reticle melee/synchronized damage, dash, minimap coordinate agreement, reload/reconnect, real multi-touch joystick + look + Sprint, touch Dash/Attack, final results/lobby reset and 11 viewport sizes without scrolling or clipped HUD. No page runtime errors were observed. Resource tests repeatedly replace all four maps and verify disposal.
 
-The existing arena lifecycle unmounts the scene during intermission and disposes geometry, materials, textures, instances and the renderer; listeners/render loops are cleaned up too. The new scene uses only its own map definition for camera obstacles, movement, melee, spawns and minimap data. No cross-map global collision cache is used.
+A separate full-duration run passed in 280.2 seconds with three real WebSocket clients: Central Plaza → Scorched Point → Outlaw's Canyon, matching state/timers, reconnect, final results and a fresh Central Plaza opening. No map/position/timer fixtures were used in that run. After the final spawn clearance adjustment, the complete unit/browser suites were rerun. Hash checks confirm the three existing map definitions, rotation/server code, controller/camera, gameplay and responsive CSS remain unchanged.
+
+These are local/headless checks, not a public Render deployment or physical-phone FPS measurement. Use the public checklist after uploading.
+
+Run:
+
+```sh
+npm ci --include=dev
+npm run build
+npm test
+npm run dev
+```
+
+For browser QA with an installed Chromium/WebGL-capable executable:
+
+```sh
+BOUNTY_QA_BROWSER=/path/to/chromium npm run test:browser
+node --import tsx scripts/map-rotation-soak.mjs
+```
+
+Browser QA uses private round/position fixtures to cover every map and both Aerie variants reliably; this does not change production random rotation. The soak script uses three real WebSocket clients and unmodified 90-second rounds/intermissions, without map or position fixtures.
+
+## Public-device Canyon acceptance checklist
+
+1. Upload/deploy server and client together, refresh both devices and create a fresh room. Ready/start: Round 1 must always be Central Plaza.
+2. Complete matches until Canyon is selected in a later round. Selection is random; it may require more than one match. Both clients must show the same round, Canyon HUD name/minimap and no Day/Night subtitle.
+3. Walk/sprint/dash from Dust-Up Plaza through the settlement to Ghost Town Crossing. Try mine alleys, both outposts and central street flanks. Solid buildings and cliffs must block movement; open routes must remain usable.
+4. Climb the saloon porch stairs and roof stairs, cross the upper bridge, and descend east. Climb the southern west walkway, visit the mine overlook, cross the Renegade bridge and descend east. Check no floor gaps, sinking, stuck edges or dash escape.
+5. Rotate/look while stationary and moving on streets, ramps, rooftops, porches and alleys. Check camera compression near walls and remote body/facing/height consistency.
+6. Check the minimap in north plaza, west mine, both outposts and south crossing. Its arrow must follow actual position/facing, with north above and no opponents revealed.
+7. Fight: compare damage, KO, Bounty credit, round/match totals and protected safe respawn. Refresh while damaged/scored/elevated/KO. Identity, map and gameplay state must recover without duplicate bodies.
+8. Mobile: joystick + right swipe + Sprint simultaneously; Dash and Attack; traverse bridges/alleys/ramps. Rotate phone and verify all HUD information/buttons fit without scrolling.
+9. Finish the match, compare results, return to lobby and start fresh. Repeat with three or more players where practical. Inspect later Aerie rounds for correct shared Day/Night and no Canyon props; load the other maps to check cleanup and preservation.
+
+## Remaining prototype limits
+
+This is procedural map-first art, not final models/textures. The saloon and other large structures have solid bodies; the porch, selected roofs, balconies and mine pocket are playable, rather than full modeled interiors. Static haze/rocks replace costly dust effects. Camera comfort in tight angles, spawn fairness under human play and physical-phone FPS require public-device acceptance. No new hazard or environmental damage exists. WebGL/hardware acceleration is required. Existing single-instance in-memory hosting/restart limits and reconnect grace remain.
+
+The next step is owner public testing and Map 4 fixes. Map 5 and modes await separate instructions.
 
 ## Preserved controls
 
@@ -102,39 +142,13 @@ Walking remains 220 units/second; sprint remains 330. Stamina max 100, drain 28/
 
 Server authority still covers movement, health, hit/KO attribution, targets, score, timers, transitions and results. Only the recipient's own target is sent in their objective HUD; public player snapshots never contain other target assignments. Camera position/rotation stays local. Reconnect grace remains ten seconds; identity, health, elevation, target, scores, cooldowns and deadlines are preserved while the room/server exists. Duplicate tabs cannot steal an active identity. Permanent departures repair targets, migrate host authority and cancel play gracefully if too few players remain. See `FOUNDATION_AUDIT.md` for the Step 1 audit history.
 
-## Local build and tests
-
-```sh
-npm ci --include=dev
-npm run build
-npm test
-npm run dev
-```
-
-Open the local URL printed by the server. Browser QA needs an installed Chromium/WebGL-capable executable:
-
-```sh
-BOUNTY_QA_BROWSER=/path/to/chromium npm run test:browser
-node --import tsx scripts/map-rotation-soak.mjs
-```
-
 ## Upload into the same GitHub repository
 
-1. Download and extract `Bounty_Shift_Step_2_Stage_3_Aerie_Sky_Port.zip`.
+1. Download and extract `Bounty_Shift_Step_2_Stage_3_Outlaws_Canyon.zip`.
 2. Open the extracted `bounty-shift` folder. Its contents include `src`, `shared`, `server`, `tests`, `scripts`, `package.json` and `README.md`.
 3. Open https://github.com/edmund0b/bounty-shift on the branch Render already deploys. Choose Add file → Upload files.
 4. Drag the CONTENTS of the extracted `bounty-shift` folder into the upload area. Do not upload the outer folder or the ZIP itself. Preserve nested `shared/maps/aerie-sky-port.ts`; do not flatten folders. The repository root must still directly contain `package.json`.
-5. Review the upload. Confirm both old maps remain and the new Aerie definition, variant fields and README are included. Do not delete existing files.
-6. Commit: `Add Aerie Sky-Port with synchronized day and night variants`.
+5. Review the upload. Confirm both old maps remain and the new Canyon definition, renderer/minimap extension and README are included. Do not delete existing files.
+6. Commit: `Add Outlaw's Canyon to map rotation`.
 7. Wait for the existing Render automatic deploy. If disabled, use the same service's Manual Deploy → Deploy latest commit. Keep build `npm ci --include=dev && npm run build`, start `npm start` and all existing settings. No new service/account is needed.
-8. After Render reports Live for the new commit, refresh every client at https://bounty-shift.onrender.com and create a fresh room. Deploy restarts clear in-memory rooms. Use the Map 3 public checklist above. Central Plaza must remain Round 1; Aerie is randomly eligible later.
-
-## Preserved foundations and limits
-
-Central Plaza remains the 2600 × 2100 cyan/magenta urban opening map with South Terminal, Central Plaza, West Depot, East Storage and North Bridge. Scorched Point remains the 2400 × 2200 lava/industrial map with The Crucible, Magma Refinery, Obsidian Mines, Lava Fields, Hell's Forge, Hell's Depot and Volcanic Depot. Their definition files are unchanged.
-
-The single Node service still serves React/Three.js and authoritative WebSockets on one Render URL. Camera orientation is local-only; player motion/facing and combat/match state remain authoritative. Health, stamina, abilities, target privacy, KO/respawn, host migration and match scoring use the existing implementation. No dependency, balance, controller tuning, mobile UI or responsive CSS change was made.
-
-WebGL/hardware acceleration is required. Existing in-memory single-instance/restart behavior, ten-second reconnect grace and melee without latency rewind remain. Real desktop/phone FPS and public-network behavior require owner acceptance. This delivery stops at Map 3; no Maps 4–5, modes or final art pass.
-
-Challenge deadline: October 31, 2026 at 11:59 PM Pacific. Submission needs project title, public link and preview image.
+8. After Render reports Live for the new commit, refresh every client at https://bounty-shift.onrender.com and create a fresh room. Deploy restarts clear in-memory rooms. Use the Canyon checklist above. Central Plaza must remain Round 1; Canyon is eligible later.

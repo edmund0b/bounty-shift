@@ -5,14 +5,14 @@ import {surfaceHeight} from '../shared/traversal';
 import {VIEW} from '../shared/presentation';
 
 export function buildEnvironment(scene:THREE.Scene,map:MapDefinition,variant:string|null=null){
- const env=mapEnvironment(map,variant),sky=env.theme==='sky_port',night=variant==='night';
+ const env=mapEnvironment(map,variant),sky=env.theme==='sky_port',canyon=env.theme==='canyon',night=variant==='night';
  const S=VIEW.scale,industrial=env.theme==='industrial',resources=new Set<{dispose:()=>void}>(),solids:THREE.Object3D[]=[];
  const track=<T extends {dispose:()=>void}>(r:T):T=>{resources.add(r);return r;};
  const cube=track(new THREE.BoxGeometry(1,1,1)),plane=track(new THREE.PlaneGeometry(1,1));
  const mats=new Map<string,THREE.Material>();
  const material=(color:string,glow=false)=>{const key=color+glow;if(!mats.has(key))mats.set(key,track(glow?new THREE.MeshBasicMaterial({color,toneMapped:false}):new THREE.MeshStandardMaterial({color,roughness:.48,metalness:.4})));return mats.get(key)!;};
  const batches=new Map<THREE.Material,THREE.Mesh[]>();
- const navy=material(sky?(night?'#657594':'#ddd9c9'):industrial?'#3b3532':'#21354e'),dark=material(sky?'#35475c':industrial?'#161312':'#0a1422'),blue=material(sky||industrial?env.accent:'#46dfff',true),pink=material(sky?(night?'#9d99ed':'#dbc28e'):industrial?'#b84d22':'#f077de',true),cargo=material(sky?'#7c91a5':industrial?'#554639':'#304158');
+ const navy=material(canyon?'#a98559':sky?(night?'#657594':'#ddd9c9'):industrial?'#3b3532':'#21354e'),dark=material(canyon?'#59432f':sky?'#35475c':industrial?'#161312':'#0a1422'),blue=material(canyon?'#9b7748':sky||industrial?env.accent:'#46dfff',!canyon),pink=material(canyon?'#7f5540':sky?(night?'#9d99ed':'#dbc28e'):industrial?'#b84d22':'#f077de',!canyon),cargo=material(canyon?'#82624a':sky?'#7c91a5':industrial?'#554639':'#304158');
  const cylinder=track(new THREE.CylinderGeometry(.5,.5,1,32)),circle=track(new THREE.CircleGeometry(.5,48));
  function box(x:number,y:number,z:number,w:number,h:number,d:number,mat:THREE.Material,solid=false){const mesh=new THREE.Mesh(cube,mat);mesh.position.set(x,y,z);mesh.scale.set(w,h,d);if(solid){scene.add(mesh);solids.push(mesh);}else{const list=batches.get(mat)??[];list.push(mesh);batches.set(mat,list);}return mesh;}
  const signTextures=new Map<string,THREE.Texture>();
@@ -22,18 +22,22 @@ export function buildEnvironment(scene:THREE.Scene,map:MapDefinition,variant:str
  }
  // A single generated floor texture, reusable meshes, and emissive trim keep downloads/draw cost small.
  const c=document.createElement('canvas');c.width=2048;c.height=1654;const g=c.getContext('2d')!,fx=c.width/map.bounds.width,fy=c.height/map.bounds.height;
- g.fillStyle=env.base;g.fillRect(0,0,c.width,c.height);g.strokeStyle='#203b54';g.lineWidth=1;
+ g.fillStyle=env.base;g.fillRect(0,0,c.width,c.height);g.strokeStyle=canyon?'#af956f':'#203b54';g.lineWidth=1;
  for(let x=0;x<map.bounds.width;x+=80){g.beginPath();g.moveTo(x*fx,0);g.lineTo(x*fx,c.height);g.stroke();}
  for(let z=0;z<map.bounds.height;z+=80){g.beginPath();g.moveTo(0,z*fy);g.lineTo(c.width,z*fy);g.stroke();}
- g.strokeStyle='#3c7185';g.lineWidth=4;g.strokeRect(map.plaza.x*fx,map.plaza.y*fy,map.plaza.width*fx,map.plaza.height*fy);
+ g.strokeStyle=canyon?'#ac8d61':'#3c7185';g.lineWidth=4;g.strokeRect(map.plaza.x*fx,map.plaza.y*fy,map.plaza.width*fx,map.plaza.height*fy);
+ if(canyon){
+  g.fillStyle='#b59970';g.fillRect(820*fx,600*fy,310*fx,1800*fy);
+  for(let i=0;i<1600;i++){g.fillStyle=i%3?'#b39871':'#c6ad85';g.fillRect((i*137%map.bounds.width)*fx,(i*239%map.bounds.height)*fy,2+i%5,1+i%3);}
+ }
  // Multiple street choices, not a single peripheral corridor.
- if(!industrial&&!sky){for(const x of [110,570,870,1730,1990,2490]){g.strokeStyle=x===570||x===1990?'#735283':'#345569';g.lineWidth=3;g.beginPath();g.moveTo(x*fx,80*fy);g.lineTo(x*fx,2010*fy);g.stroke();}
+ if(!industrial&&!sky&&!canyon){for(const x of [110,570,870,1730,1990,2490]){g.strokeStyle=x===570||x===1990?'#735283':'#345569';g.lineWidth=3;g.beginPath();g.moveTo(x*fx,80*fy);g.lineTo(x*fx,2010*fy);g.stroke();}
  g.setLineDash([12,24]);g.strokeStyle='#587482';for(const y of [800,1480,1700]){g.beginPath();g.moveTo(80*fx,y*fy);g.lineTo(2520*fx,y*fy);g.stroke();}g.setLineDash([]);}
  const texture=track(new THREE.CanvasTexture(c));texture.colorSpace=THREE.SRGBColorSpace;
  const floorMat=track(new THREE.MeshStandardMaterial({map:texture,roughness:.32,metalness:.55}));
  if(map.ground){
   // Lava is a visual floor only. The shared ground union, not this plane, grants walkable support.
-  if(!sky){const lavaCanvas=document.createElement('canvas');lavaCanvas.width=512;lavaCanvas.height=512;const l=lavaCanvas.getContext('2d')!;l.fillStyle='#b42e06';l.fillRect(0,0,512,512);
+  if(!sky&&!canyon){const lavaCanvas=document.createElement('canvas');lavaCanvas.width=512;lavaCanvas.height=512;const l=lavaCanvas.getContext('2d')!;l.fillStyle='#b42e06';l.fillRect(0,0,512,512);
   for(let i=0;i<180;i++){const x=i*137%512,y=i*89%512;l.strokeStyle=i%3?'#ef570c':'#ff9c27';l.lineWidth=2+i%4;l.beginPath();l.moveTo(x,y);l.lineTo(x+14+i%29,y+10+i%23);l.lineTo(x+31,y-9);l.stroke();}
   const lavaTexture=track(new THREE.CanvasTexture(lavaCanvas));lavaTexture.wrapS=lavaTexture.wrapT=THREE.RepeatWrapping;lavaTexture.repeat.set(7,7);lavaTexture.colorSpace=THREE.SRGBColorSpace;
   const lava=new THREE.Mesh(plane,track(new THREE.MeshBasicMaterial({map:lavaTexture,color:env.lava,toneMapped:false})));lava.scale.set(map.bounds.width*S,map.bounds.height*S,1);lava.rotation.x=-Math.PI/2;lava.position.set(map.bounds.width*S/2,-.45,map.bounds.height*S/2);scene.add(lava);}
@@ -50,7 +54,7 @@ export function buildEnvironment(scene:THREE.Scene,map:MapDefinition,variant:str
  for(const b of map.blocks){
   const x=(b.x+b.width/2)*S,z=(b.y+b.height/2)*S,w=b.width*S,d=b.height*S,h=(b.top-b.bottom)*S,bottom=b.bottom*S,accent=b.accent.includes('f077')?pink:blue;
   if(b.shape==='ellipse'){
-   const mesh=new THREE.Mesh(cylinder,navy);mesh.position.set(x,bottom+h/2,z);mesh.scale.set(w,h,d);scene.add(mesh);solids.push(mesh);
+   const mesh=new THREE.Mesh(cylinder,canyon&&b.id.startsWith('barrel-body')?dark:navy);mesh.position.set(x,bottom+h/2,z);mesh.scale.set(w,h,d);scene.add(mesh);solids.push(mesh);
    const rim=new THREE.Mesh(track(new THREE.RingGeometry(.48,.5,48)),blue);rim.rotation.x=-Math.PI/2;rim.scale.set(w,d,1);rim.position.set(x,b.top*S+.025,z);scene.add(rim);continue;
   }
   box(x,bottom+h/2,z,w,h,d,b.kind==='crate'?cargo:b.kind==='rail'?dark:navy,true);
@@ -60,7 +64,7 @@ export function buildEnvironment(scene:THREE.Scene,map:MapDefinition,variant:str
   if(b.kind==='deck')continue;
   for(const zz of [z-d/2-.015,z+d/2+.015])box(x,bottom+.08,zz,w,.045,.035,accent);
   if(b.kind==='building'){
-   box(x,bottom+h+.16,z,w+.2,.25,d+.2,dark);
+   if(!canyon||!map.surfaces.some(s=>s.id===b.id+'-roof'))box(x,bottom+h+.16,z,w+.2,.25,d+.2,dark);
    for(const xx of [x-w/2-.02,x+w/2+.02])box(xx,bottom+h/2,z,.05,h,.05,accent);
    if(b.name){sign(b.name,x,z+d/2+.035,Math.min(w-.7,11),0,b.accent,bottom+h*.67);sign(b.name,x,z-d/2-.035,Math.min(w-.7,11),Math.PI,b.accent,bottom+h*.67);}
    if(b.name==='WEST DEPOT')sign(b.name,x+w/2+.035,z,Math.min(d-.7,9),Math.PI/2,b.accent,bottom+h*.67);
@@ -81,7 +85,7 @@ export function buildEnvironment(scene:THREE.Scene,map:MapDefinition,variant:str
   if(alongX){for(const zz of [z+.03,z+d-.03]){const rail=box(x+w/2,(high+low)/2+.7,zz,Math.hypot(w,high-low),.055,.055,blue);rail.rotation.z=-slope;}}
   else for(const xx of [x+.03,x+w-.03]){const rail=box(xx,(high+low)/2+.7,z+d/2,.055,.055,Math.hypot(d,high-low),blue);rail.rotation.x=slope;}
  }
- if(!industrial&&!sky){
+ if(!industrial&&!sky&&!canyon){
  // Strong plaza landmark: solid plinth, slender twin energy pylons, concentric floor rings.
  const base=map.blocks.find(b=>b.kind==='monument')!,mx=(base.x+base.width/2)*S,mz=(base.y+base.height/2)*S;
  for(const x of [mx-1.8,mx+1.8]){box(x,4.15,mz,.36,7,.36,blue);box(x,.8,mz,.62,.5,.62,dark);}
@@ -91,6 +95,39 @@ export function buildEnvironment(scene:THREE.Scene,map:MapDefinition,variant:str
  sign('NORTH BRIDGE',1300*S,281*S,8,Math.PI,'#46dfff',4.5);sign('NORTH BRIDGE',1300*S,428*S,8,0,'#46dfff',4.5);
  const trunk=track(new THREE.CylinderGeometry(.08,.13,1.4,6)),leaf=track(new THREE.IcosahedronGeometry(.8,0)),green=material('#285d50');
  for(const b of map.blocks.filter(b=>b.kind==='planter')){const x=(b.x+b.width/2)*S,z=(b.y+b.height/2)*S,tree=new THREE.Mesh(trunk,dark);tree.position.set(x,b.top*S+.7,z);scene.add(tree);const crown=new THREE.Mesh(leaf,green);crown.position.set(x,b.top*S+1.7,z);crown.scale.set(1,1.25,1);scene.add(crown);}
+ }else if(canyon){
+  const wood=material('#604631'),rust=material('#846655'),sand=material('#b39369'),lantern=material('#ffca7a',true);
+  // Timber porches, patched facades and corrugated sheets reinforce the frontier silhouette.
+  for(const b of map.blocks.filter(b=>b.kind==='building')){
+   const x=(b.x+b.width/2)*S,z=(b.y+b.height/2)*S,w=b.width*S,d=b.height*S,top=b.top*S;
+   for(let i=0;i<Math.floor(w/.45);i++)box(x-w/2+i*.45,top+.015,z,.025,.025,d,rust);
+   for(const xx of [x-w*.34,x+w*.34]){box(xx,top*.5,z+d/2+.055,.65,.85,.04,wood);box(xx,top*.5,z-d/2-.055,.65,.85,.04,wood);}
+   for(const xx of [x-w/2+.15,x+w/2-.15]){box(xx,top*.5,z+d/2+.13,.14,top,.14,wood);box(xx,.75,z+d/2+.32,.15,.28,.15,lantern);}
+   if(b.name?.includes('MINE'))for(let i=0;i<6;i++)box(x-w/2+i*w/6,.02,z+d/2+1.2,.05,.025,2.5,rust);
+  }
+  // Walkable timber platforms remain at the authoritative top; small planks are visual only.
+  for(const s of map.surfaces.filter(s=>!s.ramp)){
+   for(let y=s.y+20;y<s.y+s.height;y+=35)box((s.x+s.width/2)*S,s.elevation*S+.012,y*S,s.width*S,.022,.04,wood);
+   for(const x of [s.x+15,s.x+s.width-15])box(x*S,s.elevation*S/2,(s.y+s.height/2)*S,.16,s.elevation*S,.16,wood);
+  }
+  
+  sign('DEADWOOD SALOON',550*S,802*S,8,0,'#bb9a65',6.2);
+  for(const x of [395,795]){box(x*S,3.15,900*S,.17,1.5,.17,wood);box(x*S,3.8,900*S,.28,.35,.28,lantern);}
+  // A high timber gate identifies the southern crossing without blocking the street.
+  for(const x of [850,1230])box(x*S,2.8,1980*S,.2,5.6,.2,wood);
+  sign('GHOST TOWN CROSSING',1040*S,1981*S,10,0,'#b39564',5.5);sign('GHOST TOWN CROSSING',1040*S,1979*S,10,Math.PI,'#b39564',5.5);
+  sign('DUST-UP PLAZA',950*S,320*S,7,0,'#b39564',4.5);
+  // Low-poly rock layers wrap the gameplay cliffs and continue into distant mesas.
+  const rockGeo=track(new THREE.IcosahedronGeometry(.5,0));
+  for(let i=0;i<38;i++){
+   const side=i%2===0,xx=(side?60:1830)+(i%3-1)*35,zz=140+(i>>1)*130;
+   const mesh=new THREE.Mesh(rockGeo,i%3?sand:navy);mesh.scale.set(7+i%3,11+i%5,7);mesh.position.set(xx*S,4.2,zz*S);scene.add(mesh);
+  }
+  for(let i=0;i<12;i++){const mesh=new THREE.Mesh(rockGeo,sand);mesh.scale.set(12+i%4,13+i%5,12);mesh.position.set((i%2?-230:2130)*S,5,(i*257%2900)*S);scene.add(mesh);}
+  for(const item of map.decorations??[]){const x=item.x*S,z=item.y*S,w=item.width*S,h=item.height*S,d=item.depth*S;
+   if(item.kind==='barrel')for(const y of [h*.2,h*.8]){const band=new THREE.Mesh(cylinder,rust);band.scale.set(w+.03,.055,d+.03);band.position.set(x,y,z);scene.add(band);}
+   if(item.kind==='cart'){box(x,h*.6,z,w,h*.55,d,rust);for(const xx of [x-w*.3,x+w*.3])for(const zz of [z-d*.55,z+d*.55]){const wheel=new THREE.Mesh(cylinder,dark);wheel.rotation.x=Math.PI/2;wheel.scale.set(.6,.16,.6);wheel.position.set(xx,.32,zz);scene.add(wheel);}}
+  }
  }else if(sky){
   // Open-air landmarks share geometry across variants; palette and lighting alone change.
   for(const b of map.blocks.filter(b=>b.kind==='monument')){
@@ -130,9 +167,9 @@ export function buildEnvironment(scene:THREE.Scene,map:MapDefinition,variant:str
   }
  }
  // Playable boundaries read as low illuminated curbs; skyline is outside them.
- if(!sky)for(const z of [0,map.bounds.height*S])box(map.bounds.width*S/2,.22,z,map.bounds.width*S,.44,.15,blue);
- if(!sky)for(const x of [0,map.bounds.width*S])box(x,.22,map.bounds.height*S/2,.15,.44,map.bounds.height*S,blue);
- if(!industrial&&!sky)for(let i=0;i<28;i++){const x=i*3.3-5,h=9+(i*7%15);for(const z of [-8,map.bounds.height*S+8]){box(x,h/2,z,2.1,h,2.5,dark);for(let y=2;y<h;y+=3)box(x,y,z+1.27,1.2,.06,.025,i%3?blue:pink);}}
+ if(!sky&&!canyon)for(const z of [0,map.bounds.height*S])box(map.bounds.width*S/2,.22,z,map.bounds.width*S,.44,.15,blue);
+ if(!sky&&!canyon)for(const x of [0,map.bounds.width*S])box(x,.22,map.bounds.height*S/2,.15,.44,map.bounds.height*S,blue);
+ if(!industrial&&!sky&&!canyon)for(let i=0;i<28;i++){const x=i*3.3-5,h=9+(i*7%15);for(const z of [-8,map.bounds.height*S+8]){box(x,h/2,z,2.1,h,2.5,dark);for(let y=2;y<h;y+=3)box(x,y,z+1.27,1.2,.06,.025,i%3?blue:pink);}}
  for(const [mat,meshes] of batches){const instances=track(new THREE.InstancedMesh(cube,mat,meshes.length));for(const [i,mesh] of meshes.entries()){mesh.updateMatrix();instances.setMatrixAt(i,mesh.matrix);}instances.instanceMatrix.needsUpdate=true;instances.computeBoundingSphere();scene.add(instances);}
  return {solids,dispose(){resources.forEach(r=>r.dispose());resources.clear();}};
 }

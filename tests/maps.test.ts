@@ -16,10 +16,10 @@ const travel=(start:{x:number;y:number;elevation?:number},waypoints:number[][])=
 };
 function fixture(count=3){const server=new RoomServer(),packets=new Map<WebSocket,any[]>();const socket=()=>{const messages:any[]=[];const ws={readyState:1,send:(s:string)=>messages.push(JSON.parse(s))} as unknown as WebSocket;packets.set(ws,messages);return ws;};const sockets=Array.from({length:count},socket);server.message(sockets[0],JSON.stringify({type:'create',name:'A'}));const room=server.sessions.get(sockets[0])!.room;for(let i=1;i<count;i++)server.message(sockets[i],JSON.stringify({type:'join',name:`P${i}`,code:room.code}));const send=(i:number,m:any)=>server.message(sockets[i],JSON.stringify(m.type==='input'?{matchId:room.match.id,roundNumber:room.match.roundNumber,...m}:m));const start=()=>{for(let i=0;i<count;i++)send(i,{type:'ready',ready:true});send(room.players.findIndex(p=>p.id===room.hostId),{type:'start'});};start();return {server,room,sockets,socket,packets,send,start};}
 test('rotation always opens Central Plaza and avoids immediate repeats for registered maps and larger future pools',()=>{
- assert.deepEqual(Object.keys(MAPS),['central_plaza','scorched_point','aerie_sky_port']);
+ assert.deepEqual(Object.keys(MAPS),['central_plaza','scorched_point','aerie_sky_port','outlaws_canyon']);
  for(let i=0;i<20;i++){assert.equal(selectRoundMap(1,'scorched_point',()=>i),'central_plaza');assert.equal(selectRoundMap(2,'central_plaza',()=>0),'scorched_point');assert.equal(selectRoundMap(3,'scorched_point',()=>0),'central_plaza');}
  const registry={...MAPS,fixture_3:{...map,id:'fixture_3'},fixture_4:{...map,id:'fixture_4'},fixture_5:{...map,id:'fixture_5'}};
- const chosen=new Set<string>();for(let i=0;i<5;i++)chosen.add(selectRoundMap(8,'scorched_point',()=>i,registry));assert.equal(chosen.size,5);assert(!chosen.has('scorched_point'));
+ const chosen=new Set<string>();for(let i=0;i<Object.keys(registry).length-1;i++)chosen.add(selectRoundMap(8,'scorched_point',()=>i,registry));assert.equal(chosen.size,Object.keys(registry).length-1);assert(!chosen.has('scorched_point'));
  assert.equal(selectRoundMap(12,'scorched_point',()=>0,{scorched_point:map}),'scorched_point');
 });
 test('Scorched Point owns eight safe spread spawns, seven sectors and gentle connected three-band geometry',()=>{
