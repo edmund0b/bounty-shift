@@ -1,4 +1,15 @@
-# Bounty Shift — Step 2, Stage 3: Viking's Fjord
+# Bounty Shift — full-screen mobile and desktop gameplay
+
+The existing match now fills the viewport with a shared responsive HUD. Mobile places health/stamina below the top-left match information, joystick bottom-left and Sprint/Dash/Attack bottom-right. Desktop places portrait/health/stamina bottom-left and keeps bottom-right empty. Maps, multiplayer, balance and rotation are preserved.
+
+See `HUD_IMPLEMENTATION.md` for the complete technical summary and validation scope.
+
+Build and 108 existing tests pass. The two-client browser regression covers three complete matches, all maps and Aerie variants, real controls/combat, reconnects, full-screen sizing and responsive HUD containment across 11 desktop and seven mobile sizes. Mobile tests use Chromium touch emulation; physical-phone notch/gesture/FPS checks remain a device playtest.
+
+![Full-screen desktop](FULLSCREEN_DESKTOP_PREVIEW.png)
+![Full-screen mobile](FULLSCREEN_MOBILE_PREVIEW.png)
+
+## Preserved Step 2, Stage 3: Viking's Fjord
 
 Map 5 extends the current map registry, renderer and shared traversal data. Maps 1–4, server-authoritative rotation, three-round matches, Aerie-only variants, combat, movement/camera, room flow and responsive UI are preserved. No Map 6, new mode or full-map polish pass is included.
 
@@ -138,7 +149,7 @@ The five-map roster is implemented. This task stops here; the dedicated polish p
 
 Camera orbit works while stationary. Movement is flattened to horizontal camera yaw, with normalized diagonals. Moving avatars rotate toward their gameplay direction; stationary camera look does not spin the body. Dash uses current movement input, or the avatar's last gameplay facing when idle. Melee uses camera yaw/reticle direction. Name/health sprites still billboard; local cyan, private Bounty gold and other player colors are preserved.
 
-The existing joystick/look pointer-ID separation, touch buttons, focus/cancel clearing, HUD buttons and gameplay-only prevention of page scrolling remain intact. UI clicks do not activate pointer lock. Match screens use the preserved `100vh`/`100dvh` compact-header/flexible-arena/compact-HUD structure; menus and lobby retain normal scrolling where needed.
+The existing joystick/look pointer-ID separation, touch buttons, focus/cancel clearing, HUD buttons and gameplay-only prevention of page scrolling remain intact. UI clicks do not activate pointer lock. Match screens use one full-viewport `100vh`/`100dvh` canvas with overlay HUD. The existing scene resizes the drawing buffer and camera projection. Menus and lobby retain normal scrolling where needed.
 
 ## Game rules and match foundation
 
@@ -155,11 +166,11 @@ Server authority still covers movement, health, hit/KO attribution, targets, sco
 
 ## Upload into the same GitHub repository
 
-1. Download and extract `Bounty_Shift_Step_2_Stage_3_Vikings_Fjord.zip`.
+1. Download and extract `Bounty_Shift_Fullscreen_Responsive_HUD.zip`.
 2. Open the extracted `bounty-shift` folder; it contains `src`, `shared`, `server`, `tests`, `scripts`, `package.json` and `README.md`.
 3. Open https://github.com/edmund0b/bounty-shift on the branch Render already deploys. Choose Add file → Upload files.
 4. Drag the CONTENTS of the extracted folder into the upload area. Do not upload the outer folder or ZIP itself. Preserve nested paths; the repository root must directly contain `package.json`.
-5. Confirm all four previous map files remain and `shared/maps/vikings-fjord.ts`, its registry/render/minimap extensions and README are included. Do not delete existing files.
-6. Commit: `Add Viking's Fjord and complete five-map roster`.
+5. Confirm all existing map files remain and the updated `src/main.tsx`, `src/Arena.tsx`, `src/style.css`, new `src/GameHud.tsx`, `index.html` and documentation are included. Do not delete existing files.
+6. Commit: `Make gameplay full-screen with responsive mobile and desktop HUD`.
 7. Wait for the existing Render automatic deploy. If disabled, use the same service's Manual Deploy → Deploy latest commit. Keep build `npm ci --include=dev && npm run build`, start `npm start` and all existing settings. No new service/account is needed.
-8. After Render reports Live for the new commit, refresh all clients at https://bounty-shift.onrender.com and start a fresh room. Deploy restarts clear in-memory rooms. Follow the five-map checklist above.
+8. After Render reports Live for the new commit, refresh all clients at https://bounty-shift.onrender.com and start a fresh room. Deploy restarts clear in-memory rooms. Test both HUD layouts, touch/desktop controls, real health/stamina, resizing and normal round/map progression. See `HUD_IMPLEMENTATION.md`.
