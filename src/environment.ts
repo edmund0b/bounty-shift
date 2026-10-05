@@ -5,14 +5,14 @@ import {surfaceHeight} from '../shared/traversal';
 import {VIEW} from '../shared/presentation';
 
 export function buildEnvironment(scene:THREE.Scene,map:MapDefinition,variant:string|null=null){
- const env=mapEnvironment(map,variant),sky=env.theme==='sky_port',canyon=env.theme==='canyon',night=variant==='night';
+ const env=mapEnvironment(map,variant),sky=env.theme==='sky_port',canyon=env.theme==='canyon',fjord=env.theme==='fjord',night=variant==='night';
  const S=VIEW.scale,industrial=env.theme==='industrial',resources=new Set<{dispose:()=>void}>(),solids:THREE.Object3D[]=[];
  const track=<T extends {dispose:()=>void}>(r:T):T=>{resources.add(r);return r;};
  const cube=track(new THREE.BoxGeometry(1,1,1)),plane=track(new THREE.PlaneGeometry(1,1));
  const mats=new Map<string,THREE.Material>();
  const material=(color:string,glow=false)=>{const key=color+glow;if(!mats.has(key))mats.set(key,track(glow?new THREE.MeshBasicMaterial({color,toneMapped:false}):new THREE.MeshStandardMaterial({color,roughness:.48,metalness:.4})));return mats.get(key)!;};
  const batches=new Map<THREE.Material,THREE.Mesh[]>();
- const navy=material(canyon?'#a98559':sky?(night?'#657594':'#ddd9c9'):industrial?'#3b3532':'#21354e'),dark=material(canyon?'#59432f':sky?'#35475c':industrial?'#161312':'#0a1422'),blue=material(canyon?'#9b7748':sky||industrial?env.accent:'#46dfff',!canyon),pink=material(canyon?'#7f5540':sky?(night?'#9d99ed':'#dbc28e'):industrial?'#b84d22':'#f077de',!canyon),cargo=material(canyon?'#82624a':sky?'#7c91a5':industrial?'#554639':'#304158');
+ const navy=material(fjord?'#586b78':canyon?'#a98559':sky?(night?'#657594':'#ddd9c9'):industrial?'#3b3532':'#21354e'),dark=material(fjord?'#293c49':canyon?'#59432f':sky?'#35475c':industrial?'#161312':'#0a1422'),blue=material(fjord?'#c9e2e9':canyon?'#9b7748':sky||industrial?env.accent:'#46dfff',!canyon&&!fjord),pink=material(fjord?'#759cab':canyon?'#7f5540':sky?(night?'#9d99ed':'#dbc28e'):industrial?'#b84d22':'#f077de',!canyon&&!fjord),cargo=material(fjord?'#4c4339':canyon?'#82624a':sky?'#7c91a5':industrial?'#554639':'#304158');
  const cylinder=track(new THREE.CylinderGeometry(.5,.5,1,32)),circle=track(new THREE.CircleGeometry(.5,48));
  function box(x:number,y:number,z:number,w:number,h:number,d:number,mat:THREE.Material,solid=false){const mesh=new THREE.Mesh(cube,mat);mesh.position.set(x,y,z);mesh.scale.set(w,h,d);if(solid){scene.add(mesh);solids.push(mesh);}else{const list=batches.get(mat)??[];list.push(mesh);batches.set(mat,list);}return mesh;}
  const signTextures=new Map<string,THREE.Texture>();
@@ -22,22 +22,22 @@ export function buildEnvironment(scene:THREE.Scene,map:MapDefinition,variant:str
  }
  // A single generated floor texture, reusable meshes, and emissive trim keep downloads/draw cost small.
  const c=document.createElement('canvas');c.width=2048;c.height=1654;const g=c.getContext('2d')!,fx=c.width/map.bounds.width,fy=c.height/map.bounds.height;
- g.fillStyle=env.base;g.fillRect(0,0,c.width,c.height);g.strokeStyle=canyon?'#af956f':'#203b54';g.lineWidth=1;
+ g.fillStyle=env.base;g.fillRect(0,0,c.width,c.height);g.strokeStyle=fjord?'#c3d5dd':canyon?'#af956f':'#203b54';g.lineWidth=1;
  for(let x=0;x<map.bounds.width;x+=80){g.beginPath();g.moveTo(x*fx,0);g.lineTo(x*fx,c.height);g.stroke();}
  for(let z=0;z<map.bounds.height;z+=80){g.beginPath();g.moveTo(0,z*fy);g.lineTo(c.width,z*fy);g.stroke();}
- g.strokeStyle=canyon?'#ac8d61':'#3c7185';g.lineWidth=4;g.strokeRect(map.plaza.x*fx,map.plaza.y*fy,map.plaza.width*fx,map.plaza.height*fy);
+ g.strokeStyle=fjord?'#9db8c7':canyon?'#ac8d61':'#3c7185';g.lineWidth=4;g.strokeRect(map.plaza.x*fx,map.plaza.y*fy,map.plaza.width*fx,map.plaza.height*fy);
  if(canyon){
   g.fillStyle='#b59970';g.fillRect(820*fx,600*fy,310*fx,1800*fy);
   for(let i=0;i<1600;i++){g.fillStyle=i%3?'#b39871':'#c6ad85';g.fillRect((i*137%map.bounds.width)*fx,(i*239%map.bounds.height)*fy,2+i%5,1+i%3);}
  }
  // Multiple street choices, not a single peripheral corridor.
- if(!industrial&&!sky&&!canyon){for(const x of [110,570,870,1730,1990,2490]){g.strokeStyle=x===570||x===1990?'#735283':'#345569';g.lineWidth=3;g.beginPath();g.moveTo(x*fx,80*fy);g.lineTo(x*fx,2010*fy);g.stroke();}
+ if(!industrial&&!sky&&!canyon&&!fjord){for(const x of [110,570,870,1730,1990,2490]){g.strokeStyle=x===570||x===1990?'#735283':'#345569';g.lineWidth=3;g.beginPath();g.moveTo(x*fx,80*fy);g.lineTo(x*fx,2010*fy);g.stroke();}
  g.setLineDash([12,24]);g.strokeStyle='#587482';for(const y of [800,1480,1700]){g.beginPath();g.moveTo(80*fx,y*fy);g.lineTo(2520*fx,y*fy);g.stroke();}g.setLineDash([]);}
  const texture=track(new THREE.CanvasTexture(c));texture.colorSpace=THREE.SRGBColorSpace;
- const floorMat=track(new THREE.MeshStandardMaterial({map:texture,roughness:.32,metalness:.55}));
+ const floorMat=track(new THREE.MeshStandardMaterial({map:texture,roughness:fjord?.85:.32,metalness:fjord?.08:.55}));
  if(map.ground){
   // Lava is a visual floor only. The shared ground union, not this plane, grants walkable support.
-  if(!sky&&!canyon){const lavaCanvas=document.createElement('canvas');lavaCanvas.width=512;lavaCanvas.height=512;const l=lavaCanvas.getContext('2d')!;l.fillStyle='#b42e06';l.fillRect(0,0,512,512);
+  if(!sky&&!canyon&&!fjord){const lavaCanvas=document.createElement('canvas');lavaCanvas.width=512;lavaCanvas.height=512;const l=lavaCanvas.getContext('2d')!;l.fillStyle='#b42e06';l.fillRect(0,0,512,512);
   for(let i=0;i<180;i++){const x=i*137%512,y=i*89%512;l.strokeStyle=i%3?'#ef570c':'#ff9c27';l.lineWidth=2+i%4;l.beginPath();l.moveTo(x,y);l.lineTo(x+14+i%29,y+10+i%23);l.lineTo(x+31,y-9);l.stroke();}
   const lavaTexture=track(new THREE.CanvasTexture(lavaCanvas));lavaTexture.wrapS=lavaTexture.wrapT=THREE.RepeatWrapping;lavaTexture.repeat.set(7,7);lavaTexture.colorSpace=THREE.SRGBColorSpace;
   const lava=new THREE.Mesh(plane,track(new THREE.MeshBasicMaterial({map:lavaTexture,color:env.lava,toneMapped:false})));lava.scale.set(map.bounds.width*S,map.bounds.height*S,1);lava.rotation.x=-Math.PI/2;lava.position.set(map.bounds.width*S/2,-.45,map.bounds.height*S/2);scene.add(lava);}
@@ -57,14 +57,14 @@ export function buildEnvironment(scene:THREE.Scene,map:MapDefinition,variant:str
    const mesh=new THREE.Mesh(cylinder,canyon&&b.id.startsWith('barrel-body')?dark:navy);mesh.position.set(x,bottom+h/2,z);mesh.scale.set(w,h,d);scene.add(mesh);solids.push(mesh);
    const rim=new THREE.Mesh(track(new THREE.RingGeometry(.48,.5,48)),blue);rim.rotation.x=-Math.PI/2;rim.scale.set(w,d,1);rim.position.set(x,b.top*S+.025,z);scene.add(rim);continue;
   }
-  box(x,bottom+h/2,z,w,h,d,b.kind==='crate'?cargo:b.kind==='rail'?dark:navy,true);
+  box(x,bottom+h/2,z,w,h,d,b.kind==='crate'?cargo:b.kind==='rail'?dark:fjord&&b.id.startsWith('ice-cliff')?material('#7098ae'):fjord&&b.kind==='building'?material('#403a32'):navy,true);
   if(b.kind==='rail'){box(x,bottom+h-.02,z,w,.035,d,accent);continue;}
   for(const zz of [z-d/2,z+d/2])box(x,bottom+h+.02,zz,w,.035,.045,accent);
   for(const xx of [x-w/2,x+w/2])box(xx,bottom+h+.02,z,.045,.035,d,accent);
   if(b.kind==='deck')continue;
   for(const zz of [z-d/2-.015,z+d/2+.015])box(x,bottom+.08,zz,w,.045,.035,accent);
   if(b.kind==='building'){
-   if(!canyon||!map.surfaces.some(s=>s.id===b.id+'-roof'))box(x,bottom+h+.16,z,w+.2,.25,d+.2,dark);
+   if(!fjord&&(!canyon||!map.surfaces.some(s=>s.id===b.id+'-roof')))box(x,bottom+h+.16,z,w+.2,.25,d+.2,dark);
    for(const xx of [x-w/2-.02,x+w/2+.02])box(xx,bottom+h/2,z,.05,h,.05,accent);
    if(b.name){sign(b.name,x,z+d/2+.035,Math.min(w-.7,11),0,b.accent,bottom+h*.67);sign(b.name,x,z-d/2-.035,Math.min(w-.7,11),Math.PI,b.accent,bottom+h*.67);}
    if(b.name==='WEST DEPOT')sign(b.name,x+w/2+.035,z,Math.min(d-.7,9),Math.PI/2,b.accent,bottom+h*.67);
@@ -81,11 +81,11 @@ export function buildEnvironment(scene:THREE.Scene,map:MapDefinition,variant:str
   const corners=[[s.x,s.y],[s.x+s.width,s.y],[s.x+s.width,s.y+s.height],[s.x,s.y+s.height]];
   const geo=track(new THREE.BufferGeometry());geo.setAttribute('position',new THREE.Float32BufferAttribute([...corners.flatMap(([cx,cz])=>[cx*S,surfaceHeight(s,{x:cx,y:cz})*S,cz*S]),...corners.flatMap(([cx,cz])=>[cx*S,0,cz*S])],3));geo.setIndex([0,3,2,0,2,1,4,1,5,4,0,1,5,2,6,5,1,2,6,3,7,6,2,3,7,0,4,7,3,0]);geo.computeVertexNormals();const mesh=new THREE.Mesh(geo,navy);scene.add(mesh);solids.push(mesh);
   const slope=Math.atan2(high-low,alongX?w:d),count=s.style==='stairs'?24:10;
-  for(let i=0;i<=count;i++){const t=i/count,strip=new THREE.Mesh(plane,i%4===0?blue:material('#687f91'));strip.scale.set(alongX?d:w,.035,1);strip.rotation.set(-Math.PI/2+slope,0,0);if(alongX)strip.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2));strip.position.set(alongX?x+w*t:x+w/2,high+(low-high)*t+.012,alongX?z+d/2:z+d*t);scene.add(strip);}
+  for(let i=0;i<=count;i++){const t=i/count;if(fjord){box(alongX?x+w*t:x+w/2,high+(low-high)*t+.012,alongX?z+d/2:z+d*t,alongX?.035:w,.016,alongX?d:.035,blue);continue;}const strip=new THREE.Mesh(plane,i%4===0?blue:material('#687f91'));strip.scale.set(alongX?d:w,.035,1);strip.rotation.set(-Math.PI/2+slope,0,0);if(alongX)strip.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),Math.PI/2));strip.position.set(alongX?x+w*t:x+w/2,high+(low-high)*t+.012,alongX?z+d/2:z+d*t);scene.add(strip);}
   if(alongX){for(const zz of [z+.03,z+d-.03]){const rail=box(x+w/2,(high+low)/2+.7,zz,Math.hypot(w,high-low),.055,.055,blue);rail.rotation.z=-slope;}}
   else for(const xx of [x+.03,x+w-.03]){const rail=box(xx,(high+low)/2+.7,z+d/2,.055,.055,Math.hypot(d,high-low),blue);rail.rotation.x=slope;}
  }
- if(!industrial&&!sky&&!canyon){
+ if(!industrial&&!sky&&!canyon&&!fjord){
  // Strong plaza landmark: solid plinth, slender twin energy pylons, concentric floor rings.
  const base=map.blocks.find(b=>b.kind==='monument')!,mx=(base.x+base.width/2)*S,mz=(base.y+base.height/2)*S;
  for(const x of [mx-1.8,mx+1.8]){box(x,4.15,mz,.36,7,.36,blue);box(x,.8,mz,.62,.5,.62,dark);}
@@ -95,6 +95,59 @@ export function buildEnvironment(scene:THREE.Scene,map:MapDefinition,variant:str
  sign('NORTH BRIDGE',1300*S,281*S,8,Math.PI,'#46dfff',4.5);sign('NORTH BRIDGE',1300*S,428*S,8,0,'#46dfff',4.5);
  const trunk=track(new THREE.CylinderGeometry(.08,.13,1.4,6)),leaf=track(new THREE.IcosahedronGeometry(.8,0)),green=material('#285d50');
  for(const b of map.blocks.filter(b=>b.kind==='planter')){const x=(b.x+b.width/2)*S,z=(b.y+b.height/2)*S,tree=new THREE.Mesh(trunk,dark);tree.position.set(x,b.top*S+.7,z);scene.add(tree);const crown=new THREE.Mesh(leaf,green);crown.position.set(x,b.top*S+1.7,z);crown.scale.set(1,1.25,1);scene.add(crown);}
+ }else if(fjord){
+  const snow=material('#e0eaf0'),ice=material('#86b4cc'),wood=material('#403a32'),rune=material('#87e8f4',true),warm=material('#ffc58b',true);
+  const rockGeo=track(new THREE.IcosahedronGeometry(.5,0)),icicleGeo=track(new THREE.ConeGeometry(.065,.6,5)),icicles:THREE.Mesh[]=[];
+  // Gabled timber halls, snow caps and heavy beams replace flat sci-fi roof silhouettes.
+  for(const b of map.blocks.filter(b=>b.kind==='building')){
+   const x=(b.x+b.width/2)*S,z=(b.y+b.height/2)*S,w=b.width*S,d=b.height*S,top=b.top*S,rise=Math.min(w*.58,6);
+   const vertices=[-w/2,0,-d/2,w/2,0,-d/2,0,rise,-d/2,-w/2,0,d/2,w/2,0,d/2,0,rise,d/2];
+   const geo=track(new THREE.BufferGeometry());geo.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));geo.setIndex([0,2,1,3,4,5,0,3,5,0,5,2,1,2,5,1,5,4,0,1,4,0,4,3]);geo.computeVertexNormals();
+   box(x,.45,z,w,.9,d,navy);
+   const roof=new THREE.Mesh(geo,snow);roof.position.set(x,top,z);scene.add(roof);solids.push(roof);
+   for(const zz of [z-d/2-.02,z+d/2+.02]){
+    const face=new THREE.Mesh(plane,wood);face.position.set(x,top+.25,zz);face.scale.set(w,.4,1);scene.add(face);
+    for(const xx of [x-w/2+.2,x,x+w/2-.2])box(xx,top/2,zz,.19,top,.17,wood);
+    for(const side of [-1,1]){const beam=box(x+side*w/4,top+rise/2,zz,Math.hypot(w/2,rise),.16,.17,wood);beam.rotation.z=side===-1?Math.atan2(rise,w/2):-Math.atan2(rise,w/2);}
+    for(let i=0;i<7;i++){const icicle=new THREE.Mesh(icicleGeo,ice);icicle.position.set(x-w*.43+i*w*.14,top-.22,zz);icicle.rotation.z=Math.PI;icicles.push(icicle);}
+    for(const xx of [x-.95,x+.95]){box(xx,1.5,zz+.03,.16,.5,.16,warm);box(xx,1.1,zz,.1,.45,.1,wood);}
+   }
+  }
+  const icicleInstances=track(new THREE.InstancedMesh(icicleGeo,ice,icicles.length));for(const [i,mesh] of icicles.entries()){mesh.updateMatrix();icicleInstances.setMatrixAt(i,mesh.matrix);}icicleInstances.computeBoundingSphere();scene.add(icicleInstances);
+  // Timber bridges/docks and snow-covered stone battlements share authoritative flat tops.
+  for(const deck of map.surfaces.filter(s=>!s.ramp)){
+   for(let y=deck.y+20;y<deck.y+deck.height;y+=45)box((deck.x+deck.width/2)*S,deck.elevation*S+.015,y*S,deck.width*S,.025,.05,wood);
+   if(deck.id.includes('battlement')||deck.id==='north-wall-walk')for(let x=deck.x+25;x<deck.x+deck.width;x+=75)box(x*S,deck.elevation*S+.6,(deck.y+15)*S,.8,1.2,.4,navy);
+  }
+  // Snow caps stay decorative; collision belongs to the visible body footprints.
+  for(const b of map.blocks.filter(b=>b.kind!=='building'&&b.kind!=='deck'&&b.kind!=='rail')){
+   box((b.x+b.width/2)*S,b.top*S+.04,(b.y+b.height/2)*S,b.width*S,.08,b.height*S,snow);
+   if(b.id.startsWith('ice-cliff')||b.id.startsWith('frost-cover')&&b.kind==='monument'){
+    const mesh=new THREE.Mesh(rockGeo,ice);mesh.position.set((b.x+b.width/2)*S,b.top*S*.55,(b.y+b.height/2)*S);mesh.scale.set(b.width*S*.8,b.top*S,b.height*S*.8);scene.add(mesh);
+   }
+  }
+  // Fictional Nordic rune strokes contrast with dark standing stones, not glowing neon walls.
+  for(const [xx,zz,base,height] of [[1037,1676,0,4.2],[1300,630,90,1.8],[1408,1400,0,3.2]]){
+   box(xx*S,base*S+height*.55,zz*S,.045,height*.65,.035,rune);
+   for(const direction of [-1,1]){const glyph=box(xx*S+direction*.14,base*S+height*.7,zz*S,.38,.045,.035,rune);glyph.rotation.z=direction*.65;}
+  }
+  sign('RUNESTONE PLAZA',1037*S,1677*S,5,0,env.accent,4.7);sign('RUNESTONE PLAZA',1037*S,1578*S,5,Math.PI,env.accent,4.7);
+  sign("RAIDER'S COVE",1560*S,1361*S,6,Math.PI,env.accent,4.8);
+  sign("RAIDER'S COVE",1560*S,1681*S,6,0,env.accent,4.8);
+  sign('FROST-GUARD DOCKS',1110*S,2238*S,8,0,env.accent,4.3);sign('FROST-GUARD DOCKS',1110*S,2058*S,8,Math.PI,env.accent,4.3);
+  sign("VIKING'S FJORD",1100*S,1100*S,7,0,env.accent,5.6);
+  // Low-poly ice cliffs and distant snowy mountains build depth without physics or extra lights.
+  for(let i=0;i<22;i++){
+   const mesh=new THREE.Mesh(rockGeo,i%3?ice:snow),side=i%2;
+   mesh.position.set((side?2130:65)*S,5+(i%3),150*S+(i>>1)*6.3);mesh.scale.set(5+i%3,14+i%5,6);scene.add(mesh);
+  }
+  for(let i=0;i<14;i++){const mesh=new THREE.Mesh(rockGeo,i%2?snow:navy);mesh.position.set((i%2?-350:2580)*S,6,(i*213%2800)*S);mesh.scale.set(15+i%4,25+i%5,16);scene.add(mesh);}
+  // Static frozen coastal water and one longship silhouette; no swimming or ice physics.
+  const water=new THREE.Mesh(plane,ice);water.rotation.x=-Math.PI/2;water.scale.set(120,80,1);water.position.set(33,-.55,72);scene.add(water);
+  const hull=new THREE.Mesh(track(new THREE.CylinderGeometry(.5,.35,1,8)),wood);hull.position.set(51,-.1,69);hull.scale.set(2.2,1.1,8);scene.add(hull);
+  box(51,2.4,69,.14,4.6,.14,wood);box(51,3,69,2.3,2,.065,material('#829baa'));
+  for(const zz of [65,73])box(51,.6,zz,.25,1.7,.3,wood);
+  for(let i=0;i<8;i++){const crack=box(27+i*2,-.5,72+i%3,.025,.02,3,navy);crack.rotation.y=i*.8;}
  }else if(canyon){
   const wood=material('#604631'),rust=material('#846655'),sand=material('#b39369'),lantern=material('#ffca7a',true);
   // Timber porches, patched facades and corrugated sheets reinforce the frontier silhouette.
@@ -167,9 +220,9 @@ export function buildEnvironment(scene:THREE.Scene,map:MapDefinition,variant:str
   }
  }
  // Playable boundaries read as low illuminated curbs; skyline is outside them.
- if(!sky&&!canyon)for(const z of [0,map.bounds.height*S])box(map.bounds.width*S/2,.22,z,map.bounds.width*S,.44,.15,blue);
- if(!sky&&!canyon)for(const x of [0,map.bounds.width*S])box(x,.22,map.bounds.height*S/2,.15,.44,map.bounds.height*S,blue);
- if(!industrial&&!sky&&!canyon)for(let i=0;i<28;i++){const x=i*3.3-5,h=9+(i*7%15);for(const z of [-8,map.bounds.height*S+8]){box(x,h/2,z,2.1,h,2.5,dark);for(let y=2;y<h;y+=3)box(x,y,z+1.27,1.2,.06,.025,i%3?blue:pink);}}
+ if(!sky&&!canyon&&!fjord)for(const z of [0,map.bounds.height*S])box(map.bounds.width*S/2,.22,z,map.bounds.width*S,.44,.15,blue);
+ if(!sky&&!canyon&&!fjord)for(const x of [0,map.bounds.width*S])box(x,.22,map.bounds.height*S/2,.15,.44,map.bounds.height*S,blue);
+ if(!industrial&&!sky&&!canyon&&!fjord)for(let i=0;i<28;i++){const x=i*3.3-5,h=9+(i*7%15);for(const z of [-8,map.bounds.height*S+8]){box(x,h/2,z,2.1,h,2.5,dark);for(let y=2;y<h;y+=3)box(x,y,z+1.27,1.2,.06,.025,i%3?blue:pink);}}
  for(const [mat,meshes] of batches){const instances=track(new THREE.InstancedMesh(cube,mat,meshes.length));for(const [i,mesh] of meshes.entries()){mesh.updateMatrix();instances.setMatrixAt(i,mesh.matrix);}instances.instanceMatrix.needsUpdate=true;instances.computeBoundingSphere();scene.add(instances);}
  return {solids,dispose(){resources.forEach(r=>r.dispose());resources.clear();}};
 }
