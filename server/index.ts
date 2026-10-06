@@ -5,9 +5,9 @@ import { fileURLToPath } from 'node:url';
 import { resolve, dirname } from 'node:path';
 import { RoomServer } from './rooms.js';
 import { STEP } from '../shared/game.js';
-export async function createGameServer(production = process.env.NODE_ENV==='production' || fileURLToPath(import.meta.url).replaceAll('\\','/').endsWith('/dist/server.js')) {
+export async function createGameServer(production = process.env.NODE_ENV==='production' || fileURLToPath(import.meta.url).replaceAll('\\','/').endsWith('/dist/server.js'), legacyBounty=false) {
  const app=express();app.disable('x-powered-by');
- const server=createServer(app);const rooms=new RoomServer();
+ const server=createServer(app);const rooms=new RoomServer(legacyBounty);
  const wss=new WebSocketServer({noServer:true,maxPayload:2048});
  server.on('upgrade',(req,socket,head)=>{
   if(req.url!=='/ws'){socket.destroy();return;}

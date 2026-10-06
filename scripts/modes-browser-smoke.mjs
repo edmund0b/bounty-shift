@@ -1,0 +1,38 @@
+import assert from 'node:assert/strict';
+import {chromium} from 'playwright-core';
+import {mkdir} from 'node:fs/promises';
+import {resolve} from 'node:path';
+process.env.BOUNTY_TEST='1';
+const {createGameServer}=await import('../server/index.ts');
+const game=await createGameServer(true);await new Promise(r=>game.server.listen(0,'127.0.0.1',r));
+const url=`http://127.0.0.1:${game.server.address().port}`,out=resolve(process.env.BOUNTY_QA_OUTPUT||'mode-previews');await mkdir(out,{recursive:true});
+const until=async fn=>{const deadline=Date.now()+7000;while(!fn()){if(Date.now()>deadline)throw Error('Timed out on gameplay state');await new Promise(r=>setTimeout(r,25));}};let browser,mobileBrowser;
+try{
+ browser=await chromium.launch({executablePath:process.env.BOUNTY_QA_BROWSER||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,args:['--disable-background-timer-throttling','--disable-renderer-backgrounding','--disable-backgrounding-occluded-windows','--enable-webgl','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+ mobileBrowser=await chromium.launch({executablePath:process.env.BOUNTY_QA_BROWSER||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,args:['--disable-background-timer-throttling','--disable-renderer-backgrounding','--enable-webgl','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']});const hc=await browser.newContext({viewport:{width:1280,height:800}}),pc=await mobileBrowser.newContext({viewport:{width:390,height:844},hasTouch:true,isMobile:true});
+ const host=await hc.newPage(),player=await pc.newPage(),errors=[];for(const p of [host,player])p.on('pageerror',e=>errors.push(e.message));
+ await host.goto(url);await host.getByLabel('Display name').fill('Host');await host.getByRole('button',{name:'CREATE ROOM',exact:true}).click();await host.locator('.code').waitFor();const code=await host.locator('.code').getAttribute('data-room-code');const room=game.rooms.rooms.get(code);
+ await player.goto(url);await player.getByLabel('Display name').fill('Runner');await player.getByLabel('Room code',{exact:true}).fill(code);await player.getByRole('button',{name:'JOIN',exact:true}).click();await player.locator('.mode-card').first().waitFor();
+ assert(await player.getByRole('button',{name:'Select TAG',exact:true}).isDisabled());
+ await host.getByRole('button',{name:'Select FLAG RUN',exact:true}).click();await player.waitForFunction(()=>document.querySelector('.mode-card.selected')?.textContent.includes('FLAG RUN'));
+ await host.locator('.mode-card.selected').getByRole('button',{name:'DUO',exact:false}).click();assert.equal(room.selectedFormat,'duo');
+ await host.getByRole('button',{name:'READY UP',exact:true}).click();await player.getByRole('button',{name:'READY UP',exact:true}).click();assert.equal(await host.getByRole('button',{name:'START MATCH',exact:true}).count(),0);
+ await host.getByRole('button',{name:'Select TAG',exact:true}).click();await host.waitForFunction(()=>document.querySelector('.mode-card.selected')?.textContent.includes('TAG'));await host.locator('.mode-card.selected').getByRole('button',{name:'SOLO',exact:false}).click();
+ await host.waitForFunction(()=>document.querySelector('.mode-card.selected')?.textContent.includes('TAG'));await host.screenshot({path:resolve(out,'LOBBY_DESKTOP.png'),fullPage:true});await player.bringToFront();console.log('Mobile pointer',await player.evaluate(()=>({coarse:matchMedia('(pointer:coarse)').matches,touch:navigator.maxTouchPoints})));await player.screenshot({path:resolve(out,'LOBBY_MOBILE.png'),fullPage:true});
+ for(const [width,height]of [[1536,960],[1366,768],[800,600],[390,844],[320,568]]){await host.setViewportSize({width,height});assert(await host.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`Overflow at ${width}`);}
+ await host.setViewportSize({width:1280,height:800});
+ for(const mode of ['TAG','KILL RACE','FLAG RUN']){
+  await host.getByRole('button',{name:`Select ${mode}`,exact:true}).click();await host.getByRole('button',{name:'READY UP',exact:true}).click();await player.getByRole('button',{name:'READY UP',exact:true}).click();await host.getByRole('button',{name:'START MATCH',exact:true}).click();await until(()=>room.phase==='arena');room.round.endsAt=Date.now()+600000;console.log('Playing',mode);await host.locator('.viewport canvas').waitFor();await player.locator('.viewport canvas').waitFor();await host.waitForTimeout(600);
+  assert.equal(await host.locator('.graphics-error').count(),0);assert.equal(await player.locator('.graphics-error').count(),0);assert((await player.locator('.mode-hud').textContent()).includes(mode));
+  await player.bringToFront();const mobileSession=await pc.newCDPSession(player);await mobileSession.send('Emulation.setTouchEmulationEnabled',{enabled:true,maxTouchPoints:1});await player.waitForFunction(()=>matchMedia('(pointer:coarse)').matches);await player.locator('.joystick').waitFor({state:'visible'});assert(await player.getByRole('button',{name:'Attack',exact:true}).isVisible());
+  const pad=await player.locator('.joystick').boundingBox(),mobilePlayer=room.players[1],mobileBefore={x:mobilePlayer.x,y:mobilePlayer.y};
+  await mobileSession.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:pad.x+pad.width/2,y:pad.y+pad.height/2}]});await mobileSession.send('Input.dispatchTouchEvent',{type:'touchMove',touchPoints:[{x:pad.x+pad.width/2+40,y:pad.y+pad.height/2}]});await player.waitForTimeout(300);await mobileSession.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});assert(Math.hypot(mobilePlayer.x-mobileBefore.x,mobilePlayer.y-mobileBefore.y)>5,'Touch joystick moves the server player');
+  const p=room.players[0];const before={x:p.x,y:p.y};await host.bringToFront();await host.locator('canvas').focus();await host.keyboard.down('w');await host.waitForTimeout(350);await host.keyboard.up('w');assert(Math.hypot(p.x-before.x,p.y-before.y)>5,'Keyboard moves authoritative player');
+  await host.keyboard.press('z');await until(()=>p.dashSeen>0);
+  const item=room.mode.items.find(i=>i.source==='floor');Object.assign(p,{x:item.x,y:item.y,elevation:item.elevation??0,dashRemaining:0});game.rooms.broadcast(room);await host.waitForTimeout(120);await host.keyboard.press('r');await until(()=>!!p.heldItem);
+  await host.screenshot({path:resolve(out,`${mode.replaceAll(' ','_')}_DESKTOP.png`)});await player.bringToFront();await mobileSession.send('Emulation.setTouchEmulationEnabled',{enabled:true,maxTouchPoints:1});await player.waitForFunction(()=>matchMedia('(pointer:coarse)').matches);await player.screenshot({path:resolve(out,`${mode.replaceAll(' ','_')}_MOBILE.png`)});
+  if(mode==='FLAG RUN'){await host.bringToFront();await host.locator('canvas').focus();room.mode.flag.spawnAt=Date.now()-1;await host.waitForTimeout(100);Object.assign(p,room.mode.flag.position);game.rooms.broadcast(room);await host.waitForTimeout(100);await host.keyboard.press('r');await until(()=>room.mode.flag.carrier===p.id);Object.assign(p,room.mode.capture);await until(()=>room.phase==='intermission');}
+  await host.getByRole('button',{name:'Return everyone to lobby'}).click();await host.locator('.entry-lobby').waitFor();await player.locator('.entry-lobby').waitFor();
+ }
+ assert.deepEqual(errors,[]);console.log('PASS: two real browser clients, authority, mode/format sync, invalid Duo, responsive lobby, all three rendered modes, movement, dodge, loot, capture and return to lobby; no page errors.');
+}finally{if(browser)await browser.close();if(mobileBrowser)await mobileBrowser.close();await game.close();}

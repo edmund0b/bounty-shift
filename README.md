@@ -1,3 +1,7 @@
+# Gameplay update — October 2026
+
+The current selectable modes are **Tag, Flag Run, and Kill Race**, in Solo (2–6 players) or Duo (4/6 players). The original documentation below describes the earlier Bounty foundation. Read [GAMEPLAY_UPDATE.md](GAMEPLAY_UPDATE.md) for current rules, controls, architecture, testing, and deployment.
+
 ## Latest update: multiplayer entry flow
 
 Login and waiting lobby now use the connected cinematic entry presentation. See [ENTRY_FLOW_IMPLEMENTATION.md](ENTRY_FLOW_IMPLEMENTATION.md) for real-state wiring, controls, preservation and validation. Start with `npm install`, `npm run build`, then `npm start`. This update leaves the existing full-screen match HUD and gameplay systems intact.

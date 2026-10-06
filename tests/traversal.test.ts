@@ -41,7 +41,7 @@ test('melee respects vertical separation, deck/rail thickness, low cover and slo
  assert(canHit({x:1300,y:600,elevation:surfaceHeight(ramp,{x:1300,y:600})},{x:1300,y:640,elevation:surfaceHeight(ramp,{x:1300,y:640})},0,1));
 });
 test('server/prediction elevation matches, forging height is ignored, reconnect restores upper body',()=>{
- const rooms=new RoomServer(),fake=()=>({readyState:1,send:()=>{}} as unknown as WebSocket),a=fake(),b=fake();
+ const rooms=new RoomServer(true),fake=()=>({readyState:1,send:()=>{}} as unknown as WebSocket),a=fake(),b=fake();
  const send=(s:WebSocket,m:any)=>{const r=rooms.sessions.get(s)?.room;rooms.message(s,JSON.stringify(m.type==='input'?{matchId:r!.match.id,roundNumber:r!.match.roundNumber,...m}:m));};
  send(a,{type:'create',name:'A'});const room=rooms.sessions.get(a)!.room;send(b,{type:'join',code:room.code,name:'B'});send(a,{type:'ready',ready:true});send(b,{type:'ready',ready:true});send(a,{type:'start'});const p=room.players[0];Object.assign(p,freshMotion({x:730,y:1900}));let predicted={...p},now=Date.now();
  for(let i=1;i<=90;i++){const input={seq:i,dx:0,dy:-1,sprint:true,dashId:i>=10?1:0};send(a,{type:'input',...input,elevation:999999,y:-999});now+=STEP*1000;p.lastInput=now;rooms.tick(now);predicted={...predicted,...advanceMotion(predicted,input)};assert.equal(p.elevation,predicted.elevation);assert.equal(p.x,predicted.x);assert.equal(p.y,predicted.y);assert(isWalkable(p));}

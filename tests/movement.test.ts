@@ -41,7 +41,7 @@ test('camera follows and clamps without exposing the whole world',()=>{
  assert.deepEqual(cameraFor({x:1000,y:720}),{x:520,y:420});assert.deepEqual(cameraFor({x:0,y:0}),{x:0,y:0});const far=cameraFor({x:WORLD.width,y:WORLD.height});assert.equal(far.x,WORLD.width-960);assert.equal(far.y,WORLD.height-600);
 });
 test('authoritative room state agrees with prediction and rejects ability spoofing',()=>{
- const rooms=new RoomServer(),messages:string[]=[];
+ const rooms=new RoomServer(true),messages:string[]=[];
  const fake=()=>({readyState:1,send:(s:string)=>messages.push(s)}) as unknown as WebSocket;
  const a=fake(),b=fake();const send=(ws:WebSocket,m:unknown)=>rooms.message(ws,JSON.stringify((m as any)?.type==='input'?{matchId:rooms.sessions.get(ws)!.room.match.id,roundNumber:rooms.sessions.get(ws)!.room.match.roundNumber,...(m as object)}:m));
  send(a,{type:'create',name:'A'});const code=rooms.sessions.get(a)!.room.code;send(b,{type:'join',code,name:'B'});send(a,{type:'ready',ready:true});send(b,{type:'ready',ready:true});send(a,{type:'start'});

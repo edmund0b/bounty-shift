@@ -6,7 +6,7 @@ import { COMBAT } from '../shared/combat.js';
 import { isWalkable, MOVEMENT, STEP, RECONNECT_MS } from '../shared/game.js';
 
 function fixture(count=3,start=true){
- const server=new RoomServer();const packets=new Map<WebSocket,any[]>();
+ const server=new RoomServer(true);const packets=new Map<WebSocket,any[]>();
  const socket=()=>{const messages:any[]=[];const ws={readyState:1,send:(s:string)=>messages.push(JSON.parse(s))} as unknown as WebSocket;packets.set(ws,messages);return ws;};
  const sockets=Array.from({length:count},socket);
  const send=(ws:WebSocket,m:any)=>server.message(ws,JSON.stringify(m.type==='input'?{matchId:room.match.id,roundNumber:room.match.roundNumber,...m}:m));

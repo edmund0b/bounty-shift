@@ -31,5 +31,11 @@ export function ControlsGuide({coarse}:{coarse:boolean}){return <div className="
  <Group name="COMBAT" icon="combat">
   {coarse?<Row input={<span className="control-touch"><ControlSymbol name="combat"/></span>} action="Attack" note="Tap Attack"/>:<><Row input={<MouseInput click/>} action="Attack" note="After mouse capture"/><Row input={<Key>F</Key>} action="Attack" note="Alternative"/></>}
  </Group>
+ <Group name="ITEMS + EVASION" icon="general">
+  <Row input={coarse?<span>USE</span>:<Key>R</Key>} action="Open / Pick up" note="Chest opens first; use again to claim"/>
+  <Row input={coarse?<span>DODGE</span>:<Key>Z</Key>} action="Dodge" note="Shares Dash cooldown"/>
+  <Row input={coarse?<span>SLIDE</span>:<Key>X</Key>} action="Slide" note="Move while activating"/>
+  <Row input={coarse?<span>ATTACK</span>:<span>F / Click</span>} action="Throw Freeze Ball" note="When holding a ball"/>
+ </Group>
  {!coarse&&<Group name="GENERAL" icon="general"><Row input={<Key>Esc</Key>} action="Release Cursor"/></Group>}
  </div>}

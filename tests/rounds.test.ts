@@ -6,7 +6,7 @@ import { STEP, freshMotion } from '../shared/game.js';
 import { ROUND } from '../shared/rounds.js';
 
 function fixture(count=2){
- const server=new RoomServer();const packets:string[][]=[];
+ const server=new RoomServer(true);const packets:string[][]=[];
  const sockets=Array.from({length:count},(_,i)=>{packets[i]=[];return {readyState:1,send:(s:string)=>packets[i].push(s)} as unknown as WebSocket;});
  const send=(i:number,m:unknown)=>server.message(sockets[i],JSON.stringify((m as any)?.type==='input'?{matchId:room.match.id,roundNumber:room.match.roundNumber,...(m as object)}:m));
  send(0,{type:'create',name:'P0'});const room=server.sessions.get(sockets[0])!.room;

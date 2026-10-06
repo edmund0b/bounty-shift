@@ -16,7 +16,7 @@ class Client {
  close(){this.ws.close();}
 }
 test('two independent WebSockets: lobby, authority, movement, reconnect, host transfer, cleanup',async()=>{
- const game=await createGameServer(true);await new Promise<void>(r=>game.server.listen(0,'127.0.0.1',r));const address=game.server.address();assert(address&&typeof address==='object');const url=`ws://127.0.0.1:${address.port}/ws`;const clients:Client[]=[];
+ const game=await createGameServer(true,true);await new Promise<void>(r=>game.server.listen(0,'127.0.0.1',r));const address=game.server.address();assert(address&&typeof address==='object');const url=`ws://127.0.0.1:${address.port}/ws`;const clients:Client[]=[];
  const connect=async()=>{const c=new Client(url);clients.push(c);await c.open();return c;};
  try{
   const http=`http://127.0.0.1:${address.port}`;assert.deepEqual(await (await fetch(http+'/health')).json(),{ok:true,phase:6});const html=await (await fetch(http+'/')).text();assert(html.includes('Bounty Shift'));const asset=html.match(/src=\"([^\"]+\.js)\"/);assert(asset);assert.equal((await fetch(http+asset[1])).status,200);
@@ -49,7 +49,7 @@ test('two independent WebSockets: lobby, authority, movement, reconnect, host tr
 });
 test('movement normalizes diagonals and respects arena bounds',()=>{const p={x:200,y:200};const straight=move(p,1,0),diagonal=move(p,1,1);assert(Math.abs(Math.hypot(diagonal.x-p.x,diagonal.y-p.y)-(straight.x-p.x))<0.00001);assert.equal(move({x:ARENA.width-14,y:14},1,-1).x,ARENA.width-14);assert.equal(move({x:14,y:14},-1,-1).y,14);});
 test('six-player room capacity, readiness, and independent movement',async()=>{
- const game=await createGameServer(true);await new Promise<void>(r=>game.server.listen(0,'127.0.0.1',r));const address=game.server.address();assert(address&&typeof address==='object');const clients:Client[]=[];
+ const game=await createGameServer(true,true);await new Promise<void>(r=>game.server.listen(0,'127.0.0.1',r));const address=game.server.address();assert(address&&typeof address==='object');const clients:Client[]=[];
  try{
   let code='';let host:Client|undefined;
   for(let i=0;i<7;i++){
@@ -64,19 +64,19 @@ test('six-player room capacity, readiness, and independent movement',async()=>{
  }finally{for(const c of clients)c.ws.terminate();await game.close();}
 });
 test('two live WebSocket clients agree on combat, KO, reconnect, and protected respawn',async()=>{
- const game=await createGameServer(true);await new Promise<void>(r=>game.server.listen(0,'127.0.0.1',r));const address=game.server.address();assert(address&&typeof address==='object');const clients:Client[]=[];
+ const game=await createGameServer(true,true);await new Promise<void>(r=>game.server.listen(0,'127.0.0.1',r));const address=game.server.address();assert(address&&typeof address==='object');const clients:Client[]=[];
  const connect=async()=>{const c=new Client(`ws://127.0.0.1:${address.port}/ws`);clients.push(c);await c.open();return c;};
  try{
   const a=await connect();a.send({type:'create',name:'Attacker'});const wa=await a.wait(m=>m.type==='welcome');assert(wa.type==='welcome');const b=await connect();b.send({type:'join',name:'Target',code:wa.room.code});const wb=await b.wait(m=>m.type==='welcome');assert(wb.type==='welcome');a.send({type:'ready',ready:true});b.send({type:'ready',ready:true});await a.state(r=>r.players.every(p=>p.ready));a.send({type:'start'});await a.state(r=>r.phase==='arena');await b.state(r=>r.phase==='arena');a.messages=[];b.messages=[];
   // Arrange authoritative fixtures only in this test, not via a gameplay endpoint.
   const room=game.rooms.rooms.get(wa.room.code)!;Object.assign(room.players[0],{x:1000,y:700});Object.assign(room.players[1],{x:1040,y:700});
   for(let attackId=1;attackId<=4;attackId++){
-   if(attackId>1)await new Promise(r=>setTimeout(r,650));a.send({type:'input',seq:attackId,dx:0,dy:0,attackId,aimX:1,aimY:0});const health=100-attackId*25;const ra=await a.state(r=>r.players.find(p=>p.id===wb.id)?.health===health);const rb=await b.state(r=>r.tick===ra.tick);assert.deepEqual(ra.players,rb.players);
+   if(attackId>1)await a.state(r=>r.players.some(p=>p.id===wa.id&&p.attackSeen===attackId-1&&p.attackCooldown<=1e-8));a.send({type:'input',seq:attackId,dx:0,dy:0,attackId,aimX:1,aimY:0});const health=100-attackId*25;const ra=await a.state(r=>r.players.find(p=>p.id===wb.id)?.health===health);const rb=await b.state(r=>r.tick===ra.tick);assert.deepEqual(ra.players,rb.players);
   }
   assert.equal(room.players[0].eliminations,1);assert.equal(room.players[1].eliminations,0);
   const dead=room.players.find(p=>p.id===wb.id)!;const x=dead.x,y=dead.y;b.send({type:'input',seq:1,dx:1,dy:0,sprint:true,dashId:1,attackId:1,aimX:-1,aimY:0});await b.state(r=>r.players.find(p=>p.id===wb.id)!.ack===1);assert.equal(dead.x,x);assert.equal(dead.y,y);assert.equal(room.players[0].health,100);
   b.close();await a.state(r=>r.players.some(p=>p.id===wb.id&&!p.connected));const resumed=await connect();resumed.send({type:'resume',code:wa.room.code,token:wb.token});const welcome=await resumed.wait(m=>m.type==='welcome');assert(welcome.type==='welcome');assert.equal(welcome.id,wb.id);assert.equal(welcome.room.players.find(p=>p.id===wb.id)!.health,0);
-  const respawn=await resumed.wait(m=>m.type==='state'&&m.room.players.find(p=>p.id===wb.id)?.spawnVersion===2,6500);assert(respawn.type==='state');const ra=await a.state(r=>r.tick===respawn.room.tick);assert.deepEqual(ra.players,respawn.room.players);const p=ra.players.find(p=>p.id===wb.id)!;assert.equal(p.health,100);assert.equal(p.koRemaining,0);assert(p.protection>0);const {isWalkable}=await import('../shared/game.js');assert(isWalkable(p));
+  const respawn=await resumed.wait(m=>m.type==='state'&&m.room.players.find(p=>p.id===wb.id)?.spawnVersion===2,10000);assert(respawn.type==='state');const ra=await a.state(r=>r.tick===respawn.room.tick);assert.deepEqual(ra.players,respawn.room.players);const p=ra.players.find(p=>p.id===wb.id)!;assert.equal(p.health,100);assert.equal(p.koRemaining,0);assert(p.protection>0);const {isWalkable}=await import('../shared/game.js');assert(isWalkable(p));
   a.messages=[];resumed.messages=[];game.rooms.tick(room.round.endsAt);const resultsA=await a.state(r=>r.phase==='intermission');const resultsB=await resumed.state(r=>r.phase==='intermission');assert.deepEqual(resultsA.round,resultsB.round);assert.equal(resultsA.round.results[0].id,wa.id);assert.equal(resultsA.round.results[0].eliminations,1);assert.equal(resultsB.objective.target?.id,wa.id);
   for(let round=2;round<=3;round++){
    a.messages=[];resumed.messages=[];game.rooms.tick(room.round.returnAt);
@@ -90,7 +90,7 @@ test('two live WebSocket clients agree on combat, KO, reconnect, and protected r
  }finally{for(const c of clients)c.ws.terminate();await game.close();}
 });
 test('real duplicate connection cannot steal session and can resume after old socket closes',async()=>{
- const game=await createGameServer(true);await new Promise<void>(r=>game.server.listen(0,'127.0.0.1',r));const address=game.server.address();assert(address&&typeof address==='object');const clients:Client[]=[];
+ const game=await createGameServer(true,true);await new Promise<void>(r=>game.server.listen(0,'127.0.0.1',r));const address=game.server.address();assert(address&&typeof address==='object');const clients:Client[]=[];
  const connect=async()=>{const c=new Client(`ws://127.0.0.1:${address.port}/ws`);clients.push(c);await c.open();return c;};
  try{
   const a=await connect();a.send({type:'create',name:'Original'});const wa=await a.wait(m=>m.type==='welcome');assert(wa.type==='welcome');const b=await connect();b.send({type:'join',code:wa.room.code,name:'Friend'});const wb=await b.wait(m=>m.type==='welcome');assert(wb.type==='welcome');
@@ -101,7 +101,7 @@ test('real duplicate connection cannot steal session and can resume after old so
 
 test('two live clients agree on stair elevation, elevated reconnect, KO respawn and round reset',async()=>{
  const {freshMotion,isWalkable,STEP}=await import('../shared/game.js');
- const game=await createGameServer(true);await new Promise<void>(r=>game.server.listen(0,'127.0.0.1',r));const address=game.server.address();assert(address&&typeof address==='object');const clients:Client[]=[];
+ const game=await createGameServer(true,true);await new Promise<void>(r=>game.server.listen(0,'127.0.0.1',r));const address=game.server.address();assert(address&&typeof address==='object');const clients:Client[]=[];
  const connect=async()=>{const c=new Client(`ws://127.0.0.1:${address.port}/ws`);clients.push(c);await c.open();return c;};
  try{
   const a=await connect();a.send({type:'create',name:'Climber'});const wa=await a.wait(m=>m.type==='welcome');assert(wa.type==='welcome');const b=await connect();b.send({type:'join',name:'Observer',code:wa.room.code});await b.wait(m=>m.type==='welcome');a.send({type:'ready',ready:true});b.send({type:'ready',ready:true});await a.state(r=>r.players.every(p=>p.ready));a.send({type:'start'});await a.state(r=>r.phase==='arena');await b.state(r=>r.phase==='arena');

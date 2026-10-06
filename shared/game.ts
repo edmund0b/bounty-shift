@@ -1,3 +1,4 @@
+import type {GameMode,Format,ModeState,ItemKind} from './modes.js';
 import type { RoundView, PrivateObjective, MatchView } from './rounds.js';
 import type { CombatState } from './combat.js';
 import { ACTIVE_MAP, WORLD, type MapDefinition } from './map.js';
@@ -10,14 +11,16 @@ export const NETWORK = { inputTimeoutMs:300, maxInputAdvance:120, resumeRetryMs:
 export const COLORS = ['#60cfff','#ffbc66','#b6a2ff','#77d8a4','#ff8da5','#e9df78'];
 export const MOVEMENT = { sprintMultiplier: 1.5, staminaMax: 100, staminaDrain: 28, staminaRegen: 22, regenDelay: 0.6, dashSpeed: 850, dashDuration: 0.18, dashCooldown: 3 };
 export type Position = { x: number; y: number; elevation?:number };
-export type Input = { matchId: string; roundNumber: number; seq: number; dx: number; dy: number; sprint?: boolean; dashId?: number; attackId?: number; aimX?: number; aimY?: number };
-export type Motion = Position & { elevation:number; stamina: number; regenWait: number; exhausted: boolean; dashCooldown: number; dashRemaining: number; dashX: number; dashY: number; facingX: number; facingY: number; dashSeen: number; sprinting: boolean };
-export type PlayerView = Motion & CombatState & { id: string; name: string; color: string; ready: boolean; connected: boolean; ack: number };
-export type RoomView = { mapId:string; mapVariant:string|null; nextMapId:string|null; nextMapVariant:string|null; code: string; hostId: string; phase: 'lobby'|'arena'|'intermission'|'complete'; match: MatchView; round: RoundView; objective: PrivateObjective; players: PlayerView[]; tick: number; serverTime: number; notice: string };
+export type Input = { matchId: string; roundNumber: number; seq: number; dx: number; dy: number; sprint?: boolean; dashId?: number; dashStyle?: 'dash'|'dodge'|'slide'; attackId?: number; aimX?: number; aimY?: number };
+export type Motion = Position & { traversalState?:'idle'|'walk'|'sprint'|'dash'|'dodge'|'slide'; elevation:number; stamina: number; regenWait: number; exhausted: boolean; dashCooldown: number; dashRemaining: number; dashX: number; dashY: number; facingX: number; facingY: number; dashSeen: number; sprinting: boolean };
+export type PlayerView = {frozenUntil:number;heldItem:ItemKind|null} & Motion & CombatState & { id: string; name: string; color: string; ready: boolean; connected: boolean; ack: number };
+export type RoomView = { selectedGameMode:GameMode;selectedFormat:Format;mode:ModeState; mapId:string; mapVariant:string|null; nextMapId:string|null; nextMapVariant:string|null; code: string; hostId: string; phase: 'lobby'|'arena'|'intermission'|'complete'; match: MatchView; round: RoundView; objective: PrivateObjective; players: PlayerView[]; tick: number; serverTime: number; notice: string };
 export type ClientMessage =
  | { type: 'create'; name: string }
  | { type: 'join'; name: string; code: string }
  | { type: 'resume'; code: string; token: string }
+ | { type:'settings';mode:GameMode;format:Format }
+ | {type:'interact';matchId:string;roundNumber:number}
  | { type: 'ready'; ready: boolean }
  | { type: 'start'|'lobby'|'leave'|'ping' }
  | ({ type: 'input' } & Input);
@@ -27,7 +30,7 @@ export type ServerMessage =
  | { type: 'error'; message: string; fatal?: boolean; retryable?: boolean }
  | { type: 'left'|'pong' };
 export function freshMotion(position:Position):Motion {
- return {...position,elevation:position.elevation??0,stamina:MOVEMENT.staminaMax,regenWait:0,exhausted:false,dashCooldown:0,dashRemaining:0,dashX:0,dashY:1,facingX:0,facingY:1,dashSeen:0,sprinting:false};
+ return {...position,traversalState:'idle',elevation:position.elevation??0,stamina:MOVEMENT.staminaMax,regenWait:0,exhausted:false,dashCooldown:0,dashRemaining:0,dashX:0,dashY:1,facingX:0,facingY:1,dashSeen:0,sprinting:false};
 }
 export function isWalkable(p:Position,map:MapDefinition=ACTIVE_MAP){return walkable(p,map);}
 // Server and client prediction share the same floor/solid tests and <=5px steps.
@@ -43,7 +46,7 @@ export function move(p:Position,dx:number,dy:number,dt=STEP,speed=ARENA.speed,ma
  }
  return point;
 }
-export function advanceMotion(previous:Motion,input:Pick<Input,'dx'|'dy'|'sprint'|'dashId'>,dt=STEP,map:MapDefinition=ACTIVE_MAP):Motion {
+export function advanceMotion(previous:Motion,input:Pick<Input,'dx'|'dy'|'sprint'|'dashId'|'dashStyle'>,dt=STEP,map:MapDefinition=ACTIVE_MAP):Motion {
  const s={...previous};s.dashCooldown=Math.max(0,s.dashCooldown-dt);
  s.regenWait=Math.max(0,s.regenWait-dt);
  let dx=input.dx,dy=input.dy;const length=Math.hypot(dx,dy);if(length>1){dx/=length;dy/=length;}
@@ -52,13 +55,14 @@ export function advanceMotion(previous:Motion,input:Pick<Input,'dx'|'dy'|'sprint
  const dashId=input.dashId??s.dashSeen;
  if(dashId>s.dashSeen){
   s.dashSeen=dashId;
-  if(s.dashCooldown<=0){s.dashCooldown=MOVEMENT.dashCooldown;s.dashRemaining=MOVEMENT.dashDuration;s.dashX=length>0?dx:s.facingX;s.dashY=length>0?dy:s.facingY;}
+  if(s.dashCooldown<=0&&(input.dashStyle!=='slide'||length>0)){s.traversalState=input.dashStyle??'dash';s.dashCooldown=MOVEMENT.dashCooldown;s.dashRemaining=s.traversalState==='slide'?.42:s.traversalState==='dodge'?.24:MOVEMENT.dashDuration;s.dashX=length>0?dx:s.facingX;s.dashY=length>0?dy:s.facingY;}
  }
  s.sprinting=!!input.sprint&&length>0&&!s.exhausted&&s.stamina>0&&s.dashRemaining<=0;
  if(s.sprinting){s.stamina=Math.max(0,s.stamina-MOVEMENT.staminaDrain*dt);s.regenWait=MOVEMENT.regenDelay;if(s.stamina===0)s.exhausted=true;}
  else if(s.regenWait<=0)s.stamina=Math.min(MOVEMENT.staminaMax,s.stamina+MOVEMENT.staminaRegen*dt);
  let pos:Position;
- if(s.dashRemaining>0){const time=Math.min(dt,s.dashRemaining);pos=move(s,s.dashX,s.dashY,time,MOVEMENT.dashSpeed,map);s.dashRemaining=Math.max(0,s.dashRemaining-dt);}
+ if(s.dashRemaining>0){const time=Math.min(dt,s.dashRemaining);pos=move(s,s.dashX,s.dashY,time,s.traversalState==='slide'?400:s.traversalState==='dodge'?580:MOVEMENT.dashSpeed,map);s.dashRemaining=Math.max(0,s.dashRemaining-dt);}
  else pos=move(s,dx,dy,dt,ARENA.speed*(s.sprinting?MOVEMENT.sprintMultiplier:1),map);
+ if(s.dashRemaining<=0)s.traversalState=s.sprinting?'sprint':length>0?'walk':'idle';
  return {...s,...pos,elevation:pos.elevation??0};
 }
