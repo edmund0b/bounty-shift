@@ -16,8 +16,8 @@ export function PlayerStatus({ room, id, predicted }: { room: RoomView; id: stri
    <path d="M13 43V54M43 43V54M23 58H33" stroke="#46e7ff" strokeWidth="3"/>
   </svg>
   <div className="status-bars">
-   <div className="status-line health-line"><label htmlFor="health">Health <span>{player.health} / {COMBAT.maxHealth}</span></label><progress id="health" max={COMBAT.maxHealth} value={player.health}/></div>
-   <div className="status-line stamina-line"><label htmlFor="stamina">Stamina <span>{Math.round(motion.stamina)} / {MOVEMENT.staminaMax}</span></label><progress id="stamina" max={MOVEMENT.staminaMax} value={motion.stamina}/></div>
+   <div className="status-line health-line"><label htmlFor="health"><i aria-hidden="true">♥</i><span>{player.health} / {COMBAT.maxHealth}</span></label><progress aria-label="Health" id="health" max={COMBAT.maxHealth} value={player.health}/></div>
+   <div className="status-line stamina-line"><label htmlFor="stamina"><i aria-hidden="true">ϟ</i></label><progress aria-label="Stamina" id="stamina" max={MOVEMENT.staminaMax} value={motion.stamina}/></div>
    {(player.health === 0 || player.protection > 0 || motion.exhausted) && <small className="player-condition">{player.health === 0 ? `KO · Respawn ${Math.ceil(player.koRemaining)}s` : player.protection > 0 ? `Protected ${player.protection.toFixed(1)}s` : 'Exhausted'}</small>}
   </div>
  </div>;

@@ -1,0 +1,76 @@
+/* Constrain the lobby itself. The login screen and game renderer keep their own sizing. */
+html.lobby-open,body.lobby-open{height:100%;overflow:hidden;overscroll-behavior:none}
+body.lobby-open #root{height:100dvh;overflow:hidden}
+.entry-screen.lobby-screen{height:100dvh;min-height:0;padding:clamp(10px,1.6dvh,20px) max(14px,env(safe-area-inset-right)) max(10px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left));gap:clamp(7px,1.2dvh,14px);overflow:hidden}
+.lobby-screen .entry-header{flex:none;margin:0;align-items:center;gap:12px;flex-wrap:nowrap}
+.lobby-screen .entry-wordmark{font-size:clamp(26px,4dvh,42px)}
+.lobby-screen .entry-brand p{margin:5px 0 0;font-size:9px}
+.lobby-screen .entry-lobby{display:flex;flex-direction:column;flex:1;min-height:0;width:min(1440px,100%);max-width:1440px;margin:0 auto;padding:clamp(12px,2dvh,22px);gap:clamp(6px,1dvh,12px)}
+.lobby-screen .lobby-heading{flex:none;display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0}
+.lobby-screen .lobby-heading h2{font-size:clamp(21px,3dvh,30px);margin:0 0 4px}
+.lobby-screen .lobby-heading p{font-size:10px;max-width:none}
+.lobby-screen .occupancy{display:flex;align-items:center;gap:18px;padding:8px 12px;flex:none}
+.lobby-screen .occupancy-dots{margin:0;gap:9px}.lobby-screen .occupancy-dots i{width:12px;height:12px}
+.lobby-screen .occupancy b{margin-left:10px}
+.lobby-screen .lobby-columns{display:grid;grid-template-columns:minmax(270px,.82fr) minmax(0,1.7fr);gap:clamp(12px,2vw,26px);flex:1;min-height:0}
+.lobby-screen .lobby-left,.lobby-screen .lobby-right{display:flex;flex-direction:column;min-height:0;min-width:0}
+.lobby-screen .lobby-right{padding-left:clamp(12px,1.5vw,20px);border-left:1px solid #264c5e;gap:8px}
+.lobby-screen .room-code-area{flex:none}.lobby-screen .room-code-line{gap:8px;margin-top:5px}.lobby-screen .code-slots{gap:5px}
+.lobby-screen .room-code-line .code-slots>span{height:clamp(32px,4.5dvh,42px);font-size:23px}
+.lobby-screen .room-code-line button{min-height:34px;min-width:70px;padding:6px 10px}
+.lobby-screen .copy-feedback{margin:4px 0 8px!important;font-size:11px!important;min-height:14px}
+.lobby-screen .players-title{margin:0 0 5px!important}
+.lobby-screen .lobby-player-list{flex:1;min-height:0;gap:clamp(3px,.7dvh,7px)}
+.lobby-screen .lobby-player-list li{flex:1;min-height:30px;max-height:60px;gap:6px;padding:3px 7px}
+.lobby-screen .lobby-avatar{height:25px;width:25px}.lobby-screen .lobby-avatar svg{height:20px;width:20px}
+.lobby-screen .lobby-player-name{font-size:12px;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
+.lobby-screen .ready-state{font-size:9px;gap:4px}.lobby-screen .host-badge{font-size:9px;padding:2px 3px}.lobby-screen .host-badge svg{width:11px}
+.lobby-screen .lobby-requirements{min-height:30px;margin:7px 0 0;gap:12px;font-size:10px;flex:none}
+.lobby-screen .mode-selector{display:flex;flex-direction:column;flex:1;min-height:0;gap:clamp(6px,1dvh,12px)}
+.lobby-screen .mode-heading{flex:none}.lobby-screen .mode-heading h3{font-size:clamp(16px,2.4dvh,22px)}
+.lobby-screen .mode-heading small{display:inline;margin-left:6px;font-size:10px;padding:2px 4px}
+.lobby-screen .mode-heading p{font-size:12px;margin:5px 0 0;line-height:1.3}
+.lobby-screen .mode-cards{flex:1;min-height:0;gap:clamp(6px,1vw,12px);grid-template-columns:repeat(3,minmax(0,1fr))}
+.lobby-screen .mode-card{display:flex;flex-direction:column;min-height:0}
+.lobby-screen .mode-select{flex:1;min-height:0!important;font-size:12px;line-height:1.3}
+.lobby-screen .mode-art{height:clamp(36px,9dvh,115px);min-height:30px;flex:1;max-height:150px}
+.lobby-screen .mode-art>span{font-size:clamp(30px,6dvh,68px);top:50%;left:50%;transform:translate(-50%,-50%) rotate(-12deg)}
+.lobby-screen .mode-name{padding:8px 9px 3px;font-size:clamp(13px,1.3vw,20px);letter-spacing:.04em}
+.lobby-screen .selected-badge{font-size:9px;margin:0 9px 5px;letter-spacing:.1em}
+.lobby-screen .mode-description{min-height:0;padding:0 9px;font-size:12px;line-height:1.35;flex:0 0 auto}
+.lobby-screen .format-buttons{padding:8px;gap:5px;flex:none}.lobby-screen .format-buttons button{min-height:32px;font-size:11px;padding:6px 2px}
+.lobby-screen .mode-settings{flex:none;display:grid;grid-template-columns:1.35fr 1fr;gap:8px;margin:0}
+.lobby-screen .mode-settings>section{padding:8px}.lobby-screen .mode-settings h3{font-size:12px;margin:0 0 5px}
+.lobby-screen .mode-settings dl{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:5px 0}
+.lobby-screen .mode-settings dt{font-size:9px}.lobby-screen .mode-settings dd{font-size:13px;margin:4px 0 0}
+.lobby-screen .mode-settings p{font-size:10px;line-height:1.3;margin:5px 0 0}
+.lobby-screen .rotation-preview{display:grid;grid-template-columns:72px 1fr;gap:4px 8px;align-content:center}
+.lobby-screen .rotation-preview h3{grid-column:1/-1}.lobby-screen .rotation-preview small{display:inline;margin:0;font-size:9px;padding:2px}
+.lobby-screen .rotation-preview img{height:42px;max-height:42px;width:72px;object-fit:cover}.lobby-screen .rotation-preview p{margin:0;align-self:center}
+.lobby-screen .lobby-secondary-actions{flex:none;display:flex;flex-direction:row;width:100%;gap:8px;margin:0}
+.lobby-screen .lobby-secondary-actions button{min-height:32px;font-size:10px;padding:6px 10px;flex:1}
+.lobby-screen .lobby-bottom-actions{flex:none;grid-template-columns:1fr 1.6fr!important;margin:0;gap:12px}
+.lobby-screen .lobby-bottom-actions>button,.lobby-screen .lobby-waiting{min-height:42px;padding:7px 12px;font-size:14px}
+.lobby-screen .lobby-waiting strong{font-size:12px}.lobby-screen .lobby-waiting span{font-size:9px}
+.lobby-screen .lobby-notice{margin:0;font-size:11px;line-height:1.2;flex:none}
+.lobby-screen .leave-lobby{flex:none;margin:0;min-height:34px;padding:7px 14px}
+.lobby-screen>.error{position:fixed;top:8px;left:50%;transform:translateX(-50%);width:min(90vw,700px);z-index:25}
+.lobby-panel-tabs{display:none}
+@media(max-width:1000px){.lobby-screen .lobby-columns{grid-template-columns:minmax(265px,.95fr) minmax(0,1.55fr)}.lobby-screen .lobby-heading p{display:none}.lobby-screen .occupancy-dots{gap:6px}.lobby-screen .mode-name{font-size:13px;padding-left:7px;padding-right:7px}.lobby-screen .mode-description{font-size:11px;padding:0 7px}.lobby-screen .mode-settings{grid-template-columns:1fr 1fr}.lobby-screen .rotation-preview{grid-template-columns:1fr}.lobby-screen .rotation-preview img{display:none}}
+@media(max-height:650px) and (min-width:761px){.lobby-screen .entry-brand p{display:none}.lobby-screen .entry-wordmark{font-size:28px}.lobby-screen .entry-network{min-height:30px;padding:6px 10px}.lobby-screen .lobby-heading h2{font-size:21px}.lobby-screen .occupancy{padding:5px 10px}.lobby-screen .mode-art{height:36px;min-height:28px}.lobby-screen .mode-heading p{font-size:11px}.lobby-screen .mode-heading h3{font-size:16px}.lobby-screen .mode-description{font-size:11px}.lobby-screen .mode-name{font-size:14px;padding-top:5px}.lobby-screen .format-buttons{padding:5px}.lobby-screen .mode-settings p{font-size:10px}.lobby-screen .mode-settings>section{padding:6px}.lobby-screen .lobby-bottom-actions>button,.lobby-screen .lobby-waiting{min-height:36px}.lobby-screen .lobby-secondary-actions button{min-height:30px}}
+/* Small screens use two intentional panels, with ready/start and leave always outside them. */
+@media(max-width:760px){
+ .lobby-screen .entry-header{gap:8px}.lobby-screen .entry-wordmark{font-size:26px}.lobby-screen .entry-brand p{display:none}.lobby-screen .entry-network{max-width:none;min-height:30px;padding:6px 8px}.lobby-screen .entry-network>span:not(.network-dot){display:none}
+ .lobby-screen .lobby-heading h2{font-size:20px;margin:0}.lobby-screen .heading-slash{display:none}.lobby-screen .occupancy{padding:5px 8px;gap:0}.lobby-screen .occupancy b{margin-left:6px}.lobby-screen .occupancy-dots{display:none}
+ .lobby-panel-tabs{display:flex;gap:8px;flex:none}.lobby-panel-tabs button{flex:1;min-height:38px!important;padding:7px;font-size:12px;background:#0b2231;color:#b9d2df;border:1px solid #326375}.lobby-panel-tabs button[aria-pressed=true]{border-color:#43ddf6;background:#133c4d;color:#e8fcff}
+ .lobby-screen .lobby-columns{display:block;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#347086 #06131c;padding:2px}
+ .lobby-screen .lobby-left,.lobby-screen .lobby-right{min-height:100%}.lobby-screen [data-lobby-tab=players] .lobby-right,.lobby-screen [data-lobby-tab=modes] .lobby-left{display:none}
+ .lobby-screen .lobby-right{padding:0;border:0}.lobby-screen .lobby-player-list li{min-height:40px;max-height:60px}.lobby-screen .lobby-player-list{gap:6px}.lobby-screen .lobby-requirements{margin-top:8px;min-height:36px}.lobby-screen .room-code-line button{min-height:40px}
+ .lobby-screen .mode-selector{gap:8px}.lobby-screen .mode-heading p{font-size:11px}.lobby-screen .mode-cards{display:flex;flex-direction:column;gap:8px;flex:none}
+ .lobby-screen .mode-card{display:grid;grid-template-columns:1fr 70px;min-height:92px}.lobby-screen .mode-select{display:grid;grid-template-columns:48px 1fr;grid-template-rows:auto auto 1fr;align-items:start;padding:6px!important;column-gap:8px}.lobby-screen .mode-art{grid-row:1/4;height:100%;min-height:70px;width:48px;max-height:none}.lobby-screen .mode-art>span{font-size:31px}.lobby-screen .mode-name{font-size:13px;padding:0}.lobby-screen .selected-badge{font-size:8px;margin:2px 0}.lobby-screen .mode-description{padding:0;font-size:11px;line-height:1.25}
+ .lobby-screen .format-buttons{flex-direction:column;padding:5px;gap:5px;justify-content:center}.lobby-screen .format-buttons button{min-height:36px;font-size:10px}
+ .lobby-screen .mode-settings{grid-template-columns:1fr}.lobby-screen .mode-settings>section{padding:7px}.lobby-screen .rotation-preview{grid-template-columns:1fr 1fr;gap:4px}.lobby-screen .rotation-preview h3{grid-column:1;margin:0}.lobby-screen .rotation-preview p{grid-column:2}.lobby-screen .mode-settings dl{margin:0}.lobby-screen .mode-settings h3{margin-bottom:4px}.lobby-screen .lobby-secondary-actions button{min-height:40px;font-size:10px}
+ .lobby-screen .lobby-bottom-actions{grid-template-columns:1fr!important;gap:6px}.lobby-screen .lobby-bottom-actions>button{min-height:44px}.lobby-screen .lobby-waiting{min-height:40px;padding:6px;gap:8px}.lobby-screen .lobby-waiting strong{font-size:11px}.lobby-screen .lobby-waiting span{font-size:8px}.lobby-screen .lobby-waiting svg{width:16px;height:16px}.lobby-screen .leave-lobby{min-height:40px}
+}
+@media(max-height:560px) and (min-width:761px){.lobby-screen .lobby-columns{overflow:auto;overscroll-behavior:contain}.lobby-screen .lobby-left,.lobby-screen .lobby-right{min-height:305px}}
+

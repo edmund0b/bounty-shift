@@ -1,3 +1,7 @@
+# Latest: HUD and lobby polish
+
+See [HUD_POLISH.md](HUD_POLISH.md) for the five UI changes and validation. The existing maps, gameplay and multiplayer foundation are preserved. Older implementation notes below describe previous versions.
+
 # Gameplay update — October 2026
 
 The current selectable modes are **Tag, Flag Run, and Kill Race**, in Solo (2–6 players) or Duo (4/6 players). The original documentation below describes the earlier Bounty foundation. Read [GAMEPLAY_UPDATE.md](GAMEPLAY_UPDATE.md) for current rules, controls, architecture, testing, and deployment.
