@@ -4,6 +4,7 @@ import type {WebSocket} from 'ws';
 import {RoomServer} from '../server/rooms.js';
 import {MAPS} from '../shared/map.js';
 import {isWalkable,STEP} from '../shared/game.js';
+import {CHEST_OPEN_MS,pickupPosition} from '../shared/loot.js';
 import {RULES,teamKey,type GameMode,type Format} from '../shared/modes.js';
 import {mapAnchors} from '../shared/map-anchors.js';
 import {beginMode,interact,tickMode,MODE_RULES,throwBall} from '../server/modes.js';
@@ -35,7 +36,7 @@ test('authoritative Tag transfer, grace, teammate immunity and timeout loser',()
 });
 test('chest contention, mode loot isolation, replay and distance checks',()=>{
  for(const mode of ['tag','kill_race','flag_run'] as const){const f=fixture(2,mode);f.start();const chest=f.room.mode.items.find(i=>i.source==='chest')!;f.room.players.forEach(p=>Object.assign(p,{x:chest.x,y:chest.y,elevation:chest.elevation??0}));
-  f.send(0,{type:'interact',matchId:'stale',roundNumber:1});assert.equal(chest.state,'closed');interact(f.room,f.room.players[0],Date.now());assert.equal(chest.state,'opened');interact(f.room,f.room.players[0],Date.now());interact(f.room,f.room.players[1],Date.now());assert.equal(chest.state,'empty');assert(f.room.players[0].heldItem);assert.equal(f.room.players[1].heldItem,null);assert(MODE_RULES[mode].loot.includes(f.room.players[0].heldItem!));
+  f.send(0,{type:'interact',matchId:'stale',roundNumber:1});assert.equal(chest.state,'closed');interact(f.room,f.room.players[0],Date.now());assert.equal(chest.state,'opening');tickMode(f.room,Date.now()+CHEST_OPEN_MS+1,STEP);assert.equal(chest.state,'opened');f.room.players.forEach(p=>Object.assign(p,pickupPosition(chest)));interact(f.room,f.room.players[0],Date.now()+CHEST_OPEN_MS+1);interact(f.room,f.room.players[1],Date.now());assert.equal(chest.state,'empty');assert(f.room.players[0].heldItem);assert.equal(f.room.players[1].heldItem,null);assert(MODE_RULES[mode].loot.includes(f.room.players[0].heldItem!));
  }
 });
 test('freeze ball has authoritative hit, duration, wall collision and movement restoration',()=>{

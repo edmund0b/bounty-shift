@@ -12,7 +12,7 @@ const MODES = {
 };
 const RULES = { freezeMs: 3000, retagGraceMs: 1200, flagSpawnMs: 30000, killTarget: 15, pickupRange: 65, ballSpeed: 650, ballLifetimeMs: 1600, itemRespawnMs: 12000 };
 const WEAPONS = { blade: { damage: 25, cooldown: .38 }, hammer: { damage: 40, cooldown: .9 } };
-function emptyMode() { return { teams: {}, scores: {}, matchPoints: {}, it: null, tagAfter: 0, items: [], projectiles: [], flag: { state: 'not_spawned', carrier: null, position: { x: 0, y: 0 }, spawnAt: 0 }, capture: { x: 0, y: 0 }, winnerKeys: [], reason: '' }; }
+function emptyMode() { return { teams: {}, scores: {}, matchPoints: {}, it: null, tagAfter: 0, items: [], projectiles: [], effects: [], flag: { state: 'not_spawned', carrier: null, position: { x: 0, y: 0 }, spawnAt: 0 }, capture: { x: 0, y: 0 }, winnerKeys: [], reason: '' }; }
 const validMode = (value) => typeof value === 'string' && Object.hasOwn(MODES, value);
 const validFormat = (value) => value === 'solo' || value === 'duo';
 const validTeams = (format, count) => format === 'solo' ? count >= 2 && count <= 6 : count === 4 || count === 6;
@@ -554,6 +554,12 @@ function safeSpawn(others, map = ACTIVE_MAP) {
     return { ...best };
 }
 
+// Shared eligibility is presentation guidance on the client and validation on the server.
+const CHEST_OPEN_MS = 420;
+const pickupPosition = (item) => item.pickupPosition ?? item;
+function usableDistance(mapId, a, b) { return Math.hypot(a.x - b.x, a.y - b.y, (a.elevation ?? 0) - (b.elevation ?? 0)) <= RULES.pickupRange && clearAttackLine(a, b, MAPS[mapId]); }
+function interactionItem(items, mapId, p) { return items.filter(i => (i.state === 'closed' || i.state === 'opened' && !!i.kind) && usableDistance(mapId, p, i.state === 'closed' ? i : pickupPosition(i))).sort((a, b) => Math.hypot(pickupPosition(a).x - p.x, pickupPosition(a).y - p.y) - Math.hypot(pickupPosition(b).x - p.x, pickupPosition(b).y - p.y))[0]; }
+
 // Separate authored capture destinations from rules. Spawn anchors already belong to each map.
 const captures = { central_plaza: { x: 1300, y: 1200 }, scorched_point: { x: 1200, y: 1100, elevation: 90 }, aerie_sky_port: { x: 1100, y: 1200 }, outlaws_canyon: { x: 900, y: 400 }, vikings_fjord: { x: 1025, y: 1700 } };
 function mapAnchors(id) {
@@ -635,13 +641,29 @@ function interact(room, p, now) {
         flag.carrier = p.id;
         return;
     }
-    const item = room.mode.items.filter(i => i.state !== 'empty' && near(room, p, i)).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
+    const item = interactionItem(room.mode.items, room.mapId, p);
     if (!item)
         return;
     if (item.state === 'closed') {
         const loot = MODE_RULES[room.selectedGameMode].loot;
         item.kind = loot[randomInt(loot.length)];
-        item.state = 'opened';
+        item.state = 'opening';
+        item.openedAt = now;
+        // A short supported drop beside this authored chest; never inside scenery or below a deck.
+        item.pickupPosition = { x: item.x, y: item.y, elevation: item.elevation };
+        for (let radius = 28; radius >= 14; radius -= 7) {
+            let found = false;
+            for (let i = 0; i < 16; i++) {
+                const candidate = { x: item.x + Math.cos(i * Math.PI / 8) * radius, y: item.y + Math.sin(i * Math.PI / 8) * radius, elevation: item.elevation ?? 0 };
+                if (isWalkable(candidate, MAPS[room.mapId]) && clearAttackLine(item, candidate, MAPS[room.mapId])) {
+                    item.pickupPosition = candidate;
+                    found = true;
+                    break;
+                }
+            }
+            if (found)
+                break;
+        }
         return;
     }
     p.heldItem = item.kind;
@@ -654,8 +676,12 @@ function dropFlag(room, p) { const f = room.mode.flag; if (f.state !== 'carried'
     f.position = { x: p.x, y: p.y, elevation: p.elevation }; f.carrier = null; f.state = 'dropped'; }
 function onElimination(room, killer, victim) { dropFlag(room, victim); victim.heldItem = null; victim.frozenUntil = 0; killer.eliminations++; killer.matchEliminations++; room.mode.scores[key(room, killer)] = (room.mode.scores[key(room, killer)] ?? 0) + 1; }
 function throwBall(room, p, now) { if (p.heldItem !== 'freeze_ball')
-    return false; p.heldItem = null; room.mode.projectiles.push({ id: randomUUID(), ownerId: p.id, teamId: key(room, p), x: p.x, y: p.y, elevation: p.elevation, dx: p.attackX, dy: p.attackY, expiresAt: now + RULES.ballLifetimeMs }); return true; }
+    return false; p.heldItem = null; room.mode.projectiles.push({ id: randomUUID(), ownerId: p.id, teamId: key(room, p), x: p.x, y: p.y, elevation: p.elevation, dx: p.attackX, dy: p.attackY, expiresAt: now + RULES.ballLifetimeMs, bornAt: now }); room.mode.effects.push({ id: randomUUID(), type: 'throw', at: now, ownerId: p.id, x: p.x, y: p.y, elevation: p.elevation, dx: p.attackX, dy: p.attackY }); return true; }
 function tickMode(room, now, dt) {
+    room.mode.effects = room.mode.effects.filter(e => now - e.at < 1000).slice(-48);
+    for (const item of room.mode.items)
+        if (item.state === 'opening' && now >= (item.openedAt ?? now) + CHEST_OPEN_MS)
+            item.state = 'opened';
     for (const item of room.mode.items)
         if (item.source === 'floor' && item.state === 'empty' && now >= item.refreshAt) {
             const loot = MODE_RULES[room.selectedGameMode].loot;
@@ -667,12 +693,15 @@ function tickMode(room, now, dt) {
             return false;
         const start = { x: ball.x, y: ball.y, elevation: ball.elevation };
         const end = { x: ball.x + ball.dx * RULES.ballSpeed * dt, y: ball.y + ball.dy * RULES.ballSpeed * dt, elevation: ball.elevation };
-        if (!clearAttackLine(start, end, MAPS[room.mapId]))
+        if (!clearAttackLine(start, end, MAPS[room.mapId])) {
+            room.mode.effects.push({ id: randomUUID(), type: 'ice_wall', at: now, ownerId: ball.ownerId, ...start, dx: ball.dx, dy: ball.dy });
             return false;
+        }
         const targets = room.players.filter(p => p.socket && p.health > 0 && p.id !== ball.ownerId && key(room, p) !== ball.teamId).map(p => { const vx = end.x - start.x, vy = end.y - start.y, t = Math.max(0, Math.min(1, ((p.x - start.x) * vx + (p.y - start.y) * vy) / (vx * vx + vy * vy || 1))); return { p, t, point: { x: start.x + vx * t, y: start.y + vy * t, elevation: ball.elevation } }; }).filter(({ p, point }) => near(room, p, point, 30)).sort((a, b) => a.t - b.t);
         if (targets[0]) {
             targets[0].p.frozenUntil = now + RULES.freezeMs;
             targets[0].p.dashRemaining = 0;
+            room.mode.effects.push({ id: randomUUID(), type: 'ice_hit', at: now, ownerId: ball.ownerId, targetId: targets[0].p.id, ...targets[0].point, dx: ball.dx, dy: ball.dy });
             return false;
         }
         Object.assign(ball, end);

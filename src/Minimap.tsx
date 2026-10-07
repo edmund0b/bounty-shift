@@ -1,3 +1,4 @@
+import {pickupPosition} from '../shared/loot';
 import type {RoomView} from '../shared/game';
 import React, {useEffect,useRef} from 'react';
 import {MAPS,ACTIVE_MAP} from '../shared/map';
@@ -16,7 +17,7 @@ export const Minimap=React.memo(function Minimap({mapId,marker,room,open,setOpen
   {map.surfaces.map(s=><MapShape key={s.id} r={s} fill={fjord?(s.ramp?'#adceda':'#506b7d'):canyon?(s.ramp?'#ae8b60':'#68513c'):s.ramp?'#4d627c':'#283d5a'} stroke={canyon?'#c7aa7b':'#63bace'} strokeWidth={10} strokeDasharray={s.ramp?'25 20':undefined}/>)}
   {map.blocks.filter(b=>b.kind!=='deck'&&b.kind!=='rail').map(b=><MapShape key={b.id} r={b} fill={fjord?(b.kind==='building'?'#384c58':'#648498'):b.kind==='building'?'#283348':'#355069'} stroke={b.accent} strokeWidth={b.kind==='building'?14:7}/>)}
   <g fill="#b1d4e1" fontSize="105" textAnchor="middle" fontFamily="Arial" fontWeight="600">{map.minimapLabels?map.minimapLabels.map(l=><text key={l.text} x={l.x} y={l.y} fontSize="85">{l.text}</text>):<><text x="1300" y="230">NORTH</text><text x="350" y="990">WEST</text><text x="2240" y="1120">EAST</text><text x="1300" y="2050">SOUTH</text></>}</g>
-  {room.mode.items.filter(i=>i.state!=='empty').map(i=><circle key={i.id} cx={i.x} cy={i.y} r="25" fill={i.kind==='freeze_ball'?'#86f3ff':'#ffc65a'}/>)}
+  {room.mode.items.filter(i=>i.state!=='empty').map(i=><circle key={i.id} cx={(i.source==='chest'&&i.state==='opened'?pickupPosition(i):i).x} cy={(i.source==='chest'&&i.state==='opened'?pickupPosition(i):i).y} r="25" fill={i.kind==='freeze_ball'?'#86f3ff':'#ffc65a'}/>)}
   {room.selectedGameMode==='flag_run'&&<><circle cx={room.mode.capture.x} cy={room.mode.capture.y} r="80" fill="none" stroke="#45ffff" strokeWidth="20"/>{room.mode.flag.state!=='not_spawned'&&<text x={room.mode.flag.position.x} y={room.mode.flag.position.y} fill="#ffe058" fontSize="150" textAnchor="middle">⚑</text>}</>}
   <g ref={marker}><circle r="60" fill="#091824" stroke="#c4f9ff" strokeWidth="12"/><path d="M 0 -85 L 50 50 L 0 25 L -50 50 Z" fill="#46e7ff" stroke="#e2ffff" strokeWidth="9"/></g>
  </svg></aside></>;
