@@ -1,3 +1,4 @@
+import {clearInventory,pickup,consumeUtility,type Equipped} from '../shared/inventory.js';
 import {randomInt,randomUUID} from 'node:crypto';
 import {MAPS} from '../shared/map.js';
 import {clearAttackLine} from '../shared/combat.js';
@@ -6,7 +7,7 @@ import {isWalkable} from '../shared/game.js';
 import {mapAnchors} from '../shared/map-anchors.js';
 import {RULES,emptyMode,teamKey,type ModeState,type Format,type GameMode,type ItemKind} from '../shared/modes.js';
 import type {Position} from '../shared/game.js';
-export type ModePlayer=Position&{id:string;name:string;health:number;socket:unknown;frozenUntil:number;heldItem:ItemKind|null;eliminations:number;matchEliminations:number;dashRemaining:number;attackX:number;attackY:number};
+export type ModePlayer=Position&Equipped&{id:string;name:string;health:number;socket:unknown;frozenUntil:number;heldItem:ItemKind|null;eliminations:number;matchEliminations:number;dashRemaining:number;attackX:number;attackY:number};
 export type ModeRoom={selectedGameMode:GameMode;selectedFormat:Format;mode:ModeState;players:ModePlayer[];mapId:string;round:{endsAt:number};match:{roundNumber:number}};
 type Context={room:ModeRoom;now:number};
 type Ruleset={loot:readonly ItemKind[];combat:boolean;init:(c:Context)=>void;tick:(c:Context)=>boolean;hit?:(c:Context,a:ModePlayer,b:ModePlayer)=>void;finish:(c:Context)=>void};
@@ -29,7 +30,7 @@ export function beginMode(room:ModeRoom,now:number){
  const anchors=mapAnchors(room.mapId);room.mode.capture=anchors.capture;
  const loot=MODE_RULES[room.selectedGameMode].loot;
  room.mode.items=[...anchors.chests.map((p,i)=>({...p,id:`chest-${i}`,source:'chest' as const,state:'closed' as const,kind:null,refreshAt:0})),...anchors.floor.map((p,i)=>({...p,id:`floor-${i}`,source:'floor' as const,state:'opened' as const,kind:loot[randomInt(loot.length)],refreshAt:0}))];
- for(const p of room.players){p.frozenUntil=0;p.heldItem=null;}
+ for(const p of room.players){p.frozenUntil=0;clearInventory(p);}
  MODE_RULES[room.selectedGameMode].init({room,now});
 }
 export function assignTeams(room:ModeRoom){room.mode=emptyMode();room.players.forEach((p,i)=>{room.mode.teams[p.id]=room.selectedFormat==='duo'?`team-${Math.floor(i/2)+1}`:p.id;});}
@@ -46,11 +47,11 @@ export function interact(room:ModeRoom,p:ModePlayer,now:number){
   item.pickupPosition={x:item.x,y:item.y,elevation:item.elevation};
   for(let radius=28;radius>=14;radius-=7){let found=false;for(let i=0;i<16;i++){const candidate={x:item.x+Math.cos(i*Math.PI/8)*radius,y:item.y+Math.sin(i*Math.PI/8)*radius,elevation:item.elevation??0};if(isWalkable(candidate,MAPS[room.mapId])&&clearAttackLine(item,candidate,MAPS[room.mapId])){item.pickupPosition=candidate;found=true;break;}}if(found)break;}
   return;}
- p.heldItem=item.kind;item.kind=null;item.state='empty';item.refreshAt=now+RULES.itemRespawnMs;
+ if(item.kind)pickup(p,item.kind);item.kind=null;item.state='empty';item.refreshAt=now+RULES.itemRespawnMs;
 }
-export function dropFlag(room:ModeRoom,p?:ModePlayer){const f=room.mode.flag;if(f.state!=='carried'||p&&f.carrier!==p.id)return;if(p)f.position={x:p.x,y:p.y,elevation:p.elevation};f.carrier=null;f.state='dropped';}
-export function onElimination(room:ModeRoom,killer:ModePlayer,victim:ModePlayer){dropFlag(room,victim);victim.heldItem=null;victim.frozenUntil=0;killer.eliminations++;killer.matchEliminations++;room.mode.scores[key(room,killer)]=(room.mode.scores[key(room,killer)]??0)+1;}
-export function throwBall(room:ModeRoom,p:ModePlayer,now:number){if(p.heldItem!=='freeze_ball')return false;p.heldItem=null;room.mode.projectiles.push({id:randomUUID(),ownerId:p.id,teamId:key(room,p),x:p.x,y:p.y,elevation:p.elevation,dx:p.attackX,dy:p.attackY,expiresAt:now+RULES.ballLifetimeMs,bornAt:now});room.mode.effects.push({id:randomUUID(),type:'throw',at:now,ownerId:p.id,x:p.x,y:p.y,elevation:p.elevation,dx:p.attackX,dy:p.attackY});return true;}
+export function dropFlag(room:ModeRoom,p?:ModePlayer){const f=room.mode.flag;if(f.state!=='carried'||p&&f.carrier!==p.id)return;if(p)f.position={x:p.x,y:p.y,elevation:p.elevation};if(p?.selectedSlot===2){p.selectedSlot=1;p.heldItem=p.inventory?.weapon??null;}f.carrier=null;f.state='dropped';}
+export function onElimination(room:ModeRoom,killer:ModePlayer,victim:ModePlayer){dropFlag(room,victim);clearInventory(victim);victim.frozenUntil=0;killer.eliminations++;killer.matchEliminations++;room.mode.scores[key(room,killer)]=(room.mode.scores[key(room,killer)]??0)+1;}
+export function throwBall(room:ModeRoom,p:ModePlayer,now:number){if(p.heldItem!=='freeze_ball')return false;consumeUtility(p);room.mode.projectiles.push({id:randomUUID(),ownerId:p.id,teamId:key(room,p),x:p.x,y:p.y,elevation:p.elevation,dx:p.attackX,dy:p.attackY,expiresAt:now+RULES.ballLifetimeMs,bornAt:now});room.mode.effects.push({id:randomUUID(),type:'throw',at:now,ownerId:p.id,x:p.x,y:p.y,elevation:p.elevation,dx:p.attackX,dy:p.attackY});return true;}
 export function tickMode(room:ModeRoom,now:number,dt:number){
  room.mode.effects=room.mode.effects.filter(e=>now-e.at<1000).slice(-48);
  for(const item of room.mode.items)if(item.state==='opening'&&now>=(item.openedAt??now)+CHEST_OPEN_MS)item.state='opened';
@@ -65,3 +66,4 @@ export function tickMode(room:ModeRoom,now:number,dt:number){
  return MODE_RULES[room.selectedGameMode].tick({room,now});
 }
 export function finishMode(room:ModeRoom,now:number){MODE_RULES[room.selectedGameMode].finish({room,now});for(const k of room.mode.winnerKeys)room.mode.matchPoints[k]=(room.mode.matchPoints[k]??0)+1;room.mode.projectiles=[];}
+

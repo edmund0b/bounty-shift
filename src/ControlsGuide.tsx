@@ -16,26 +16,26 @@ function Group({name,icon,children,hint}:{name:string;icon:Category;children:Rea
 export function ControlsGuide({coarse}:{coarse:boolean}){return <div className="controls-guide">
  <span className="control-device">{coarse?'TOUCH CONTROLS':'KEYBOARD + MOUSE'}</span>
  <Group name="MOVEMENT" icon="movement" hint="Camera-relative">
-  {coarse?<><Row input={<span className="control-touch"><ControlSymbol name="joystick"/></span>} action="Move" note="Left joystick"/><Row input={<span className="control-touch"><ActionIcon action="sprint"/></span>} action="Sprint" note="Hold Sprint"/><Row input={<span className="control-touch"><ActionIcon action="dash"/></span>} action="Dash" note="Tap Dash"/></>:<>
+  {coarse?<><Row input={<span className="control-touch"><ControlSymbol name="joystick"/></span>} action="Move" note="Left joystick"/><Row input={<span className="control-touch"><ActionIcon action="sprint"/></span>} action="Sprint" note="Hold Sprint"/><Row input={<span className="control-touch"><ActionIcon action="dash"/></span>} action="Dash" note="Tap Dash"/><Row input={<span>JUMP</span>} action="Jump"/></>:<>
    <Row input={<><Key>W</Key><span className="key-or">or</span><Key>↑</Key></>} action="Move Forward"/>
    <Row input={<><Key>A</Key><span className="key-or">or</span><Key>←</Key></>} action="Move Left"/>
    <Row input={<><Key>S</Key><span className="key-or">or</span><Key>↓</Key></>} action="Move Backward"/>
    <Row input={<><Key>D</Key><span className="key-or">or</span><Key>→</Key></>} action="Move Right"/>
    <Row input={<Key>Shift</Key>} action="Sprint" note="Hold"/>
-   <Row input={<Key>Space</Key>} action="Dash"/>
+   <Row input={<Key>Space</Key>} action="Jump"/><Row input={<Key>Space ×2</Key>} action="Dash"/>
   </>}
  </Group>
  <Group name="CAMERA" icon="camera">
-  {coarse?<Row input={<span className="control-touch"><ControlSymbol name="swipe"/></span>} action="Look Around" note="Drag open right side"/>:<><Row input={<MouseInput/>} action="Look Around" note="Click game to capture mouse"/><Row input={<><Key>Q</Key><Key>E</Key></>} action="Rotate Camera" note="Fallback"/></>}
+  {coarse?<Row input={<span className="control-touch"><ControlSymbol name="swipe"/></span>} action="Look Around" note="Drag open right side"/>:<><Row input={<MouseInput/>} action="Look Around" note="Click game to capture mouse"/><Row input={<><Key>Q</Key><Key>R</Key></>} action="Rotate Camera" note="Fallback"/></>}
  </Group>
  <Group name="COMBAT" icon="combat">
   {coarse?<Row input={<span className="control-touch"><ControlSymbol name="combat"/></span>} action="Attack" note="Tap Attack"/>:<><Row input={<MouseInput click/>} action="Attack" note="After mouse capture"/><Row input={<Key>F</Key>} action="Attack" note="Alternative"/></>}
  </Group>
  <Group name="ITEMS + EVASION" icon="general">
-  <Row input={coarse?<span>USE</span>:<Key>R</Key>} action="Open / Pick up" note="Chest opens first; use again to claim"/>
+  <Row input={coarse?<span>OPEN / PICK UP</span>:<Key>E</Key>} action="Open / Pick up" note="Chest opens first; use again to claim"/>
   <Row input={coarse?<span>DODGE</span>:<Key>Z</Key>} action="Dodge" note="Shares Dash cooldown"/>
-  <Row input={coarse?<span>SLIDE</span>:<Key>X</Key>} action="Slide" note="Move while activating"/>
+  <Row input={coarse?<span>CROUCH</span>:<Key>X</Key>} action="Crouch / Slide" note="Tap to toggle crouch; hold to slide while moving"/>
   <Row input={coarse?<span>ATTACK</span>:<span>F / Click</span>} action="Throw Freeze Ball" note="When holding a ball"/>
  </Group>
- {!coarse&&<Group name="GENERAL" icon="general"><Row input={<Key>Esc</Key>} action="Release Cursor"/></Group>}
+ {!coarse&&<Group name="GENERAL" icon="general"><Row input={<Key>Esc</Key>} action="Release Cursor"/><Row input={<Key>1 / 2 / 3</Key>} action="Select Loadout" note="Or click a slot"/><Row input={<Key>M</Key>} action="Toggle Map"/><Row input={<Key>H</Key>} action="Toggle Hints"/></Group>}
  </div>}

@@ -5,6 +5,13 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { randomInt, randomUUID, randomBytes } from 'node:crypto';
 
+function clearInventory(p) { p.inventory = { weapon: null, utility: null }; p.selectedSlot = 1; p.heldItem = null; }
+function pickup(p, kind) { p.inventory ??= { weapon: null, utility: null }; const utility = kind === 'freeze_ball'; p.inventory[utility ? 'utility' : 'weapon'] = kind; p.selectedSlot = utility ? 3 : 1; p.heldItem = kind; }
+function equip(p, slot, carry) { p.inventory ??= { weapon: null, utility: null }; if (slot === 2 && !carry || slot === 3 && !p.inventory.utility)
+    return false; p.selectedSlot = slot; p.heldItem = slot === 1 ? p.inventory.weapon : slot === 3 ? p.inventory.utility : null; return true; }
+function consumeUtility(p) { if (p.inventory)
+    p.inventory.utility = null; p.heldItem = null; p.selectedSlot = 1; p.heldItem = p.inventory?.weapon ?? null; }
+
 const MODES = {
     tag: { name: 'TAG', icon: '◉', description: 'Avoid being IT at the buzzer. Find and throw freeze balls to stop other runners.' },
     flag_run: { name: 'FLAG RUN', icon: '⚑', description: 'Loot and fight, then recover the flag and deliver it to the marked capture zone.' },
@@ -423,8 +430,9 @@ const RECONNECT_MS = 10_000;
 const NETWORK = { inputTimeoutMs: 300, maxInputAdvance: 120};
 const COLORS = ['#60cfff', '#ffbc66', '#b6a2ff', '#77d8a4', '#ff8da5', '#e9df78'];
 const MOVEMENT = { sprintMultiplier: 1.5, staminaMax: 100, staminaDrain: 28, staminaRegen: 22, regenDelay: 0.6, dashSpeed: 850, dashDuration: 0.18, dashCooldown: 3 };
+const JUMP = { velocity: 300, gravity: 900 };
 function freshMotion(position) {
-    return { ...position, traversalState: 'idle', elevation: position.elevation ?? 0, stamina: MOVEMENT.staminaMax, regenWait: 0, exhausted: false, dashCooldown: 0, dashRemaining: 0, dashX: 0, dashY: 1, facingX: 0, facingY: 1, dashSeen: 0, sprinting: false };
+    return { ...position, jumpOrigin: { ...position, elevation: position.elevation ?? 0 }, jumpSeen: 0, airborne: false, verticalVelocity: 0, crouched: false, traversalState: 'idle', elevation: position.elevation ?? 0, stamina: MOVEMENT.staminaMax, regenWait: 0, exhausted: false, dashCooldown: 0, dashRemaining: 0, dashX: 0, dashY: 1, facingX: 0, facingY: 1, dashSeen: 0, sprinting: false };
 }
 function isWalkable(p, map = ACTIVE_MAP) { return walkable(p, map); }
 // Server and client prediction share the same floor/solid tests and <=5px steps.
@@ -446,6 +454,16 @@ function move(p, dx, dy, dt = STEP, speed = ARENA.speed, map = ACTIVE_MAP) {
 }
 function advanceMotion(previous, input, dt = STEP, map = ACTIVE_MAP) {
     const s = { ...previous };
+    s.crouched = !!input.crouch;
+    const jump = input.jumpId ?? s.jumpSeen ?? 0;
+    if (jump > (s.jumpSeen ?? 0)) {
+        s.jumpSeen = jump;
+        if (!s.airborne && walkable(s, map)) {
+            s.airborne = true;
+            s.verticalVelocity = JUMP.velocity;
+            s.jumpOrigin = { x: s.x, y: s.y, elevation: s.elevation };
+        }
+    }
     s.dashCooldown = Math.max(0, s.dashCooldown - dt);
     s.regenWait = Math.max(0, s.regenWait - dt);
     let dx = input.dx, dy = input.dy;
@@ -480,16 +498,70 @@ function advanceMotion(previous, input, dt = STEP, map = ACTIVE_MAP) {
     }
     else if (s.regenWait <= 0)
         s.stamina = Math.min(MOVEMENT.staminaMax, s.stamina + MOVEMENT.staminaRegen * dt);
+    // The grounded path remains unchanged. Air movement uses the same solid/bounds checks in tiny steps.
+    const travel = (dx, dy, time, speed) => {
+        if (!s.airborne)
+            return move(s, dx, dy, time, speed, map);
+        let p = { x: s.x, y: s.y, elevation: s.elevation };
+        const steps = Math.max(1, Math.ceil(speed * time / 5));
+        for (let i = 0; i < steps; i++) {
+            for (const axis of ['x', 'y']) {
+                const q = { ...p, [axis]: p[axis] + (axis === 'x' ? dx : dy) * speed * time / steps };
+                if (!blockedAt(q, map))
+                    p = q;
+            }
+        }
+        return p;
+    };
     let pos;
     if (s.dashRemaining > 0) {
         const time = Math.min(dt, s.dashRemaining);
-        pos = move(s, s.dashX, s.dashY, time, s.traversalState === 'slide' ? 400 : s.traversalState === 'dodge' ? 580 : MOVEMENT.dashSpeed, map);
+        pos = travel(s.dashX, s.dashY, time, s.traversalState === 'slide' ? 400 : s.traversalState === 'dodge' ? 580 : MOVEMENT.dashSpeed);
         s.dashRemaining = Math.max(0, s.dashRemaining - dt);
     }
     else
-        pos = move(s, dx, dy, dt, ARENA.speed * (s.sprinting ? MOVEMENT.sprintMultiplier : 1), map);
+        pos = travel(dx, dy, dt, ARENA.speed * (s.sprinting ? MOVEMENT.sprintMultiplier : 1));
     if (s.dashRemaining <= 0)
         s.traversalState = s.sprinting ? 'sprint' : length > 0 ? 'walk' : 'idle';
+    if (s.airborne) {
+        const old = s.elevation;
+        s.verticalVelocity = (s.verticalVelocity ?? 0) - JUMP.gravity * dt;
+        const next = old + s.verticalVelocity * dt;
+        const landings = [0, ...map.surfaces.filter(v => inside(pos, v)).map(v => surfaceHeight(v, pos))].sort((a, b) => b - a);
+        const floor = s.verticalVelocity <= 0 ? landings.find(z => z <= old + .01 && z >= next - .01 && walkable({ ...pos, elevation: z }, map)) : undefined;
+        if (floor !== undefined) {
+            pos.elevation = floor;
+            s.airborne = false;
+            s.verticalVelocity = 0;
+        }
+        else if (next < 0) {
+            pos = s.jumpOrigin ?? pos;
+            s.airborne = false;
+            s.verticalVelocity = 0;
+        }
+        else {
+            const steps = Math.max(1, Math.ceil(Math.abs(next - old) / 3));
+            let z = old;
+            for (let i = 0; i < steps; i++) {
+                const candidate = z + (next - old) / steps;
+                if (blockedAt({ ...pos, elevation: candidate }, map)) {
+                    if ((s.verticalVelocity ?? 0) < 0) {
+                        pos = s.jumpOrigin ?? pos;
+                        z = pos.elevation ?? 0;
+                        s.airborne = false;
+                    }
+                    s.verticalVelocity = 0;
+                    break;
+                }
+                z = candidate;
+            }
+            pos.elevation = z;
+        }
+        if (s.airborne && s.dashRemaining <= 0)
+            s.traversalState = (s.verticalVelocity ?? 0) > 0 ? 'jump' : 'fall';
+    }
+    if (!s.airborne && s.crouched && s.dashRemaining <= 0)
+        s.traversalState = 'crouch';
     return { ...s, ...pos, elevation: pos.elevation ?? 0 };
 }
 
@@ -625,7 +697,7 @@ function beginMode(room, now) {
     room.mode.items = [...anchors.chests.map((p, i) => ({ ...p, id: `chest-${i}`, source: 'chest', state: 'closed', kind: null, refreshAt: 0 })), ...anchors.floor.map((p, i) => ({ ...p, id: `floor-${i}`, source: 'floor', state: 'opened', kind: loot[randomInt(loot.length)], refreshAt: 0 }))];
     for (const p of room.players) {
         p.frozenUntil = 0;
-        p.heldItem = null;
+        clearInventory(p);
     }
     MODE_RULES[room.selectedGameMode].init({ room, now });
 }
@@ -666,17 +738,21 @@ function interact(room, p, now) {
         }
         return;
     }
-    p.heldItem = item.kind;
+    if (item.kind)
+        pickup(p, item.kind);
     item.kind = null;
     item.state = 'empty';
     item.refreshAt = now + RULES.itemRespawnMs;
 }
 function dropFlag(room, p) { const f = room.mode.flag; if (f.state !== 'carried' || p && f.carrier !== p.id)
     return; if (p)
-    f.position = { x: p.x, y: p.y, elevation: p.elevation }; f.carrier = null; f.state = 'dropped'; }
-function onElimination(room, killer, victim) { dropFlag(room, victim); victim.heldItem = null; victim.frozenUntil = 0; killer.eliminations++; killer.matchEliminations++; room.mode.scores[key(room, killer)] = (room.mode.scores[key(room, killer)] ?? 0) + 1; }
+    f.position = { x: p.x, y: p.y, elevation: p.elevation }; if (p?.selectedSlot === 2) {
+    p.selectedSlot = 1;
+    p.heldItem = p.inventory?.weapon ?? null;
+} f.carrier = null; f.state = 'dropped'; }
+function onElimination(room, killer, victim) { dropFlag(room, victim); clearInventory(victim); victim.frozenUntil = 0; killer.eliminations++; killer.matchEliminations++; room.mode.scores[key(room, killer)] = (room.mode.scores[key(room, killer)] ?? 0) + 1; }
 function throwBall(room, p, now) { if (p.heldItem !== 'freeze_ball')
-    return false; p.heldItem = null; room.mode.projectiles.push({ id: randomUUID(), ownerId: p.id, teamId: key(room, p), x: p.x, y: p.y, elevation: p.elevation, dx: p.attackX, dy: p.attackY, expiresAt: now + RULES.ballLifetimeMs, bornAt: now }); room.mode.effects.push({ id: randomUUID(), type: 'throw', at: now, ownerId: p.id, x: p.x, y: p.y, elevation: p.elevation, dx: p.attackX, dy: p.attackY }); return true; }
+    return false; consumeUtility(p); room.mode.projectiles.push({ id: randomUUID(), ownerId: p.id, teamId: key(room, p), x: p.x, y: p.y, elevation: p.elevation, dx: p.attackX, dy: p.attackY, expiresAt: now + RULES.ballLifetimeMs, bornAt: now }); room.mode.effects.push({ id: randomUUID(), type: 'throw', at: now, ownerId: p.id, x: p.x, y: p.y, elevation: p.elevation, dx: p.attackX, dy: p.attackY }); return true; }
 function tickMode(room, now, dt) {
     room.mode.effects = room.mode.effects.filter(e => now - e.at < 1000).slice(-48);
     for (const item of room.mode.items)
@@ -748,7 +824,7 @@ class RoomServer {
     } }
     view(room, recipient) {
         const target = room.players.find(p => p.id === recipient?.targetId);
-        return { selectedGameMode: room.selectedGameMode, selectedFormat: room.selectedFormat, mode: room.mode, mapId: room.mapId, mapVariant: room.mapVariant, nextMapId: room.nextMapId, nextMapVariant: room.nextMapVariant, match: room.match, round: room.round, objective: { target: target ? { id: target.id, name: target.name } : null, eliminations: recipient?.eliminations ?? 0, matchEliminations: recipient?.matchEliminations ?? 0 }, code: room.code, hostId: room.hostId, phase: room.phase, tick: room.tick, notice: room.notice, serverTime: Date.now(), players: room.players.map(p => ({ traversalState: p.traversalState, frozenUntil: p.frozenUntil, heldItem: p.heldItem, id: p.id, name: p.name, color: p.color, ready: p.ready, connected: !!p.socket, x: p.x, y: p.y, elevation: p.elevation, ack: p.ack, stamina: p.stamina, regenWait: p.regenWait, exhausted: p.exhausted, dashCooldown: p.dashCooldown, dashRemaining: p.dashRemaining, dashX: p.dashX, dashY: p.dashY, facingX: p.facingX, facingY: p.facingY, dashSeen: p.dashSeen, sprinting: p.sprinting, health: p.health, koRemaining: p.koRemaining, protection: p.protection, attackCooldown: p.attackCooldown, attackSeen: p.attackSeen, attackFlash: p.attackFlash, hitFlash: p.hitFlash, attackX: p.attackX, attackY: p.attackY, spawnVersion: p.spawnVersion })) };
+        return { selectedGameMode: room.selectedGameMode, selectedFormat: room.selectedFormat, mode: room.mode, mapId: room.mapId, mapVariant: room.mapVariant, nextMapId: room.nextMapId, nextMapVariant: room.nextMapVariant, match: room.match, round: room.round, objective: { target: target ? { id: target.id, name: target.name } : null, eliminations: recipient?.eliminations ?? 0, matchEliminations: recipient?.matchEliminations ?? 0 }, code: room.code, hostId: room.hostId, phase: room.phase, tick: room.tick, notice: room.notice, serverTime: Date.now(), players: room.players.map(p => ({ jumpSeen: p.jumpSeen, airborne: p.airborne, verticalVelocity: p.verticalVelocity, jumpOrigin: p.jumpOrigin, crouched: p.crouched, inventory: p.inventory, selectedSlot: p.selectedSlot, traversalState: p.traversalState, frozenUntil: p.frozenUntil, heldItem: p.heldItem, id: p.id, name: p.name, color: p.color, ready: p.ready, connected: !!p.socket, x: p.x, y: p.y, elevation: p.elevation, ack: p.ack, stamina: p.stamina, regenWait: p.regenWait, exhausted: p.exhausted, dashCooldown: p.dashCooldown, dashRemaining: p.dashRemaining, dashX: p.dashX, dashY: p.dashY, facingX: p.facingX, facingY: p.facingY, dashSeen: p.dashSeen, sprinting: p.sprinting, health: p.health, koRemaining: p.koRemaining, protection: p.protection, attackCooldown: p.attackCooldown, attackSeen: p.attackSeen, attackFlash: p.attackFlash, hitFlash: p.hitFlash, attackX: p.attackX, attackY: p.attackY, spawnVersion: p.spawnVersion })) };
     }
     broadcast(room) { for (const p of room.players)
         if (p.socket)
@@ -796,6 +872,8 @@ class RoomServer {
                 p.seq = p.ack;
                 p.sprint = false;
                 p.dashId = p.dashSeen;
+                p.jumpId = p.jumpSeen ?? 0;
+                p.crouch = false;
                 p.attackId = p.attackSeen;
                 p.aimX = 0;
                 p.aimY = 0;
@@ -845,7 +923,7 @@ class RoomServer {
                 }
             }
             const color = COLORS.find(c => !room.players.some(p => p.color === c)) || COLORS[0];
-            const p = { dashStyle: 'dash', frozenUntil: 0, heldItem: null, targetId: null, eliminations: 0, matchEliminations: 0, ...freshMotion(mapFor(room).spawns[0]), ...freshCombat(), sprint: false, dashId: 0, attackId: 0, aimX: 0, aimY: 0, id: randomUUID(), token: randomBytes(24).toString('hex'), name, color, ready: false, ack: 0, seq: 0, dx: 0, dy: 0, lastInput: 0, disconnectedAt: 0, socket: ws };
+            const p = { jumpId: 0, crouch: false, inventory: { weapon: null, utility: null }, selectedSlot: 1, dashStyle: 'dash', frozenUntil: 0, heldItem: null, targetId: null, eliminations: 0, matchEliminations: 0, ...freshMotion(mapFor(room).spawns[0]), ...freshCombat(), sprint: false, dashId: 0, attackId: 0, aimX: 0, aimY: 0, id: randomUUID(), token: randomBytes(24).toString('hex'), name, color, ready: false, ack: 0, seq: 0, dx: 0, dy: 0, lastInput: 0, disconnectedAt: 0, socket: ws };
             room.players.push(p);
             if (!room.hostId)
                 room.hostId = p.id;
@@ -902,6 +980,13 @@ class RoomServer {
             this.broadcast(room);
             return;
         }
+        if (m.type === 'equip') {
+            if (room.phase === 'arena' && m.matchId === room.match.id && m.roundNumber === room.match.roundNumber && Date.now() < room.round.endsAt && p.health > 0 && p.frozenUntil <= Date.now() && [1, 2, 3].includes(m.slot)) {
+                equip(p, m.slot, room.mode.flag.state === 'carried' && room.mode.flag.carrier === p.id);
+                this.broadcast(room);
+            }
+            return;
+        }
         if (m.type === 'interact') {
             if (room.phase === 'arena' && m.matchId === room.match.id && m.roundNumber === room.match.roundNumber && Date.now() < room.round.endsAt) {
                 interact(room, p, Date.now());
@@ -945,6 +1030,10 @@ class RoomServer {
                 return;
             if (!Number.isSafeInteger(m.seq) || m.seq <= p.seq || m.seq > p.seq + NETWORK.maxInputAdvance || !Number.isFinite(m.dx) || !Number.isFinite(m.dy) || Math.abs(m.dx) > 1 || Math.abs(m.dy) > 1)
                 return;
+            if (m.crouch !== undefined && typeof m.crouch !== 'boolean')
+                return;
+            if (m.jumpId !== undefined && (!Number.isSafeInteger(m.jumpId) || m.jumpId < p.jumpId || m.jumpId > p.jumpId + NETWORK.maxInputAdvance))
+                return;
             if (m.sprint !== undefined && typeof m.sprint !== 'boolean')
                 return;
             if (m.dashId !== undefined && (!Number.isSafeInteger(m.dashId) || m.dashId < p.dashId || m.dashId > p.dashId + NETWORK.maxInputAdvance))
@@ -955,6 +1044,8 @@ class RoomServer {
                 return;
             if (m.dashStyle !== undefined && !['dash', 'dodge', 'slide'].includes(m.dashStyle))
                 return;
+            p.jumpId = m.jumpId ?? p.jumpId;
+            p.crouch = m.crouch ?? false;
             p.dashStyle = m.dashStyle ?? 'dash';
             p.attackId = m.attackId ?? p.attackId;
             p.aimX = m.aimX ?? 0;
@@ -972,13 +1063,15 @@ class RoomServer {
         return;
     } room.mode = emptyMode(); room.match = emptyMatch(); room.round = { endsAt: 0, remainingSeconds: 0, returnAt: 0, results: [] }; room.roster = []; room.phase = 'lobby'; room.mapId = OPENING_MAP_ID; room.mapVariant = null; room.nextMapId = null; room.nextMapVariant = null; room.notice = notice; for (const p of room.players) {
         Object.assign(p, freshMotion(mapFor(room).spawns[0]), freshCombat());
+        p.jumpSeen = p.jumpId;
+        p.crouch = false;
         p.dashSeen = p.dashId;
         p.attackSeen = p.attackId;
         p.targetId = null;
         p.eliminations = 0;
         p.matchEliminations = 0;
         p.frozenUntil = 0;
-        p.heldItem = null;
+        clearInventory(p);
         p.ready = false;
         p.dx = 0;
         p.dy = 0;
@@ -1037,7 +1130,7 @@ class RoomServer {
         room.match.nextRoundSeconds = 0;
         room.match.mapHistory.push(room.mapId);
         room.round = { endsAt: now + ROUND.durationMs, remainingSeconds: ROUND.durationMs / 1000, returnAt: 0, results: [] };
-        room.players.forEach((p, i) => { const version = p.spawnVersion + 1; Object.assign(p, freshMotion(mapFor(room).spawns[i]), freshCombat()); p.spawnVersion = version; const dx = mapFor(room).plaza.x + mapFor(room).plaza.width / 2 - p.x, dy = mapFor(room).plaza.y + mapFor(room).plaza.height / 2 - p.y, length = Math.hypot(dx, dy) || 1; p.facingX = dx / length; p.facingY = dy / length; p.targetId = null; p.eliminations = 0; p.dx = 0; p.dy = 0; p.sprint = false; p.dashId = 0; p.attackId = 0; p.aimX = 0; p.aimY = 0; p.seq = p.ack; p.lastInput = 0; });
+        room.players.forEach((p, i) => { const version = p.spawnVersion + 1; Object.assign(p, freshMotion(mapFor(room).spawns[i]), freshCombat()); p.spawnVersion = version; const dx = mapFor(room).plaza.x + mapFor(room).plaza.width / 2 - p.x, dy = mapFor(room).plaza.y + mapFor(room).plaza.height / 2 - p.y, length = Math.hypot(dx, dy) || 1; p.facingX = dx / length; p.facingY = dy / length; p.targetId = null; p.eliminations = 0; p.dx = 0; p.dy = 0; p.sprint = false; p.dashId = 0; p.jumpId = 0; p.crouch = false; p.attackId = 0; p.aimX = 0; p.aimY = 0; p.seq = p.ack; p.lastInput = 0; });
         // Generate a new random assignment each round; repeats are allowed, especially with two players.
         if (this.legacyBounty) {
             const order = [...room.players];
@@ -1129,6 +1222,8 @@ class RoomServer {
                     if (p.koRemaining > 0) {
                         p.koRemaining = Math.max(0, p.koRemaining - STEP);
                         p.ack = p.seq;
+                        p.jumpSeen = p.jumpId;
+                        p.crouch = false;
                         p.dashSeen = p.dashId;
                         p.attackSeen = p.attackId;
                         if (p.koRemaining < 1e-8) {
@@ -1137,6 +1232,8 @@ class RoomServer {
                             Object.assign(p, freshMotion(point), freshCombat());
                             p.spawnVersion = version;
                             p.protection = COMBAT.protection;
+                            p.jumpSeen = p.jumpId;
+                            p.crouch = false;
                             p.dashSeen = p.dashId;
                             p.attackSeen = p.attackId;
                             p.dx = 0;
@@ -1152,11 +1249,13 @@ class RoomServer {
                         p.dashRemaining = 0;
                         p.sprinting = false;
                         p.ack = p.seq;
+                        p.jumpSeen = p.jumpId;
+                        p.crouch = false;
                         p.dashSeen = p.dashId;
                         continue;
                     }
                     const active = now - p.lastInput < NETWORK.inputTimeoutMs;
-                    const motion = advanceMotion(p, { dx: active ? p.dx : 0, dy: active ? p.dy : 0, sprint: active && p.sprint, dashId: active ? p.dashId : p.dashSeen, dashStyle: p.dashStyle }, STEP, mapFor(room));
+                    const motion = advanceMotion(p, { dx: active ? p.dx : 0, dy: active ? p.dy : 0, sprint: active && p.sprint, dashId: active ? p.dashId : p.dashSeen, dashStyle: p.dashStyle, jumpId: active ? p.jumpId : p.jumpSeen, crouch: active && p.crouch }, STEP, mapFor(room));
                     Object.assign(p, motion);
                     p.ack = p.seq;
                 }
@@ -1215,6 +1314,8 @@ class RoomServer {
                         p.sprinting = false;
                         p.dashRemaining = 0;
                         p.attackSeen = p.attackId;
+                        p.jumpSeen = p.jumpId;
+                        p.crouch = false;
                         p.dashSeen = p.dashId;
                     }
                 }

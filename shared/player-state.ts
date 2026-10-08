@@ -1,6 +1,6 @@
 import type {PlayerView} from './game.js';
 // Presentation hook only. Animations consume gameplay state; they never control its timing.
-export type PlayerAction='idle'|'walk'|'sprint'|'dash'|'dodge'|'slide'|'jump'|'fall'|'attack'|'hit_reaction'|'ko'|'respawn'|'pickup'|'throw'|'frozen';
+export type PlayerAction='idle'|'walk'|'sprint'|'dash'|'dodge'|'slide'|'jump'|'fall'|'crouch'|'attack'|'hit_reaction'|'ko'|'respawn'|'pickup'|'throw'|'frozen';
 export function playerAction(player:PlayerView,serverTime:number):PlayerAction{
  if(player.health<=0)return 'ko';
  if(player.frozenUntil>serverTime)return 'frozen';

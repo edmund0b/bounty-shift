@@ -11,7 +11,8 @@
     "build": "tsc --noEmit && vite build && esbuild server/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/server.js",
     "start": "node dist/server.js",
     "test": "node --import tsx --test tests/*.test.ts",
-    "test:browser": "node --import tsx scripts/browser-smoke.mjs"
+    "test:browser": "node --import tsx scripts/controls-browser-qa.mjs",
+    "test:browser:mobile": "node --import tsx scripts/controls-browser-qa.mjs --mobile"
   },
   "dependencies": {
     "express": "^5.1.0",

@@ -1,3 +1,11 @@
+## Current control update
+
+See CONTROL_SYSTEM_UPDATE.md for the current controls, verification, and mobile layout. Earlier implementation notes below describe prior versions.
+
+# Latest: gameplay chest and Freeze Ball polish
+
+See [CHEST_FREEZE_POLISH.md](CHEST_FREEZE_POLISH.md) for this targeted update, preservation notes and testing. The approved HUD remains in place.
+
 # Latest: HUD and lobby polish
 
 See [HUD_POLISH.md](HUD_POLISH.md) for the five UI changes and validation. The existing maps, gameplay and multiplayer foundation are preserved. Older implementation notes below describe previous versions.
@@ -155,9 +163,10 @@ The five-map roster is implemented. This task stops here; the dedicated polish p
 | Move | WASD / arrows, relative to camera yaw | Lower-left analog joystick, relative to camera |
 | Look | Click arena, then mouse-look; Esc releases | Swipe the right half of the arena |
 | Sprint | Hold Shift while moving | Hold Sprint while using joystick |
-| Dash | Space | Tap Dash |
+| Jump | Space | Tap Jump |
+| Dash | Space twice quickly | Tap Dash |
 | Melee | Click while mouse-look is active, or F | Tap Attack |
-| Camera fallback | Q/E yaw; cursor-look if pointer lock unavailable | Independent look pointer |
+| Camera fallback | Q/R yaw; cursor-look if pointer lock unavailable | Independent look pointer |
 
 Camera orbit works while stationary. Movement is flattened to horizontal camera yaw, with normalized diagonals. Moving avatars rotate toward their gameplay direction; stationary camera look does not spin the body. Dash uses current movement input, or the avatar's last gameplay facing when idle. Melee uses camera yaw/reticle direction. Name/health sprites still billboard; local cyan, private Bounty gold and other player colors are preserved.
 
