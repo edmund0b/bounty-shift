@@ -1,3 +1,8 @@
+import {buildVikingsFjord} from './environments/vikings-fjord';
+import {buildOutlawsCanyon} from './environments/outlaws-canyon';
+import {buildAerieSkyPort} from './environments/aerie-sky-port';
+import {buildScorchedPoint} from './environments/scorched-point';
+import {buildCentralPlaza} from './environments/central-plaza';
 import * as THREE from 'three';
 import {mapEnvironment} from '../shared/map';
 import type {MapDefinition} from '../shared/map';
@@ -5,6 +10,11 @@ import {surfaceHeight} from '../shared/traversal';
 import {VIEW} from '../shared/presentation';
 
 export function buildEnvironment(scene:THREE.Scene,map:MapDefinition,variant:string|null=null){
+ if(map.id==='vikings_fjord')return buildVikingsFjord(scene,map);
+ if(map.id==='outlaws_canyon')return buildOutlawsCanyon(scene,map);
+ if(map.id==='aerie_sky_port')return buildAerieSkyPort(scene,map,variant);
+ if(map.id==='scorched_point')return buildScorchedPoint(scene,map);
+ if(map.id==='central_plaza')return buildCentralPlaza(scene,map);
  const env=mapEnvironment(map,variant),sky=env.theme==='sky_port',canyon=env.theme==='canyon',fjord=env.theme==='fjord',night=variant==='night';
  const S=VIEW.scale,industrial=env.theme==='industrial',resources=new Set<{dispose:()=>void}>(),solids:THREE.Object3D[]=[];
  const track=<T extends {dispose:()=>void}>(r:T):T=>{resources.add(r);return r;};

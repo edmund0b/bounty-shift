@@ -1,3 +1,4 @@
+import {isCharacterId,CHARACTER_IDS,SELECTION,type CharacterId,type CharacterSelection} from '../shared/characters.js';
 import {equip,clearInventory,type Equipped} from '../shared/inventory.js';
 import {emptyMode,validMode,validFormat,validTeams,teamKey,WEAPONS,type GameMode,type Format,type ModeState,type ItemKind} from '../shared/modes.js';
 import {MODE_RULES,assignTeams,beginMode,interact,enemies,dropFlag,onElimination,throwBall,tickMode,finishMode} from './modes.js';
@@ -10,9 +11,9 @@ import { ROUND, MATCH, emptyMatch, type MatchView, type RoundView } from '../sha
 import { ACTIVE_MAP, MAPS } from '../shared/map.js';
 import {selectRoundMap,selectMapVariant,OPENING_MAP_ID} from '../shared/map-rotation.js';
 
-type Player = Equipped & {jumpId:number;crouch:boolean; dashStyle:'dash'|'dodge'|'slide'; frozenUntil:number;heldItem:ItemKind|null; targetId: string|null; eliminations: number; matchEliminations: number } & Motion & CombatState & { id: string; token: string; name: string; color: string; ready: boolean; x: number; y: number; ack: number; seq: number; dx: number; dy: number; lastInput: number; sprint: boolean; dashId: number; attackId: number; aimX: number; aimY: number; disconnectedAt: number; socket: WebSocket|null };
+type Player = Equipped & {characterId:CharacterId|null;characterAutoAssigned:boolean;jumpId:number;crouch:boolean; dashStyle:'dash'|'dodge'|'slide'; frozenUntil:number;heldItem:ItemKind|null; targetId: string|null; eliminations: number; matchEliminations: number } & Motion & CombatState & { id: string; token: string; name: string; color: string; ready: boolean; x: number; y: number; ack: number; seq: number; dx: number; dy: number; lastInput: number; sprint: boolean; dashId: number; attackId: number; aimX: number; aimY: number; disconnectedAt: number; socket: WebSocket|null };
 const mapFor=(room:{mapId:string})=>MAPS[room.mapId]??ACTIVE_MAP;
-type Room = { selectedGameMode:GameMode;selectedFormat:Format;mode:ModeState; mapId:string; mapVariant:string|null; nextMapId:string|null; nextMapVariant:string|null; code: string; hostId: string; phase: 'lobby'|'arena'|'intermission'|'complete'; match: MatchView; round: RoundView; roster: Player[]; players: Player[]; tick: number; notice: string };
+type Room = { selectedGameMode:GameMode;selectedFormat:Format;mode:ModeState; mapId:string; mapVariant:string|null; nextMapId:string|null; nextMapVariant:string|null; code: string; hostId: string; phase: 'lobby'|'character_selection'|'match_loading'|'arena'|'intermission'|'complete'; selection:CharacterSelection|null; match: MatchView; round: RoundView; roster: Player[]; players: Player[]; tick: number; notice: string };
 export class RoomServer {
  // Retain the original Bounty behavior for regression coverage and future mode integration.
  constructor(public legacyBounty=false) {}
@@ -21,7 +22,7 @@ export class RoomServer {
  send(ws: WebSocket, message: ServerMessage) { if (ws.readyState===1) {try{ws.send(JSON.stringify(message));}catch{this.disconnect(ws);}} }
  view(room: Room, recipient?:Player): RoomView {
   const target=room.players.find(p=>p.id===recipient?.targetId);
-  return { selectedGameMode:room.selectedGameMode,selectedFormat:room.selectedFormat,mode:room.mode,mapId:room.mapId, mapVariant:room.mapVariant, nextMapId:room.nextMapId, nextMapVariant:room.nextMapVariant, match:room.match, round:room.round, objective:{target:target?{id:target.id,name:target.name}:null,eliminations:recipient?.eliminations??0,matchEliminations:recipient?.matchEliminations??0}, code:room.code, hostId:room.hostId, phase:room.phase, tick:room.tick, notice:room.notice, serverTime:Date.now(), players:room.players.map(p=>({jumpSeen:p.jumpSeen,airborne:p.airborne,verticalVelocity:p.verticalVelocity,jumpOrigin:p.jumpOrigin,crouched:p.crouched,inventory:p.inventory,selectedSlot:p.selectedSlot,traversalState:p.traversalState,frozenUntil:p.frozenUntil,heldItem:p.heldItem,id:p.id,name:p.name,color:p.color,ready:p.ready,connected:!!p.socket,x:p.x,y:p.y,elevation:p.elevation,ack:p.ack,stamina:p.stamina,regenWait:p.regenWait,exhausted:p.exhausted,dashCooldown:p.dashCooldown,dashRemaining:p.dashRemaining,dashX:p.dashX,dashY:p.dashY,facingX:p.facingX,facingY:p.facingY,dashSeen:p.dashSeen,sprinting:p.sprinting,health:p.health,koRemaining:p.koRemaining,protection:p.protection,attackCooldown:p.attackCooldown,attackSeen:p.attackSeen,attackFlash:p.attackFlash,hitFlash:p.hitFlash,attackX:p.attackX,attackY:p.attackY,spawnVersion:p.spawnVersion})) };
+  return { selection:room.selection,selectedGameMode:room.selectedGameMode,selectedFormat:room.selectedFormat,mode:room.mode,mapId:room.mapId, mapVariant:room.mapVariant, nextMapId:room.nextMapId, nextMapVariant:room.nextMapVariant, match:room.match, round:room.round, objective:{target:target?{id:target.id,name:target.name}:null,eliminations:recipient?.eliminations??0,matchEliminations:recipient?.matchEliminations??0}, code:room.code, hostId:room.hostId, phase:room.phase, tick:room.tick, notice:room.notice, serverTime:Date.now(), players:room.players.map(p=>({characterId:p.characterId,characterAutoAssigned:p.characterAutoAssigned,jumpSeen:p.jumpSeen,airborne:p.airborne,verticalVelocity:p.verticalVelocity,jumpOrigin:p.jumpOrigin,crouched:p.crouched,inventory:p.inventory,selectedSlot:p.selectedSlot,traversalState:p.traversalState,frozenUntil:p.frozenUntil,heldItem:p.heldItem,id:p.id,name:p.name,color:p.color,ready:p.ready,connected:!!p.socket,x:p.x,y:p.y,elevation:p.elevation,ack:p.ack,stamina:p.stamina,regenWait:p.regenWait,exhausted:p.exhausted,dashCooldown:p.dashCooldown,dashRemaining:p.dashRemaining,dashX:p.dashX,dashY:p.dashY,facingX:p.facingX,facingY:p.facingY,dashSeen:p.dashSeen,sprinting:p.sprinting,health:p.health,koRemaining:p.koRemaining,protection:p.protection,attackCooldown:p.attackCooldown,attackSeen:p.attackSeen,attackFlash:p.attackFlash,hitFlash:p.hitFlash,attackX:p.attackX,attackY:p.attackY,spawnVersion:p.spawnVersion})) };
  }
  broadcast(room: Room) { for(const p of room.players) if(p.socket) this.send(p.socket,{type:'state',room:this.view(room,p)}); }
  fail(ws:WebSocket,message:string,fatal=false) { this.send(ws,{type:'error',message,fatal}); }
@@ -41,6 +42,7 @@ export class RoomServer {
     p.socket=ws;p.disconnectedAt=0;p.lastInput=0;p.dx=0;p.dy=0;p.seq=p.ack;p.sprint=false;p.dashId=p.dashSeen;p.jumpId=p.jumpSeen??0;p.crouch=false;p.attackId=p.attackSeen;p.aimX=0;p.aimY=0;
     this.sessions.set(ws,{room,player:p});
     if(!room.players.some(x=>x.id===room.hostId && x.socket)) room.hostId=p.id;
+    if(room.phase==='match_loading'&&room.selection)room.selection.preparedIds=room.selection.preparedIds.filter(id=>id!==p.id);
     this.send(ws,{type:'welcome',id:p.id,token:p.token,room:this.view(room,p)});this.broadcast(room);return;
    }
    const name=this.name(m.name);
@@ -49,7 +51,7 @@ export class RoomServer {
    if(m.type==='create') {
     if(this.rooms.size>=100) {this.fail(ws,'Server is full. Please try again later.');return;}
     let code:string; do {code=randomBytes(4).toString('hex').slice(0,6).toUpperCase();} while(this.rooms.has(code));
-    room={selectedGameMode:"tag",selectedFormat:"solo",mode:emptyMode(),mapId:OPENING_MAP_ID,mapVariant:null,nextMapId:null,nextMapVariant:null,code,hostId:'',phase:'lobby',match:emptyMatch(),round:{endsAt:0,remainingSeconds:0,returnAt:0,results:[]},roster:[],players:[],tick:0,notice:''};this.rooms.set(code,room);
+    room={selection:null,selectedGameMode:"tag",selectedFormat:"solo",mode:emptyMode(),mapId:OPENING_MAP_ID,mapVariant:null,nextMapId:null,nextMapVariant:null,code,hostId:'',phase:'lobby',match:emptyMatch(),round:{endsAt:0,remainingSeconds:0,returnAt:0,results:[]},roster:[],players:[],tick:0,notice:''};this.rooms.set(code,room);
    } else {
     const code=typeof m.code==='string'?m.code.trim().toUpperCase():''; room=this.rooms.get(code);
     if(!room) {this.fail(ws,'Room not found. Check the six-character code.');return;}
@@ -58,7 +60,7 @@ export class RoomServer {
     if(room.players.some(p=>p.name.toLowerCase()===name.toLowerCase())) {this.fail(ws,'That name is already in this room. Choose another name.');return;}
    }
    const color=COLORS.find(c=>!room!.players.some(p=>p.color===c)) || COLORS[0];
-   const p:Player={jumpId:0,crouch:false,inventory:{weapon:null,utility:null},selectedSlot:1,dashStyle:'dash',frozenUntil:0,heldItem:null,targetId:null,eliminations:0,matchEliminations:0,...freshMotion(mapFor(room).spawns[0]),...freshCombat(),sprint:false,dashId:0,attackId:0,aimX:0,aimY:0,id:randomUUID(),token:randomBytes(24).toString('hex'),name,color,ready:false,ack:0,seq:0,dx:0,dy:0,lastInput:0,disconnectedAt:0,socket:ws};
+   const p:Player={characterId:null,characterAutoAssigned:false,jumpId:0,crouch:false,inventory:{weapon:null,utility:null},selectedSlot:1,dashStyle:'dash',frozenUntil:0,heldItem:null,targetId:null,eliminations:0,matchEliminations:0,...freshMotion(mapFor(room).spawns[0]),...freshCombat(),sprint:false,dashId:0,attackId:0,aimX:0,aimY:0,id:randomUUID(),token:randomBytes(24).toString('hex'),name,color,ready:false,ack:0,seq:0,dx:0,dy:0,lastInput:0,disconnectedAt:0,socket:ws};
    room.players.push(p);if(!room.hostId) room.hostId=p.id;room.notice='';this.sessions.set(ws,{room,player:p});
    this.send(ws,{type:'welcome',id:p.id,token:p.token,room:this.view(room,p)});this.broadcast(room);return;
   }
@@ -74,6 +76,19 @@ export class RoomServer {
    if(room.selectedGameMode!==m.mode||room.selectedFormat!==m.format){room.selectedGameMode=m.mode;room.selectedFormat=m.format;for(const player of room.players)player.ready=false;room.notice='Settings changed. Ready up for the selected rules.';}
    this.broadcast(room);return;
   }
+  if(m.type==='choose_character') {
+   const now=Date.now();
+   if(room.phase!=='character_selection'||!room.selection||m.matchId!==room.match.id||!isCharacterId(m.characterId)||!room.roster.includes(p))return;
+   if(now>=room.selection.deadline){this.resolveCharacters(room,now);return;}
+   if(p.characterId)return; // First valid equip wins; stale/repeated requests cannot change it.
+   p.characterId=m.characterId;p.characterAutoAssigned=false;
+   this.resolveCharacters(room,now);this.broadcast(room);return;
+  }
+  if(m.type==='character_prepared') {
+   if(room.phase!=='match_loading'||!room.selection||m.matchId!==room.match.id||!p.characterId)return;
+   if(!room.selection.preparedIds.includes(p.id))room.selection.preparedIds.push(p.id);
+   this.resolveCharacters(room,Date.now());this.broadcast(room);return;
+  }
   if(m.type==='equip'){if(room.phase==='arena'&&m.matchId===room.match.id&&m.roundNumber===room.match.roundNumber&&Date.now()<room.round.endsAt&&p.health>0&&p.frozenUntil<=Date.now()&&[1,2,3].includes(m.slot)){equip(p,m.slot,room.mode.flag.state==='carried'&&room.mode.flag.carrier===p.id);this.broadcast(room);}return;}
   if(m.type==='interact') {if(room.phase==='arena'&&m.matchId===room.match.id&&m.roundNumber===room.match.roundNumber&&Date.now()<room.round.endsAt){interact(room,p,Date.now());this.broadcast(room);}return;}
   if(m.type==='start') {
@@ -84,7 +99,9 @@ export class RoomServer {
    assignTeams(room);
    room.match={...emptyMatch(),id:randomUUID()};room.roster=[...room.players];
    for(const p of room.players)p.matchEliminations=0;
-   this.startRound(room,Date.now());return;
+   const now=Date.now();room.notice='';room.phase='character_selection';room.selection={startedAt:now,deadline:now+SELECTION.chooseMs,expiresAt:now+SELECTION.totalMs,loadingAt:null,preparedIds:[]};
+   for(const player of room.players){player.characterId=null;player.characterAutoAssigned=false;player.dx=0;player.dy=0;player.sprint=false;}
+   this.broadcast(room);return;
   }
   if(m.type==='lobby') {if(room.hostId!==p.id) {this.fail(ws,'Only the host can return everyone to the lobby.');return;} this.toLobby(room,'Host returned the room to the lobby.');return;}
   if(m.type==='input' && room.phase==='arena') {
@@ -103,10 +120,10 @@ export class RoomServer {
    p.seq=m.seq;p.dx=m.dx;p.dy=m.dy;p.sprint=m.sprint??false;p.dashId=m.dashId??p.dashId;p.lastInput=Date.now();
   }
  }
- toLobby(room:Room,notice:string) {if(room.phase==='lobby'){this.broadcast(room);return;}room.mode=emptyMode();room.match=emptyMatch();room.round={endsAt:0,remainingSeconds:0,returnAt:0,results:[]};room.roster=[];room.phase='lobby';room.mapId=OPENING_MAP_ID;room.mapVariant=null;room.nextMapId=null;room.nextMapVariant=null;room.notice=notice;for(const p of room.players){Object.assign(p,freshMotion(mapFor(room).spawns[0]),freshCombat());p.jumpSeen=p.jumpId;p.crouch=false;p.dashSeen=p.dashId;p.attackSeen=p.attackId;p.targetId=null;p.eliminations=0;p.matchEliminations=0;p.frozenUntil=0;clearInventory(p);p.ready=false;p.dx=0;p.dy=0;p.sprint=false;p.dashRemaining=0;p.attackFlash=0;p.hitFlash=0;p.attackSeen=p.attackId;}this.broadcast(room);}
+ toLobby(room:Room,notice:string) {if(room.phase==='lobby'){this.broadcast(room);return;}room.selection=null;room.mode=emptyMode();room.match=emptyMatch();room.round={endsAt:0,remainingSeconds:0,returnAt:0,results:[]};room.roster=[];room.phase='lobby';room.mapId=OPENING_MAP_ID;room.mapVariant=null;room.nextMapId=null;room.nextMapVariant=null;room.notice=notice;for(const p of room.players){Object.assign(p,freshMotion(mapFor(room).spawns[0]),freshCombat());p.jumpSeen=p.jumpId;p.crouch=false;p.dashSeen=p.dashId;p.attackSeen=p.attackId;p.targetId=null;p.eliminations=0;p.matchEliminations=0;p.frozenUntil=0;clearInventory(p);p.characterId=null;p.characterAutoAssigned=false;p.ready=false;p.dx=0;p.dy=0;p.sprint=false;p.dashRemaining=0;p.attackFlash=0;p.hitFlash=0;p.attackSeen=p.attackId;}this.broadcast(room);}
  disconnect(ws:WebSocket) {const s=this.sessions.get(ws);if(!s)return;this.sessions.delete(ws);const {room,player:p}=s;dropFlag(room,p);p.socket=null;p.ready=false;p.dx=0;p.dy=0;p.sprint=false;p.dashRemaining=0;p.disconnectedAt=Date.now();this.transfer(room);this.broadcast(room);}
  transfer(room:Room) {if(!room.players.some(p=>p.id===room.hostId && p.socket)){const next=room.players.find(p=>p.socket);if(next)room.hostId=next.id;}}
- remove(room:Room,p:Player) {if(this.rooms.get(room.code)!==room||!room.players.includes(p))return;if(p.socket)this.sessions.delete(p.socket);dropFlag(room,p);p.socket=null;p.dx=0;p.dy=0;p.lastInput=0;p.targetId=null;room.players=room.players.filter(x=>x!==p);if(!room.players.length){this.rooms.delete(room.code);return;}this.transfer(room);if((room.phase==='arena'||room.phase==='intermission') && (room.players.length<2||room.selectedFormat==='duo'&&!validTeams(room.selectedFormat,room.players.length)))this.toLobby(room,room.selectedFormat==='duo'?'Match ended: a player left; Duos require 4 or 6 players.':'Test ended: at least two players are needed.');else {for(const other of room.players)if(other.targetId===p.id)this.assignTarget(room,other,p.id);this.broadcast(room);}}
+ remove(room:Room,p:Player) {if(this.rooms.get(room.code)!==room||!room.players.includes(p))return;if(p.socket)this.sessions.delete(p.socket);dropFlag(room,p);p.socket=null;p.dx=0;p.dy=0;p.lastInput=0;p.targetId=null;room.players=room.players.filter(x=>x!==p);if(!room.players.length){this.rooms.delete(room.code);return;}this.transfer(room);if((['character_selection','match_loading','arena','intermission'].includes(room.phase)) && (room.players.length<2||room.selectedFormat==='duo'&&!validTeams(room.selectedFormat,room.players.length)))this.toLobby(room,room.selectedFormat==='duo'?'Match ended: a player left; Duos require 4 or 6 players.':'Test ended: at least two players are needed.');else {for(const other of room.players)if(other.targetId===p.id)this.assignTarget(room,other,p.id);this.broadcast(room);}}
  assignTarget(room:Room,p:Player,previous:string|null) {
   const all=room.players.filter(o=>o!==p);
   const connected=all.filter(o=>o.socket);const others=connected.length?connected:all;
@@ -115,8 +132,22 @@ export class RoomServer {
   const living=pool.filter(o=>o.health>0);const choices=living.length?living:pool;
   p.targetId=choices.length?choices[randomInt(choices.length)].id:null;
  }
+ resolveCharacters(room:Room,now:number) {
+  if(!room.selection||this.rooms.get(room.code)!==room)return;
+  if(['character_selection','match_loading'].includes(room.phase)&&now>=room.selection.expiresAt){this.toLobby(room,'Match preparation timed out. Reconnect and ready up to try again.');return;}
+  if(room.phase==='character_selection'){
+   if(now>=room.selection.deadline)for(const p of room.players)if(!p.characterId){p.characterId=CHARACTER_IDS[randomInt(CHARACTER_IDS.length)];p.characterAutoAssigned=true;}
+   if(room.players.every(p=>p.characterId)){room.phase='match_loading';room.selection.loadingAt=now;}
+  }
+  if(room.phase==='match_loading'){
+   if(room.players.every(p=>p.socket&&p.characterId&&room.selection!.preparedIds.includes(p.id))){this.startRound(room,now);return;}
+  }
+  // A slow/broken client never forces an invalid match to start past the maximum window.
+  if(['character_selection','match_loading'].includes(room.phase)&&now>=room.selection.expiresAt)this.toLobby(room,'Match preparation timed out. Reconnect and ready up to try again.');
+ }
  startRound(room:Room,now:number) {
-  if(this.rooms.get(room.code)!==room||!room.match.id||!['lobby','intermission'].includes(room.phase)||room.match.roundNumber>=MATCH.rounds)return;
+  if(this.rooms.get(room.code)!==room||!room.match.id||!['match_loading','intermission'].includes(room.phase)||room.match.roundNumber>=MATCH.rounds)return;
+  if(room.match.roundNumber===0&&(!room.selection||room.players.some(p=>!p.characterId||!p.socket||!room.selection!.preparedIds.includes(p.id))))return;
   if(room.players.length<2){this.toLobby(room,'Match ended: at least two players are needed.');return;}
   for(const p of room.roster)p.eliminations=0;
   room.mapId=room.match.roundNumber===0?OPENING_MAP_ID:room.nextMapId??selectRoundMap(room.match.roundNumber+1,room.mapId,randomInt);room.mapVariant=room.nextMapId?room.nextMapVariant:selectMapVariant(room.mapId,randomInt);room.nextMapId=null;room.nextMapVariant=null;
@@ -159,6 +190,7 @@ export class RoomServer {
    for(const p of [...room.players]) if(!p.socket && now-p.disconnectedAt>=RECONNECT_MS)this.remove(room,p);
    if(!this.rooms.has(room.code))continue;
    room.tick++;
+   if(room.phase==='character_selection'||room.phase==='match_loading'){this.resolveCharacters(room,now);if(room.tick%2===0)this.broadcast(room);continue;}
    if(room.phase==='intermission'){room.match.nextRoundSeconds=Math.max(0,Math.ceil((room.round.returnAt-now)/1000));if(now>=room.round.returnAt)this.startRound(room,now);else if(room.tick%2===0)this.broadcast(room);continue;}
    if(room.phase==='arena'&&now>=room.round.endsAt){this.endRound(room,now);continue;}
    if(room.phase==='arena') {

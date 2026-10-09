@@ -8,7 +8,7 @@ process.env.BOUNTY_TEST='1';
 const {createGameServer}=await import('../server/index.js');
 class Client {
  room:RoomView|null=null;ws:WebSocket;messages:ServerMessage[]=[];
- constructor(url:string){this.ws=new WebSocket(url);this.ws.on('message',raw=>{const m=JSON.parse(raw.toString());if(m.room)this.room=m.room;this.messages.push(m);});}
+ constructor(url:string){this.ws=new WebSocket(url);this.ws.on('message',raw=>{const m=JSON.parse(raw.toString());if(m.room){this.room=m.room;if(m.room.phase==='character_selection')this.ws.send(JSON.stringify({type:'choose_character',matchId:m.room.match.id,characterId:'voltrix'}));if(m.room.phase==='match_loading')this.ws.send(JSON.stringify({type:'character_prepared',matchId:m.room.match.id}));}this.messages.push(m);});}
  async open(){await new Promise<void>((resolve,reject)=>{this.ws.once('open',resolve);this.ws.once('error',reject);});}
  send(m:unknown){this.ws.send(JSON.stringify((m as any)?.type==='input'?{matchId:this.room?.match.id,roundNumber:this.room?.match.roundNumber,...(m as object)}:m));}
  async wait(predicate:(m:ServerMessage)=>boolean,timeout=2500){const end=Date.now()+timeout;while(Date.now()<end){const index=this.messages.findIndex(predicate);if(index>=0)return this.messages.splice(index,1)[0];await new Promise(r=>setTimeout(r,10));}throw new Error('Timed out waiting for message');}
@@ -105,15 +105,15 @@ test('two live clients agree on stair elevation, elevated reconnect, KO respawn 
  const connect=async()=>{const c=new Client(`ws://127.0.0.1:${address.port}/ws`);clients.push(c);await c.open();return c;};
  try{
   const a=await connect();a.send({type:'create',name:'Climber'});const wa=await a.wait(m=>m.type==='welcome');assert(wa.type==='welcome');const b=await connect();b.send({type:'join',name:'Observer',code:wa.room.code});await b.wait(m=>m.type==='welcome');a.send({type:'ready',ready:true});b.send({type:'ready',ready:true});await a.state(r=>r.players.every(p=>p.ready));a.send({type:'start'});await a.state(r=>r.phase==='arena');await b.state(r=>r.phase==='arena');
-  const room=game.rooms.rooms.get(wa.room.code)!,p=room.players[0];Object.assign(p,freshMotion({x:730,y:1900}));a.messages=[];b.messages=[];
-  a.send({type:'input',seq:1,dx:0,dy:-1,sprint:true,dashId:1,elevation:99999});await a.state(r=>r.players[0].ack===1);
+  const room=game.rooms.rooms.get(wa.room.code)!,p=room.players[0];Object.assign(p,freshMotion({x:822.5,y:2300,elevation:110}));a.messages=[];b.messages=[];
+  a.send({type:'input',seq:1,dx:0,dy:1,sprint:true,dashId:1,elevation:99999});await a.state(r=>r.players[0].ack===1);
   let now=Date.now();for(let i=0;i<60;i++){now+=STEP*1000;p.lastInput=now;game.rooms.tick(now);}
-  assert.equal(p.elevation,100);assert(isWalkable(p));game.rooms.broadcast(room);
-  const ra=await a.state(r=>r.players[0].elevation===100),rb=await b.state(r=>r.tick===ra.tick);assert.deepEqual(ra.players,rb.players);assert.equal(ra.mapId,'central_plaza');
-  a.close();await b.state(r=>!r.players[0].connected);const c=await connect();c.send({type:'resume',code:wa.room.code,token:wa.token});const resumed=await c.wait(m=>m.type==='welcome');assert(resumed.type==='welcome');assert.equal(resumed.id,wa.id);assert.equal(resumed.room.players[0].elevation,100);
+  assert.equal(p.elevation,230);assert(isWalkable(p));game.rooms.broadcast(room);
+  const ra=await a.state(r=>r.players[0].elevation===230),rb=await b.state(r=>r.tick===ra.tick);assert.deepEqual(ra.players,rb.players);assert.equal(ra.mapId,'central_plaza');
+  a.close();await b.state(r=>!r.players[0].connected);const c=await connect();c.send({type:'resume',code:wa.room.code,token:wa.token});const resumed=await c.wait(m=>m.type==='welcome');assert(resumed.type==='welcome');assert.equal(resumed.id,wa.id);assert.equal(resumed.room.players[0].elevation,230);
   // KO fixture exercises the same authoritative timer/respawn path used by combat.
   p.health=0;p.koRemaining=STEP;p.dx=0;p.dy=0;c.messages=[];b.messages=[];game.rooms.tick(Date.now());
-  const spawn=await c.state(r=>r.players[0].health===100&&r.players[0].spawnVersion===2),other=await b.state(r=>r.tick===spawn.tick);assert.deepEqual(spawn.players,other.players);assert.equal(spawn.players[0].elevation,0);assert(spawn.players[0].protection>0);assert(isWalkable(spawn.players[0]));
-  Object.assign(p,freshMotion({x:730,y:1000,elevation:100}));game.rooms.tick(room.round.endsAt);game.rooms.tick(room.round.returnAt);assert(room.players.every((p,i)=>p.elevation===freshMotion(MAPS[room.mapId].spawns[i]).elevation&&isWalkable(p,MAPS[room.mapId])));assert.equal(room.match.roundNumber,2);
+  const spawn=await c.state(r=>r.players[0].health===100&&r.players[0].spawnVersion===2),other=await b.state(r=>r.tick===spawn.tick);assert.deepEqual(spawn.players,other.players);assert.equal(spawn.players[0].elevation,110);assert(spawn.players[0].protection>0);assert(isWalkable(spawn.players[0]));
+  Object.assign(p,freshMotion({x:822.5,y:2700,elevation:230}));game.rooms.tick(room.round.endsAt);game.rooms.tick(room.round.returnAt);assert(room.players.every((p,i)=>p.elevation===freshMotion(MAPS[room.mapId].spawns[i]).elevation&&isWalkable(p,MAPS[room.mapId])));assert.equal(room.match.roundNumber,2);
  }finally{clients.forEach(c=>c.ws.terminate());await game.close();}
 });

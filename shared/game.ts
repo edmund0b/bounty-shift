@@ -1,3 +1,4 @@
+import type {CharacterId,CharacterSelection} from './characters.js';
 import type {GameMode,Format,ModeState,ItemKind} from './modes.js';
 import type { RoundView, PrivateObjective, MatchView } from './rounds.js';
 import type { CombatState } from './combat.js';
@@ -14,8 +15,8 @@ export type Position = { x: number; y: number; elevation?:number };
 export const JUMP={velocity:300,gravity:900};
 export type Input = { matchId: string; roundNumber: number; seq: number; dx: number; dy: number; sprint?: boolean; jumpId?:number; crouch?:boolean; dashId?: number; dashStyle?: 'dash'|'dodge'|'slide'; attackId?: number; aimX?: number; aimY?: number };
 export type Motion = Position & { jumpSeen?:number;airborne?:boolean;verticalVelocity?:number;jumpOrigin?:Position;crouched?:boolean;traversalState?:'idle'|'walk'|'sprint'|'dash'|'dodge'|'slide'|'jump'|'fall'|'crouch'; elevation:number; stamina: number; regenWait: number; exhausted: boolean; dashCooldown: number; dashRemaining: number; dashX: number; dashY: number; facingX: number; facingY: number; dashSeen: number; sprinting: boolean };
-export type PlayerView = {frozenUntil:number;heldItem:ItemKind|null;inventory?:import('./inventory.js').Inventory;selectedSlot?:import('./inventory.js').Slot} & Motion & CombatState & { id: string; name: string; color: string; ready: boolean; connected: boolean; ack: number };
-export type RoomView = { selectedGameMode:GameMode;selectedFormat:Format;mode:ModeState; mapId:string; mapVariant:string|null; nextMapId:string|null; nextMapVariant:string|null; code: string; hostId: string; phase: 'lobby'|'arena'|'intermission'|'complete'; match: MatchView; round: RoundView; objective: PrivateObjective; players: PlayerView[]; tick: number; serverTime: number; notice: string };
+export type PlayerView = {characterId?:CharacterId|null;characterAutoAssigned?:boolean;frozenUntil:number;heldItem:ItemKind|null;inventory?:import('./inventory.js').Inventory;selectedSlot?:import('./inventory.js').Slot} & Motion & CombatState & { id: string; name: string; color: string; ready: boolean; connected: boolean; ack: number };
+export type RoomView = { selectedGameMode:GameMode;selectedFormat:Format;mode:ModeState; mapId:string; mapVariant:string|null; nextMapId:string|null; nextMapVariant:string|null; code: string; hostId: string; phase: 'lobby'|'character_selection'|'match_loading'|'arena'|'intermission'|'complete'; selection?:CharacterSelection|null; match: MatchView; round: RoundView; objective: PrivateObjective; players: PlayerView[]; tick: number; serverTime: number; notice: string };
 export type ClientMessage =
  | { type: 'create'; name: string }
  | { type: 'join'; name: string; code: string }
@@ -23,6 +24,8 @@ export type ClientMessage =
  | { type:'settings';mode:GameMode;format:Format }
  | {type:'equip';slot:import('./inventory.js').Slot;matchId:string;roundNumber:number}
  | {type:'interact';matchId:string;roundNumber:number}
+ | { type:'choose_character';matchId:string;characterId:CharacterId }
+ | { type:'character_prepared';matchId:string }
  | { type: 'ready'; ready: boolean }
  | { type: 'start'|'lobby'|'leave'|'ping' }
  | ({ type: 'input' } & Input);

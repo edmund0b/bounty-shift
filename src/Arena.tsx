@@ -5,7 +5,7 @@ import {Minimap} from './Minimap';
 import {MAPS} from '../shared/map';
 import { CONTROLLER, turnLook, smoothAngle, joystickInput, type CameraControl } from '../shared/presentation';
 
-export function Arena({room,id,predicted,yaw,look,stick,onAttack,mapOpen,onMapChange}:{room:RoomView;id:string;predicted:React.RefObject<Motion|null>;yaw:React.RefObject<number>;look:React.RefObject<CameraControl>;stick:React.RefObject<{x:number;y:number}>;onAttack:()=>void;mapOpen:boolean;onMapChange:(open:boolean)=>void}){
+export function Arena({room,id,predicted,yaw,look,stick,onAttack,mapOpen,onMapChange,onPrepared}:{onPrepared?:()=>void;room:RoomView;id:string;predicted:React.RefObject<Motion|null>;yaw:React.RefObject<number>;look:React.RefObject<CameraControl>;stick:React.RefObject<{x:number;y:number}>;onAttack:()=>void;mapOpen:boolean;onMapChange:(open:boolean)=>void}){
  useEffect(()=>{if(mapOpen){lookPointer.current=null;mouseActive.current=false;fallback.current=false;if(document.pointerLockElement)document.exitPointerLock();}else canvas.current?.focus({preventScroll:true});},[mapOpen]);
  const mapMarker=useRef<SVGGElement|null>(null),canvas=useRef<HTMLCanvasElement|null>(null),current=useRef(room),lookPointer=useRef<{id:number;x:number;y:number}|null>(null),fallback=useRef(false),mouseActive=useRef(false),[error,setError]=useState('');current.current=room;
  const activate=()=>{const node=canvas.current;if(!node)return;node.focus();if(document.pointerLockElement===node||fallback.current){onAttack();return;}
@@ -27,8 +27,8 @@ export function Arena({room,id,predicted,yaw,look,stick,onAttack,mapOpen,onMapCh
  useEffect(()=>{
   const node=canvas.current;if(!node)return;let scene:ReturnType<typeof createArenaScene>;
   try{scene=createArenaScene(node,MAPS[current.current.mapId],current.current.mapVariant);}catch{setError('3D rendering needs WebGL 2. Enable hardware acceleration or try a supported browser.');return;}
-  let frame=0,last=performance.now(),stopped=false;
-  const draw=(now:number)=>{if(stopped)return;const dt=Math.min(.1,(now-last)/1000);last=now;if(!document.hidden){yaw.current=smoothAngle(yaw.current,look.current.targetYaw,CONTROLLER.lookSmoothing,dt);look.current.pitch+=(look.current.targetPitch-look.current.pitch)*(1-Math.exp(-CONTROLLER.lookSmoothing*dt));scene.update(current.current,id,predicted.current,yaw.current,look.current.pitch,dt,now/1000);const p=predicted.current??current.current.players.find(p=>p.id===id);if(p&&mapMarker.current)mapMarker.current.setAttribute('transform',`translate(${p.x} ${p.y}) rotate(${Math.atan2(p.facingX,-p.facingY)*180/Math.PI})`);}frame=requestAnimationFrame(draw);};frame=requestAnimationFrame(draw);
+  let frame=0,last=performance.now(),stopped=false,prepared=false;
+  const draw=(now:number)=>{if(stopped)return;const dt=Math.min(.1,(now-last)/1000);last=now;if(!document.hidden){yaw.current=smoothAngle(yaw.current,look.current.targetYaw,CONTROLLER.lookSmoothing,dt);look.current.pitch+=(look.current.targetPitch-look.current.pitch)*(1-Math.exp(-CONTROLLER.lookSmoothing*dt));scene.update(current.current,id,predicted.current,yaw.current,look.current.pitch,dt,now/1000);if(!prepared){prepared=true;onPrepared?.();}const p=predicted.current??current.current.players.find(p=>p.id===id);if(p&&mapMarker.current)mapMarker.current.setAttribute('transform',`translate(${p.x} ${p.y}) rotate(${Math.atan2(p.facingX,-p.facingY)*180/Math.PI})`);}frame=requestAnimationFrame(draw);};frame=requestAnimationFrame(draw);
   const lost=(event:Event)=>{event.preventDefault();setError('Graphics context lost. Reload to restore the 3D view and reconnect.');};node.addEventListener('webglcontextlost',lost);
   return()=>{stopped=true;cancelAnimationFrame(frame);node.removeEventListener('webglcontextlost',lost);scene.dispose();};
  },[id,room.mapId,room.mapVariant]);

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { WebSocket } from 'ws';
-import { RoomServer } from '../server/rooms.js';
+import { RoomServer } from './selection-fixture';
 import { STEP, freshMotion } from '../shared/game.js';
 import { ROUND } from '../shared/rounds.js';
 

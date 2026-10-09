@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ARENA, STEP, MOVEMENT, move, freshMotion, advanceMotion, isWalkable, type Motion } from '../shared/game.js';
-import { BUILDINGS, SPAWNS, cameraFor, WORLD } from '../shared/map.js';
-import { RoomServer } from '../server/rooms.js';
+import { ARENA, STEP, MOVEMENT, move, freshMotion, advanceMotion, isWalkable, type Motion } from './legacy-game-fixture';
+import { BUILDINGS, SPAWNS, cameraFor, WORLD } from './legacy-game-fixture';
+import { RoomServer } from './legacy-game-fixture';
 import type { WebSocket } from 'ws';
 
 test('city spawns and all traversable routes are connected',()=>{

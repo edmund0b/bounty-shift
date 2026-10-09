@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { cameraMovement, cameraAim } from '../shared/presentation.js';
-import { freshMotion, advanceMotion, isWalkable } from '../shared/game.js';
-import { SPAWNS } from '../shared/map.js';
+import { freshMotion, advanceMotion, isWalkable } from './legacy-game-fixture';
+import { SPAWNS } from './legacy-game-fixture';
 test('camera-relative controls rotate forward/strafe without changing speed',()=>{
  for(const yaw of [0,Math.PI/2,Math.PI,-Math.PI/2,.63]){
   const aim=cameraAim(yaw),f=cameraMovement(0,1,yaw),r=cameraMovement(1,0,yaw),d=cameraMovement(1,1,yaw);

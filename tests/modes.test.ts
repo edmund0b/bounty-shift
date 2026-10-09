@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import type {WebSocket} from 'ws';
-import {RoomServer} from '../server/rooms.js';
+import {RoomServer} from './selection-fixture';
 import {MAPS} from '../shared/map.js';
 import {isWalkable,STEP} from '../shared/game.js';
 import {CHEST_OPEN_MS,pickupPosition} from '../shared/loot.js';
@@ -40,9 +40,9 @@ test('chest contention, mode loot isolation, replay and distance checks',()=>{
  }
 });
 test('freeze ball has authoritative hit, duration, wall collision and movement restoration',()=>{
- const f=fixture();f.start();const [p,q]=f.room.players;Object.assign(p,{x:1000,y:700,elevation:0,heldItem:'freeze_ball',attackX:1,attackY:0});Object.assign(q,{x:1080,y:700,elevation:0});const now=Date.now();assert(throwBall(f.room,p,now));assert.equal(p.heldItem,null);for(let i=0;i<6;i++)tickMode(f.room,now+i*STEP*1000,STEP);assert(q.frozenUntil>now);assert.equal(f.room.mode.projectiles.length,0);
+ const f=fixture();f.start();const [p,q]=f.room.players;Object.assign(p,{x:1300,y:1400,elevation:110,heldItem:'freeze_ball',attackX:1,attackY:0});Object.assign(q,{x:1380,y:1400,elevation:110});const now=Date.now();assert(throwBall(f.room,p,now));assert.equal(p.heldItem,null);for(let i=0;i<6;i++)tickMode(f.room,now+i*STEP*1000,STEP);assert(q.frozenUntil>now);assert.equal(f.room.mode.projectiles.length,0);
  q.lastInput=now;q.dx=1;const x=q.x;f.server.tick(now+100);assert.equal(q.x,x);q.lastInput=q.frozenUntil+1;f.server.tick(q.frozenUntil+1);assert(q.x>x);
- Object.assign(p,{x:1000,y:1950,heldItem:'freeze_ball',attackX:1,attackY:0});throwBall(f.room,p,now);for(let i=0;i<3;i++)tickMode(f.room,now+i*STEP*1000,STEP);assert.equal(f.room.mode.projectiles.length,0);
+ Object.assign(p,{x:55,y:400,elevation:110,heldItem:'freeze_ball',attackX:-1,attackY:0});throwBall(f.room,p,now);for(let i=0;i<3;i++)tickMode(f.room,now+i*STEP*1000,STEP);assert.equal(f.room.mode.projectiles.length,0);
 });
 test('Kill Race counts non-bounty kills, respawns and immediately ends at Duo target',()=>{
  const f=fixture(4,'kill_race','duo');f.start();f.room.players[1].x=400;f.room.players[2].health=25;swing(f,0,2);const team=teamKey(f.room.mode,f.room.players[0].id);assert.equal(f.room.mode.scores[team],1);assert.equal(f.room.players[2].health,0);assert.equal(f.room.players[2].koRemaining,5);const version=f.room.players[2].spawnVersion;for(let i=0;i<151;i++)f.server.tick();assert.equal(f.room.players[2].spawnVersion,version+1);assert.equal(f.room.players[2].health,100);f.room.mode.scores[team]=RULES.killTarget-1;f.room.players[2].health=25;swing(f,0,2);assert.equal(f.room.phase,'intermission');assert.deepEqual(f.room.mode.winnerKeys,[team]);

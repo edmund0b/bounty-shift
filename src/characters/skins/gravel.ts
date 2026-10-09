@@ -1,0 +1,18 @@
+import * as T from 'three';
+import type {SkinBuilder} from '../anatomy';
+import {baseBody,hands,boots,belt,harness,sword} from '../anatomy';
+import {feature,type V} from '../construction';
+export const gravel:SkinBuilder=(b,r)=>{
+ const stone=b.mat(0x665241,'stone'),cloth=b.mat(0x292825),ivory=b.mat(0xc5bca6),armor=b.mat(0x453d3c,'armor'),red=b.mat(0x8b292d),light=b.mat(0xe94844,'energy',.7),leather=b.mat(0x3b302b,'leather'),metal=b.mat(0x635651,'metal');
+ baseBody(b,r,stone);hands(b,r,stone,undefined,true);boots(b,r,stone,armor,red);belt(b,r,leather,metal);harness(b,r,leather,true);sword(b,r,armor,red);
+ // One reusable low-poly pebble geometry; each articulated attachment uses instancing.
+ const pebble=new T.IcosahedronGeometry(1,1),rockMat=b.mat(0xffffff,'stone');let seed=4;const random=()=>{seed=(seed*1664525+1013904223)>>>0;return seed/4294967296;};
+ const cluster=(parent:T.Object3D,name:string,p:V,radii:V,count:number)=>{const g=b.group(parent,name,p),mesh=new T.InstancedMesh(pebble,rockMat,count),dummy=new T.Object3D();for(let i=0;i<count;i++){const y=1-2*(i+.5)/count,angle=i*2.399963,radius=Math.sqrt(1-y*y),v=new T.Vector3(Math.cos(angle)*radius,y,Math.sin(angle)*radius),size=.04+random()*.037;dummy.position.set(v.x*radii[0],v.y*radii[1],v.z*radii[2]);dummy.scale.set(size*(.8+random()*.5),size*(.7+random()*.6),size*(.7+random()*.5));dummy.rotation.set(random()*3,random()*3,random()*3);dummy.updateMatrix();mesh.setMatrixAt(i,dummy.matrix);const color=new T.Color().setHSL(.07+random()*.045,.19+random()*.18,.075+random()*.16);if(i%23===0)color.setHex(0x556145);mesh.setColorAt(i,color);}mesh.castShadow=mesh.receiveShadow=true;mesh.name='instanced-pebbles';mesh.computeBoundingSphere();g.add(mesh);};
+ b.oval(r.head,[.37,.385,.325],stone);cluster(r.head,'rounded-pebble-head',[0,0,0],[.36,.365,.31],170);const eye=b.mat(0x100f10,'armor');for(const s of [-1,1])b.oval(r.head,[.06,.072,.045],eye,[s*.14,.07,.348]);b.oval(r.head,[.145,.044,.035],eye,[0,-.14,.326]);
+ cluster(r.torso,'rock-chest',[0,.05,0],[.55,.47,.23],145);r.arms.forEach((a,i)=>{cluster(a.shoulder,'stone-upper-arm',[0,-.25,0],[.225,.24,.21],70);cluster(a.elbow,'stone-forearm',[0,-.23,0],[.215,.23,.2],70);cluster(a.wrist,'rock-knuckles',[0,-.075,0],[.16,.15,.105],40);const s=i?1:-1;for(let j=0;j<3;j++){b.plate(a.shoulder,[[-.26,.09],[.25,.09],[.3,-.08],[.2,-.17],[-.23,-.15]],.18,armor,[s*.035,-j*.1,0]);b.round(a.shoulder,[.22,.02,.035],light,[s*.06,-j*.1-.01,.117]);}});
+ r.legs.forEach(l=>{cluster(l.hip,'rock-thigh',[0,-.33,0],[.235,.3,.19],75);cluster(l.knee,'rock-shin',[0,-.31,0],[.18,.28,.17],65);b.plate(l.knee,[[-.16,.07],[.16,.07],[.18,-.1],[0,-.23],[-.17,-.12]],.09,armor,[0,0,.18]);b.round(l.knee,[.15,.025,.03],light,[0,-.07,.24]);cluster(l.ankle,'stone-foot',[0,-.015,.095],[.15,.047,.16],18);});
+ for(const s of [-1,1]){b.plate(r.torso,[[s*.08,.45],[s*.3,.45],[s*.2,-.17],[s*.07,-.07]],.025,ivory,[0,0,.265]);b.tube(r.torso,[[s*.11,.42,.29],[s*.15,.17,.3],[s*.1,-.1,.28]],.02,red);}
+ for(let i=0;i<5;i++)b.cloth(r.hips,'samurai-lamellar-'+i,.26,.46+(i%2)*.12,i%2?armor:cloth,[(i-2)*.17,-.04,i<3?.245:-.24],(i-2)*.1);
+ const tabard=b.cloth(r.hips,'weathered-front-tabard',.36,.9,ivory,[.19,-.08,.29],.14);b.decal(tabard,'BS','#862d31',.23,.2,[0,-.46,.02]);const rear=b.cloth(r.hips,'rear-banner',.51,.8,ivory,[0,-.04,-.29]);b.decal(rear,'◇','#862d31',.34,.34,[0,-.32,-.055],true);for(const s of [-1,1]){b.cloth(r.hips,'red-belt-tie-'+s,.04,.33,red,[s*.14,.07,.29],s*.22);}
+ feature(r.root,'instanced stone anatomy / pebble face / samurai shoulders / weathered tabard / decorative sword / red knee tech');
+};

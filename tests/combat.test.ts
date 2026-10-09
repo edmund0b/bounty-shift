@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { WebSocket } from 'ws';
-import { RoomServer } from '../server/rooms.js';
-import { canHit, clearAttackLine, safeSpawn, COMBAT } from '../shared/combat.js';
-import { isWalkable, STEP, freshMotion } from '../shared/game.js';
+import { RoomServer } from './legacy-game-fixture';
+import { canHit, clearAttackLine, safeSpawn, COMBAT } from './legacy-game-fixture';
+import { isWalkable, STEP, freshMotion } from './legacy-game-fixture';
 
 function fixture(count=2){
  const rooms=new RoomServer(true);const packets:string[][]=[];

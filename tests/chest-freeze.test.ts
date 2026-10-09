@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import type {WebSocket} from 'ws';
-import {RoomServer} from '../server/rooms.js';
+import {RoomServer} from './selection-fixture';
 import {beginMode,interact,tickMode,throwBall,MODE_RULES} from '../server/modes.js';
 import {CHEST_OPEN_MS,pickupPosition,interactionItem} from '../shared/loot.js';
 import {MAPS} from '../shared/map.js';

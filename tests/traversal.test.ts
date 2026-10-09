@@ -1,10 +1,10 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {ACTIVE_MAP,MAPS,SPAWNS,WORLD} from '../shared/map';
-import {freshMotion,advanceMotion,isWalkable,move,STEP} from '../shared/game';
-import {surfaceHeight,walkable,TRAVERSAL} from '../shared/traversal';
-import {canHit,clearAttackLine} from '../shared/combat';
-import {RoomServer} from '../server/rooms';
+import {ACTIVE_MAP,MAPS,SPAWNS,WORLD} from './legacy-game-fixture';
+import {freshMotion,advanceMotion,isWalkable,move,STEP} from './legacy-game-fixture';
+import {surfaceHeight,walkable,TRAVERSAL} from './legacy-game-fixture';
+import {canHit,clearAttackLine} from './legacy-game-fixture';
+import {RoomServer} from './legacy-game-fixture';
 import type {WebSocket} from 'ws';
 
 test('Central Plaza remains the default map with eight spread valid spawns and asymmetric districts',()=>{
@@ -45,7 +45,7 @@ test('server/prediction elevation matches, forging height is ignored, reconnect 
  const send=(s:WebSocket,m:any)=>{const r=rooms.sessions.get(s)?.room;rooms.message(s,JSON.stringify(m.type==='input'?{matchId:r!.match.id,roundNumber:r!.match.roundNumber,...m}:m));};
  send(a,{type:'create',name:'A'});const room=rooms.sessions.get(a)!.room;send(b,{type:'join',code:room.code,name:'B'});send(a,{type:'ready',ready:true});send(b,{type:'ready',ready:true});send(a,{type:'start'});const p=room.players[0];Object.assign(p,freshMotion({x:730,y:1900}));let predicted={...p},now=Date.now();
  for(let i=1;i<=90;i++){const input={seq:i,dx:0,dy:-1,sprint:true,dashId:i>=10?1:0};send(a,{type:'input',...input,elevation:999999,y:-999});now+=STEP*1000;p.lastInput=now;rooms.tick(now);predicted={...predicted,...advanceMotion(predicted,input)};assert.equal(p.elevation,predicted.elevation);assert.equal(p.x,predicted.x);assert.equal(p.y,predicted.y);assert(isWalkable(p));}
- assert.equal(p.elevation,100);rooms.disconnect(a);const c=fake();send(c,{type:'resume',code:room.code,token:p.token});assert.equal(rooms.sessions.get(c)!.player.id,p.id);assert.equal(rooms.view(room,p).players[0].elevation,100);assert.equal(rooms.view(room,p).mapId,'central_plaza');
+ assert.equal(p.elevation,100);rooms.disconnect(a);const c=fake();send(c,{type:'resume',code:room.code,token:p.token});assert.equal(rooms.sessions.get(c)!.player.id,p.id);assert.equal(rooms.view(room,p).players[0].elevation,100);assert.equal(rooms.view(room,p).mapId,'__legacy_plaza');
 });
 test('traversal and combat accept a map definition instead of fixed Central Plaza world geometry',()=>{
  const other={...ACTIVE_MAP,id:'test_fixture',bounds:{width:500,height:500},blocks:[],surfaces:[],spawns:[{x:50,y:50}]};

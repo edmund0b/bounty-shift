@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {ControlInput,CONTROL_TIMING} from '../shared/control-input.js';
 import {advanceMotion,freshMotion,STEP,isWalkable} from '../shared/game.js';
 import {MAPS} from '../shared/map.js';
-import {RoomServer} from '../server/rooms.js';
+import {RoomServer} from './selection-fixture';
 import {pickup} from '../shared/inventory.js';
 import type {WebSocket} from 'ws';
 test('Space edges jump immediately, pair dashes once, repeats do nothing; X tap/hold/cancel distinguish',()=>{
@@ -13,7 +13,7 @@ test('Space edges jump immediately, pair dashes once, repeats do nothing; X tap/
 });
 test('Jump prediction lands on every arena spawn, supports sprint/dash and consumes airborne requests without double jump',()=>{
  for(const map of Object.values(MAPS)){let s=freshMotion(map.spawns[0]),max=0;for(let i=0;i<60;i++){s=advanceMotion(s,{dx:0,dy:0,jumpId:i<5?1:2},STEP,map);max=Math.max(max,s.elevation-(map.spawns[0].elevation??0));}assert(max>20,map.name);assert.equal(s.airborne,false,map.name);assert(isWalkable(s,map));assert.equal(s.jumpSeen,2);}
- let s=freshMotion({x:1300,y:1400});s=advanceMotion(s,{dx:1,dy:0,jumpId:1,sprint:true});assert(s.airborne&&s.sprinting);const v=s.verticalVelocity!;s=advanceMotion(s,{dx:1,dy:0,jumpId:2,dashId:1});assert(s.verticalVelocity!<v);assert(s.dashRemaining>0);assert(s.x>1330);
+ let s=freshMotion(MAPS.central_plaza.spawns[0]);s=advanceMotion(s,{dx:1,dy:0,jumpId:1,sprint:true});assert(s.airborne&&s.sprinting);const v=s.verticalVelocity!;s=advanceMotion(s,{dx:1,dy:0,jumpId:2,dashId:1});assert(s.verticalVelocity!<v);assert(s.dashRemaining>0);assert(s.x>MAPS.central_plaza.spawns[0].x+30);
  s=advanceMotion(s,{dx:0,dy:0,crouch:true});assert(s.crouched);
 });
 test('Server validates jump/crouch/equipment, broadcasts vertical motion and category inventory, rejects stale epochs',()=>{

@@ -1,3 +1,4 @@
+import {AERIE_SITES,AERIE_BRIDGES,aerieStairs} from '../shared/maps/aerie-layout';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {MAPS,mapEnvironment} from '../shared/map';
@@ -8,10 +9,15 @@ const map=MAPS.aerie_sky_port;
 function travel(start:{x:number;y:number;elevation?:number},points:number[][]){let p=freshMotion(start);for(const [x,y,e] of points){for(let i=0;i<1200&&Math.hypot(x-p.x,y-p.y)>5;i++){const dx=x-p.x,dy=y-p.y,l=Math.hypot(dx,dy);p=advanceMotion(p,{dx:dx/l,dy:dy/l,sprint:true},STEP,map);assert(isWalkable(p,map));}assert(Math.hypot(x-p.x,y-p.y)<7,`Blocked ${p.x.toFixed(1)},${p.y.toFixed(1)},${p.elevation.toFixed(1)} toward ${x},${y}`);if(e!==undefined)assert(Math.abs(p.elevation-e)<2,`Height ${p.elevation} expected ${e} at ${x},${y}`);}return p;}
 test('Aerie registry, identical day/night physics, server-supplied variants and opening rule',()=>{assert.equal(selectRoundMap(1,'aerie_sky_port',()=>0),'central_plaza');assert.equal(selectRoundMap(2,'central_plaza',()=>1),'aerie_sky_port');assert.equal(selectMapVariant(map.id,()=>0),'day');assert.equal(selectMapVariant(map.id,()=>1),'night');assert.equal(selectMapVariant('central_plaza',()=>0),null);assert.notEqual(mapEnvironment(map,'day').fog,mapEnvironment(map,'night').fog);assert.equal(map.variants?.day.theme,'sky_port');});
 test('eight Aerie spawns are safe, separated and slopes are controller-compatible',()=>{assert.equal(map.spawns.length,8);for(const p of map.spawns)assert(isWalkable(p,map),JSON.stringify(p));for(let i=0;i<8;i++)for(let j=i+1;j<8;j++)assert(Math.hypot(map.spawns[i].x-map.spawns[j].x,map.spawns[i].y-map.spawns[j].y)>250);for(const s of map.surfaces)if(s.ramp)assert(Math.abs(s.ramp.from-s.ramp.to)/(s.ramp.axis==='x'?s.width:s.height)<=TRAVERSAL.maxSlope);});
-test('plaza connects west/east and south observatory with alternate flank routes',()=>{travel({x:240,y:1140},[[330,1240,0],[700,1240,0],[950,1180,0],[1030,1400,0],[1100,1550,0],[1100,1850,21],[1100,2060,90],[1100,2075,90],[1220,2075,90]]);travel({x:1950,y:1100},[[1700,1180,0],[1400,1180,0]]);travel({x:310,y:1740},[[580,1740,0],[1050,1740,0],[1300,1740,0],[1750,1740,0],[1750,1530,0]]);});
-test('terminal climb and two observation approaches return to ground',()=>{travel({x:1100,y:1100},[[1100,750,90],[1100,660,90],[900,600,90],[890,570,90],[890,270,180],[1150,200,180],[1290,270,180],[1290,600,90],[1300,600,90],[1530,550,90],[1530,930,0]]);});
-test('open sky is non-walkable and dash cannot escape unsupported platform edges',()=>{assert(!isWalkable({x:650,y:1400,elevation:0},map));let p=freshMotion({x:240,y:1140});for(let i=0;i<100;i++)p=advanceMotion(p,{dx:-1,dy:0,dashId:1,sprint:true},STEP,map);assert(isWalkable(p,map));assert(p.x>=120+TRAVERSAL.radius);assert.equal(p.elevation,0);});
-import {RoomServer} from '../server/rooms';
+test('seven locations have two smooth stair flights linking lower, mid and high routes',()=>{
+ for(const s of AERIE_SITES){const [a,b]=aerieStairs(s);travel({x:a.x+55,y:s.y+50},[[a.x+55,s.y+s.height-50,120],[b.x+55,s.y+s.height-50,120],[b.x+55,s.y+50,240]]);}
+});
+test('central hub has north/south approaches and an accessible upper observation loop',()=>{
+ travel({x:1810,y:2420},[[1810,2020,120],[1900,2020,120],[1900,1760,120],[1900,1340,240],[1780,1340,240],[1780,1450,240],[1450,1450,240],[1450,1870,240],[1790,1870,240]]);
+ travel({x:1810,y:900},[[1810,1300,120]]);
+});
+test('open sky remains unsupported and repeated dashes stop at visible platform lips',()=>{assert(!isWalkable({x:50,y:50,elevation:0},map));let p=freshMotion({x:1150,y:3020});for(let i=0;i<100;i++)p=advanceMotion(p,{dx:0,dy:1,dashId:1,sprint:true},STEP,map);assert(isWalkable(p,map));assert(p.y<=3140-TRAVERSAL.radius);assert.equal(p.elevation,0);});
+import {RoomServer} from './selection-fixture';
 import type {WebSocket} from 'ws';
 test('two/six clients share authoritative Aerie variant, scores, reconnect and final flow',()=>{for(const count of [2,6])for(const variant of ['day','night']){
  const server=new RoomServer(true),socket=()=>({readyState:1,send:()=>{}} as unknown as WebSocket),sockets=Array.from({length:count},socket);
@@ -25,5 +31,23 @@ test('two/six clients share authoritative Aerie variant, scores, reconnect and f
  const host=room.players.find(p=>p.id===room.hostId)!;server.message(host.socket!,JSON.stringify({type:'lobby'}));assert.equal(room.mapId,'central_plaza');assert.equal(room.mapVariant,null);assert(room.players.every(p=>p.matchEliminations===0));
  }});
 import {canHit,safeSpawn} from '../shared/combat';
-test('Aerie melee is blocked by beacon and vertical decks; respawn selection stays supported',()=>{assert(canHit({x:700,y:1180,elevation:0},{x:740,y:1180,elevation:0},1,0,map));assert(!canHit({x:1040,y:1200,elevation:0},{x:1110,y:1200,elevation:0},1,0,map));assert(!canHit({x:900,y:200,elevation:90},{x:900,y:200,elevation:180},1,0,map));assert(isWalkable(safeSpawn([],map),map));});
-test('Aerie authoritative target KO credits once and respawns on its own platforms',()=>{const server=new RoomServer(true),socket=()=>({readyState:1,send:()=>{}} as unknown as WebSocket),a=socket(),b=socket();server.message(a,JSON.stringify({type:'create',name:'A'}));const room=server.sessions.get(a)!.room;server.message(b,JSON.stringify({type:'join',name:'B',code:room.code}));for(const ws of [a,b])server.message(ws,JSON.stringify({type:'ready',ready:true}));server.message(a,JSON.stringify({type:'start'}));server.tick(room.round.endsAt);room.nextMapId=map.id;room.nextMapVariant='day';server.tick(room.round.returnAt);room.round.endsAt=Date.now()+90000;const attacker=room.players[0],victim=room.players[1];Object.assign(attacker,{x:700,y:1180,elevation:0,protection:0,attackCooldown:0});Object.assign(victim,{x:740,y:1180,elevation:0,protection:0,health:25});server.message(a,JSON.stringify({type:'input',matchId:room.match.id,roundNumber:2,seq:attacker.seq+1,dx:0,dy:0,aimX:1,aimY:0,attackId:attacker.attackId+1}));let now=Date.now();server.tick(now);assert.equal(victim.health,0);assert.equal(attacker.eliminations,1);assert.equal(attacker.matchEliminations,1);for(let i=0;i<155;i++){now+=STEP*1000;server.tick(now);}assert.equal(victim.health,100);assert(isWalkable(victim,map));assert(map.spawns.some(s=>s.x===victim.x&&s.y===victim.y));assert.equal(attacker.matchEliminations,1);});
+test('Aerie melee is blocked by beacon and vertical decks; respawn selection stays supported',()=>{assert(canHit({x:1150,y:2600,elevation:0},{x:1190,y:2600,elevation:0},1,0,map));assert(!canHit({x:1550,y:1660,elevation:0},{x:1620,y:1660,elevation:0},1,0,map));assert(!canHit({x:900,y:200,elevation:90},{x:900,y:200,elevation:180},1,0,map));assert(isWalkable(safeSpawn([],map),map));});
+test('Aerie authoritative target KO credits once and respawns on its own platforms',()=>{const server=new RoomServer(true),socket=()=>({readyState:1,send:()=>{}} as unknown as WebSocket),a=socket(),b=socket();server.message(a,JSON.stringify({type:'create',name:'A'}));const room=server.sessions.get(a)!.room;server.message(b,JSON.stringify({type:'join',name:'B',code:room.code}));for(const ws of [a,b])server.message(ws,JSON.stringify({type:'ready',ready:true}));server.message(a,JSON.stringify({type:'start'}));server.tick(room.round.endsAt);room.nextMapId=map.id;room.nextMapVariant='day';server.tick(room.round.returnAt);room.round.endsAt=Date.now()+90000;const attacker=room.players[0],victim=room.players[1];Object.assign(attacker,{x:1150,y:2600,elevation:0,protection:0,attackCooldown:0});Object.assign(victim,{x:1190,y:2600,elevation:0,protection:0,health:25});server.message(a,JSON.stringify({type:'input',matchId:room.match.id,roundNumber:2,seq:attacker.seq+1,dx:0,dy:0,aimX:1,aimY:0,attackId:attacker.attackId+1}));let now=Date.now();server.tick(now);assert.equal(victim.health,0);assert.equal(attacker.eliminations,1);assert.equal(attacker.matchEliminations,1);for(let i=0;i<155;i++){now+=STEP*1000;server.tick(now);}assert.equal(victim.health,100);assert(isWalkable(victim,map));assert(map.spawns.some(s=>s.x===victim.x&&s.y===victim.y));assert.equal(attacker.matchEliminations,1);});
+
+test('each inter-site sky bridge can be crossed in both directions at its authored level',()=>{
+ for(const b of AERIE_BRIDGES.filter(b=>!b.id.startsWith('hub-'))){const horizontal=b.width>b.height;
+ const a={x:b.x+(horizontal?25:b.width/2),y:b.y+(horizontal?b.height/2:25),elevation:b.elevation};
+ const end=[b.x+(horizontal?b.width-25:b.width/2),b.y+(horizontal?b.height/2:b.height-25),b.elevation];
+ assert(isWalkable(a,map),b.id);const p=travel(a,[end]);travel(p,[[a.x,a.y,a.elevation]]);
+ }
+});
+
+test('sky bridge entrances join real rooms and balconies without sealed rails',()=>{
+ travel({x:760,y:710,elevation:120},[[1140,710,120]]);
+ travel({x:1670,y:680,elevation:240},[[2425,680,240],[2425,650,240],[2590,650,240]]);
+ travel({x:2520,y:1060,elevation:120},[[2520,1440,120]]);
+ travel({x:2520,y:2040,elevation:240},[[2520,2440,240]]);
+ travel({x:1575,y:3040,elevation:120},[[1575,2780,120],[2290,2780,120]]);
+ travel({x:340,y:1160,elevation:120},[[340,1790,120]]);
+ travel({x:760,y:2240,elevation:240},[[1060,2240,240],[1060,2580,240]]);
+});

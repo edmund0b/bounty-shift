@@ -2,7 +2,7 @@ import {MAPS} from './map.js';
 import {walkable} from './traversal.js';
 import type {Position} from './game.js';
 // Separate authored capture destinations from rules. Spawn anchors already belong to each map.
-const captures:Record<string,Position>={central_plaza:{x:1300,y:1200},scorched_point:{x:1200,y:1100,elevation:90},aerie_sky_port:{x:1100,y:1200},outlaws_canyon:{x:900,y:400},vikings_fjord:{x:1025,y:1700}};
+const captures:Record<string,Position>={central_plaza:{x:1620,y:1450,elevation:110},scorched_point:{x:1400,y:1500,elevation:120},aerie_sky_port:{x:1100,y:1200},outlaws_canyon:{x:900,y:400},vikings_fjord:{x:1470,y:1800,elevation:120}};
 export function mapAnchors(id:string){
  const map=MAPS[id];if(!map)throw new Error(`Unknown map ${id}`);
  const requested=captures[id];let capture:Position|undefined;

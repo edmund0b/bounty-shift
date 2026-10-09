@@ -1,7 +1,8 @@
+import {canHit} from '../shared/combat';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { WebSocket } from 'ws';
-import { RoomServer } from '../server/rooms.js';
+import { RoomServer } from './selection-fixture';
 import { ROUND } from '../shared/rounds.js';
 import {MAPS} from '../shared/map.js';
 
@@ -11,7 +12,7 @@ function fixture(count=2){
  const send=(i:number,m:unknown)=>server.message(sockets[i],JSON.stringify((m as any)?.type==='input'?{matchId:room.match.id,roundNumber:room.match.roundNumber,...(m as object)}:m));send(0,{type:'create',name:'P0'});const room=server.sessions.get(sockets[0])!.room;
  for(let i=1;i<count;i++)send(i,{type:'join',name:`P${i}`,code:room.code});
  const start=()=>{sockets.forEach((_,i)=>send(i,{type:'ready',ready:true}));send(0,{type:'start'});};start();
- const credit=(attacker=0)=>{const a=room.players[attacker],b=room.players.find(p=>p.id===a.targetId)!;const map=MAPS[room.mapId],origin=room.mapId==='central_plaza'?{x:1000,y:700}:map.spawns[0];room.players.forEach((p,i)=>Object.assign(p,{...map.spawns[i],elevation:0}));Object.assign(a,{...origin,elevation:0,health:100,koRemaining:0,attackCooldown:0});Object.assign(b,{x:origin.x+40,y:origin.y,elevation:0,health:25,koRemaining:0,protection:0});const now=room.round.endsAt-ROUND.durationMs+100;a.lastInput=now;
+ const credit=(attacker=0)=>{const a=room.players[attacker],b=room.players.find(p=>p.id===a.targetId)!;const map=MAPS[room.mapId],origin=map.spawns.find(v=>canHit(v,{...v,x:v.x+40},1,0,map))!;room.players.forEach((p,i)=>Object.assign(p,{...map.spawns[i],elevation:map.spawns[i].elevation??0}));Object.assign(a,{...origin,elevation:origin.elevation??0,health:100,koRemaining:0,attackCooldown:0});Object.assign(b,{x:origin.x+40,y:origin.y,elevation:origin.elevation??0,health:25,koRemaining:0,protection:0});const now=room.round.endsAt-ROUND.durationMs+100;a.lastInput=now;
  send(attacker,{type:'input',seq:a.seq+1,dx:0,dy:0,attackId:a.attackId+1,aimX:1,aimY:0,matchEliminations:999});a.lastInput=now;server.tick(now);};
  return {server,room,sockets,packets,send,start,credit};
 }

@@ -1,0 +1,5 @@
+export interface CharacterDefinition { id:string; displayName:string; baseRig:string; palette:{body:number;accent:number;glow:number}; accessory:string; status:'draft'|'testing'|'approved'; proportions:{scale:number}; }
+// Registry IDs/order are stable. Palettes and design keys now follow the supplied target concepts.
+const source=[['voltrix',0x151e2a,0x46546a,0x269eff,'tactical-operative'],['kirin',0xc9829b,0x91ae8b,0xe9a4c3,'floral-frontier'],['emberjack',0x201a1b,0x912e29,0xff6825,'ember-hunter'],['mossbyte',0x1c2723,0x667147,0xa4f83c,'urban-tracker'],['novaa',0xaca0de,0x302b42,0x52edff,'synthetic-hunter'],['gravel',0x827768,0xd7ccaf,0xf04442,'stone-samurai'],['lumi',0xe4eaf4,0x99c8df,0x82e5ff,'ice-tech'],['shade',0x181921,0x353342,0xa775fa,'shadow-enforcer']] as const;
+export const characters:CharacterDefinition[]=source.map(([id,body,accent,glow,accessory])=>({id,displayName:id.toUpperCase(),baseRig:'bs-humanoid-v1',palette:{body,accent,glow},accessory,status:'draft',proportions:{scale:1}}));
+export const characterById=(id:string)=>characters.find(c=>c.id===id)??characters[0];
