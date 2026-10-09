@@ -47,7 +47,14 @@ export function CharacterSelection({room,id,status,action}:{room:RoomView;id:str
  useEffect(()=>{if(equipped)setHighlight(equipped);},[equipped]);
  const seconds=Math.max(0,Math.ceil(((selection?.deadline??room.serverTime)-room.serverTime)/1000));
  const locked=room.players.filter(p=>p.characterId).length;
- const browse=(delta:number)=>{if(equipped)return;const i=characters.findIndex(c=>c.id===highlight);setHighlight(characters[(i+delta+8)%8].id as CharacterId);};
+ const browse=(delta:number)=>{if(equipped)return;setHighlight(current=>{const i=characters.findIndex(c=>c.id===current);return characters[(i+delta+characters.length)%characters.length].id as CharacterId;});};
+ // Scoped to this mounted screen; repeat/editing/modifier keys retain their normal behavior.
+ useEffect(()=>{const key=(e:KeyboardEvent)=>{
+  const el=e.target as HTMLElement|null;
+  if(e.defaultPrevented||e.altKey||e.ctrlKey||e.metaKey||el?.closest('input,textarea,select,[contenteditable]:not([contenteditable="false"]),[role="textbox"]'))return;
+  if(e.key!=='ArrowLeft'&&e.key!=='ArrowRight')return;
+  e.preventDefault();if(!e.repeat&&!equipped)browse(e.key==='ArrowLeft'?-1:1);
+ };window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[equipped]);
  return <section className="character-screen" aria-label="Character selection">
   <header className="selection-header"><div className="selection-brand">BOUNTY <i>SHIFT</i><small>MULTIPLAYER // CHARACTER SELECT</small></div><div className="selection-heading"><h1>SELECT YOUR <em>CHARACTER</em></h1><p>Choose your character before the hunt begins.</p></div><div className="selection-timer" role="timer"><small>AUTO EQUIP IN</small><strong>{seconds.toString().padStart(2,'0')}</strong><span>SECONDS</span></div></header>
   <CircularLineup value={highlight} locked={!!equipped} onHighlight={setHighlight}/>

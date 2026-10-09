@@ -1,6 +1,7 @@
 import React from 'react';
 import { MOVEMENT, type Motion, type RoomView } from '../shared/game';
 import { COMBAT } from '../shared/combat';
+import { isCharacterId, characterName } from '../shared/characters';
 
 // One status display and the existing authoritative/predicted state, at either HUD position.
 export function PlayerStatus({ room, id, predicted }: { room: RoomView; id: string; predicted: React.RefObject<Motion | null> }) {
@@ -8,13 +9,7 @@ export function PlayerStatus({ room, id, predicted }: { room: RoomView; id: stri
  if (!player) return null;
  const motion = predicted.current ?? player;
  return <div className="game-hud player-status">
-  <svg className="player-portrait" viewBox="0 0 56 64" role="img" aria-label={`${player.name}'s avatar`}>
-   <rect x="1" y="1" width="54" height="62" rx="5" fill="#102132" stroke="#4d8195"/>
-   <path d="M12 63V40L20 35H36L44 40V63M5 63V43L12 40M51 63V43L44 40" fill="#27333e" stroke="#07121c" strokeWidth="3"/>
-   <path d="M17 13L22 8H35L40 13V32L35 37H22L17 32Z" fill="#424c56" stroke="#0c1721" strokeWidth="2"/>
-   <path d="M19 17H38V28H19Z" fill="#d3eef1"/><path d="M22 20H26V24H22ZM31 20H35V24H31Z" fill="#46e7ff"/>
-   <path d="M13 43V54M43 43V54M23 58H33" stroke="#46e7ff" strokeWidth="3"/>
-  </svg>
+  {isCharacterId(player.characterId) ? <img className="player-portrait" src={`/portraits/${player.characterId}.png`} alt={`${characterName(player.characterId)} portrait`} data-character-id={player.characterId} width="512" height="640"/> : <span className="player-portrait portrait-pending" aria-label="Character portrait loading">◇</span>}
   <div className="status-bars">
    <div className="status-line health-line"><label htmlFor="health"><i aria-hidden="true">♥</i><span>{player.health} / {COMBAT.maxHealth}</span></label><progress aria-label="Health" id="health" max={COMBAT.maxHealth} value={player.health}/></div>
    <div className="status-line stamina-line"><label htmlFor="stamina"><i aria-hidden="true">ϟ</i></label><progress aria-label="Stamina" id="stamina" max={MOVEMENT.staminaMax} value={motion.stamina}/></div>

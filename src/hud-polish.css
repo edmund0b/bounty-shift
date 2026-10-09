@@ -7,3 +7,5 @@
 @media(pointer:coarse) and (max-width:360px){.game-screen .joystick{width:110px;height:110px}.joystick>span{width:44px;height:44px}}
 .map-name{min-width:0;white-space:normal;overflow-wrap:normal;font-weight:600}
 @media(pointer:coarse) and (max-height:450px){.game-screen{--map-width:110px}.game-screen .player-status{bottom:145px}}
+
+.game-screen .player-portrait{object-fit:contain;background:#102132;border:1px solid #4d8195;border-radius:5px}.portrait-pending{display:grid!important;place-items:center;color:#46e7ff}
