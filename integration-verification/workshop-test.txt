@@ -1,0 +1,21 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> bounty-shift-workshop@0.1.0 test
+> node scripts/test.mjs
+
+✔ playback clamps a non-looping clip and wraps looping clips (1.804656ms)
+✔ all eight source identities share an articulated rig and preserve accessories (558.895617ms)
+✔ all available poses remain finite across cycles and parameter extremes (63.476626ms)
+✔ walk has opposite arm / leg swing and a bending swing knee (56.053328ms)
+✔ all source maps retain eight spawns and bounded real data (0.273226ms)
+✔ export carries review status and explicitly requires manual integration (0.599459ms)
+✔ all upgraded skins keep grounded rest poses, finger chains and finite motion (489.843746ms)
+✔ signature attachments follow moving joints and dummy stays generic (420.847631ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1874.614181

@@ -1,43 +1,49 @@
-import type {MapDefinition,MapBlock,Surface} from './types.js';
-const CYAN='#46dfff',PINK='#f077de';
-const blocks:MapBlock[]=[];
-function block(id:string,x:number,y:number,width:number,height:number,top:number,kind:MapBlock['kind']='crate',name='',accent=CYAN,bottom=0){blocks.push({id,x,y,width,height,top,bottom,kind,name,accent});}
-// Deliberately asymmetric buildings leave outer lanes, forecourts, and multiple exits.
-block('west-hall',180,500,350,200,210,'building','WEST DEPOT',PINK);
-block('west-loading',180,1030,350,350,185,'building','',PINK);
-block('east-store',2050,600,360,170,220,'building','EAST STORAGE',PINK);
-block('east-service',2090,1130,300,300,185,'building','',PINK);
-block('terminal',1030,1830,540,180,200,'building','SOUTH TERMINAL');
-block('north-left',850,70,220,160,240,'building','');
-block('north-right',1530,90,220,150,220,'building','');
-block('signal-base',1220,970,160,160,22,'monument','CENTRAL PLAZA');
-for(const [i,x,y,w,h,z] of [
- [0,400,800,100,100,55],[1,200,1510,160,70,48],[2,450,1410,100,90,64],
- [3,920,850,90,65,35],[4,1620,820,100,70,55],[5,970,1190,100,65,30],
- [6,1540,1210,100,85,55],[7,2150,900,160,80,60],[8,2350,1040,80,110,45],
- [9,1940,1000,90,150,65],[10,2170,1530,160,70,55],[11,890,1610,95,70,35],
- [12,1670,1640,95,70,35],[13,1130,1550,110,45,28],[14,1450,1540,110,45,28],
-] as const)block(`cargo-${i}`,x,y,w,h,z,i>=11?'barrier':'crate','',i<3||i>=7&&i<=10?PINK:CYAN);
-for(const [i,x,y] of [[0,580,460],[1,1900,470],[2,510,1750],[3,1970,1790]] as const)block(`planter-${i}`,x,y,95,80,25,'planter','',i%2?PINK:CYAN);
-const surfaces:Surface[]=[
- {id:'north-bridge',x:650,y:280,width:1300,height:150,elevation:100,style:'deck'},
- {id:'west-catwalk',x:650,y:430,width:160,height:1090,elevation:100,style:'deck'},
- {id:'east-catwalk',x:1790,y:430,width:160,height:1090,elevation:100,style:'deck'},
- {id:'west-balcony',x:810,y:1380,width:220,height:140,elevation:100,style:'deck'},
- {id:'east-balcony',x:1570,y:1380,width:220,height:140,elevation:100,style:'deck'},
- {id:'north-stairs',x:1220,y:430,width:160,height:320,elevation:100,ramp:{axis:'y',from:100,to:0},style:'stairs'},
- {id:'west-stairs',x:650,y:1520,width:160,height:360,elevation:100,ramp:{axis:'y',from:100,to:0},style:'stairs'},
- {id:'east-ramp',x:1790,y:1520,width:160,height:360,elevation:100,ramp:{axis:'y',from:100,to:0},style:'ramp'},
-];
-for(const s of surfaces.filter(s=>!s.ramp))block(s.id,s.x,s.y,s.width,s.height,s.elevation,'deck','',CYAN,s.elevation-8);
-// Rails protect upper edges while leaving broad stair mouths and junctions open.
-for(const [i,x,y,w,h] of [
- [0,650,280,1300,9],[1,810,421,410,9],[2,1380,421,410,9],
- [3,650,430,9,1090],[4,801,430,9,950],[5,1941,430,9,1090],[6,1790,430,9,950],
- [7,810,1380,220,9],[8,810,1511,220,9],[9,1021,1380,9,140],
- [10,1570,1380,220,9],[11,1570,1511,220,9],[12,1570,1380,9,140],
-] as const)block(`rail-${i}`,x,y,w,h,133,'rail','',CYAN,100);
-export const centralPlaza:MapDefinition={id:'central_plaza',name:'Central Plaza',bounds:{width:2600,height:2100},plaza:{x:850,y:760,width:900,height:600},blocks,surfaces,
- spawns:[{x:950,y:1710},{x:1650,y:1710},{x:610,y:850},{x:2000,y:870},{x:1120,y:540},{x:1480,y:540},{x:400,y:1650},{x:2250,y:1740}],
- districts:[{id:'center',name:'CENTRAL PLAZA',x:1300,y:900,accent:CYAN},{id:'west',name:'WEST DEPOT',x:350,y:780,accent:PINK},{id:'east',name:'EAST STORAGE',x:2250,y:830,accent:PINK},{id:'south',name:'SOUTH TERMINAL',x:1300,y:1750,accent:CYAN},{id:'north',name:'NORTH BRIDGE',x:1300,y:320,accent:CYAN}],
- environment:{base:'#122337',fog:'#071223',accent:CYAN}};
+import type {MapDefinition,MapBlock,Surface,Rect,Footprint} from './types.js';
+import {CP_LEVELS as L,CP_BOUNDS,PLAZA_BUILDINGS,PLAZA_BRIDGES,PLAZA_BALCONIES,PLAZA_PROPS,TRANSIT_STAIRS,TRANSIT_GROUND,type PlazaBuilding} from './central-plaza-layout.js';
+const CYAN='#66dbed',blocks:MapBlock[]=[],surfaces:Surface[]=[];
+function block(id:string,r:Footprint,bottom:number,top:number,kind:MapBlock['kind']='building',accent=CYAN,name=''){blocks.push({...r,id,bottom,top,kind,accent,name});}
+function deck(id:string,r:Footprint,elevation:number,thickness=10){surfaces.push({...r,id,elevation,style:'deck'});block(id,r,elevation-thickness,elevation,'deck');}
+function ramp(id:string,r:Rect,from:number,to:number,style:'stairs'|'ramp'='stairs'){surfaces.push({...r,id,elevation:Math.max(from,to),ramp:{axis:'y',from,to},style});}
+/** Partition a floor around real stair apertures; no invisible solid ceiling across a route. */
+function floor(id:string,r:Rect,holes:Rect[],elevation:number){const xs=[...new Set([r.x,r.x+r.width,...holes.flatMap(h=>[Math.max(r.x,h.x),Math.min(r.x+r.width,h.x+h.width)])])].filter(x=>x>=r.x&&x<=r.x+r.width).sort((a,b)=>a-b);const ys=[...new Set([r.y,r.y+r.height,...holes.flatMap(h=>[Math.max(r.y,h.y),Math.min(r.y+r.height,h.y+h.height)])])].filter(y=>y>=r.y&&y<=r.y+r.height).sort((a,b)=>a-b);let n=0;for(let i=0;i<xs.length-1;i++)for(let j=0;j<ys.length-1;j++){const x=(xs[i]+xs[i+1])/2,y=(ys[j]+ys[j+1])/2;if(holes.some(h=>x>h.x&&x<h.x+h.width&&y>h.y&&y<h.y+h.height))continue;deck(`${id}-${n++}`,{x:xs[i],y:ys[j],width:xs[i+1]-xs[i],height:ys[j+1]-ys[j]},elevation);}}
+export function buildingStairs(b:PlazaBuilding){const w=b.id==='parking'?140:95,gap=15,end=b.x+b.width-20;return [{id:b.id+'-street-to-mid',x:b.id==='warehouse'?b.x+20:end-w,y:b.y+100,width:w,height:b.height-200,from:L.street,to:L.mid},{id:b.id+'-mid-to-roof',x:b.id==='warehouse'?b.x+20+w+gap:end-w*2-gap,y:b.y+100,width:w,height:b.height-200,from:L.roof,to:L.mid}];}
+function openings(b:PlazaBuilding,side:'north'|'south'|'west'|'east',level:number){const horizontal=side==='north'||side==='south',start=horizontal?b.x:b.y,length=horizontal?b.width:b.height;const spans:[number,number][]=[];if(level<L.roof){if(horizontal){const center=b.x+(b.id==='warehouse'?245:0)+(b.width-(b.id==='parking'?330:245))/2;spans.push([center-70,center+70]);if(level===L.street&&side==='north'){const stair=buildingStairs(b)[0];spans.push([stair.x-1,stair.x+stair.width+1]);}}else{spans.push([b.y+10,b.y+92]);if(b.front===side&&b.id==='parking')spans.push([b.y+b.height*.5-90,b.y+b.height*.5+90]);}}
+ for(const bridge of PLAZA_BRIDGES){if(bridge.elevation!==level)continue;const touches=side==='north'?bridge.y+bridge.height===b.y:side==='south'?bridge.y===b.y+b.height:side==='west'?bridge.x+bridge.width===b.x:bridge.x===b.x+b.width;if(touches){const a=horizontal?bridge.x:bridge.y,c=a+(horizontal?bridge.width:bridge.height);if(c>start&&a<start+length)spans.push([Math.max(start,a-3),Math.min(start+length,c+3)]);}}
+ return spans.map(([a,c])=>[Math.max(start,a),Math.min(start+length,c)] as [number,number]).filter(([a,c])=>c>a).sort((a,c)=>a[0]-c[0]);}
+function facade(b:PlazaBuilding,side:'north'|'south'|'west'|'east',level:number){const horizontal=side==='north'||side==='south',start=horizontal?b.x:b.y,end=start+(horizontal?b.width:b.height),spans=openings(b,side,level),rail=level===L.roof||(b.openStairs&&side==='east'),top=level+(rail?28:120),thick=rail?7:12;let cursor=start,n=0;
+ const segment=(a:number,c:number,bottom:number,upper:number)=>{if(c-a<.01)return;const r=horizontal?{x:a,y:side==='north'?b.y:b.y+b.height-thick,width:c-a,height:thick}:{x:side==='west'?b.x:b.x+b.width-thick,y:a,width:thick,height:c-a};block(`${b.id}-${side}-${level}-${n++}`,r,bottom,upper,rail?'rail':'building',b.accent);};
+ for(const [a,c] of spans){if(a>cursor)segment(cursor,a,level,top);if(!rail)segment(a,c,level+101,top);cursor=Math.max(cursor,c);}segment(cursor,end,level,top);
+}
+// Raising the street datum permits a real lower passage without changing the controller's nonnegative-height rule.
+floor('district-street',{x:0,y:0,...CP_BOUNDS},TRANSIT_STAIRS,L.street,);
+for(const b of PLAZA_BUILDINGS.filter(b=>b.id!=='transit')){
+ const stairs=buildingStairs(b);floor(b.id+'-upper-floor',b,stairs,L.mid);floor(b.id+'-roof',b,[stairs[1]],L.roof);
+ for(const s of stairs)ramp(s.id,s,s.from,s.to,b.id==='parking'?'ramp':'stairs');
+ for(const level of [L.street,L.mid,L.roof])for(const side of ['north','south','west','east'] as const)facade(b,side,level);
+ // Two useful rooms share a generous doorway; stair bays stay entirely clear.
+ if(!['parking','warehouse'].includes(b.id)){const mainWidth=b.width-245,door=b.x+mainWidth/2,split=b.y+b.height*.59;
+ for(const level of [L.street,L.mid]){block(b.id+'-room-left-'+level,{x:b.x+12,y:split,width:door-55-b.x-12,height:8},level,level+110);block(b.id+'-room-right-'+level,{x:door+55,y:split,width:b.x+mainWidth-door-55,height:8},level,level+110);block(b.id+'-room-header-'+level,{x:door-55,y:split,width:110,height:8},level+94,level+110);}}
+ // Thin safety rails follow each flight; they do not fill the stair mouth.
+ for(const s of stairs)for(const side of [-1,1])for(let i=0;i<4;i++){const y=s.y+i*s.height/4,height=s.height/4,h=s.from+(s.to-s.from)*(i+.5)/4;block(`${s.id}-rail-${side}-${i}`,{x:side<0?s.x-6:s.x+s.width,y,width:6,height},h,h+28,'rail',b.accent);}
+ // Structural posts below raised landings and balconies align with walls rather than running lanes.
+}
+for(const bridge of PLAZA_BRIDGES){deck(bridge.id,bridge,bridge.elevation,12);const alongX=bridge.width>bridge.height;if(alongX){for(const side of [0,1])block(bridge.id+'-rail-'+side,{x:bridge.x,y:bridge.y+side*(bridge.height-7),width:bridge.width,height:7},bridge.elevation,bridge.elevation+28,'rail');}else for(const side of [0,1])block(bridge.id+'-rail-'+side,{x:bridge.x+side*(bridge.width-7),y:bridge.y,width:7,height:bridge.height},bridge.elevation,bridge.elevation+28,'rail');}
+for(const balcony of PLAZA_BALCONIES){deck(balcony.id,balcony,L.mid,12);for(const side of ['north','south','west','east']){if(side===balcony.attached)continue;const horizontal=side==='north'||side==='south';const r=horizontal?{x:balcony.x,y:side==='north'?balcony.y:balcony.y+balcony.height-6,width:balcony.width,height:6}:{x:side==='west'?balcony.x:balcony.x+balcony.width-6,y:balcony.y,width:6,height:balcony.height};block(balcony.id+'-'+side,r,L.mid,L.mid+28,'rail');}for(const x of [balcony.x+8,balcony.x+balcony.width-20])for(const y of [balcony.y+8,balcony.y+balcony.height-20])block(balcony.id+'-support-'+x+'-'+y,{x,y,width:12,height:12},L.street,L.mid-12,'building','#536777');}
+// Two open stair mouths lead into the same bounded, L-shaped lower service passage.
+for(const stair of TRANSIT_STAIRS)ramp(stair.id,stair,L.street,0);
+const xs=[...new Set(TRANSIT_GROUND.flatMap(r=>[r.x,r.x+r.width]))].sort((a,b)=>a-b),ys=[...new Set(TRANSIT_GROUND.flatMap(r=>[r.y,r.y+r.height]))].sort((a,b)=>a-b);
+const inside=(x:number,y:number)=>TRANSIT_GROUND.some(r=>x>r.x&&x<r.x+r.width&&y>r.y&&y<r.y+r.height);let edge=0;
+for(let i=0;i<xs.length-1;i++)for(let j=0;j<ys.length-1;j++){const x=xs[i],y=ys[j],w=xs[i+1]-x,h=ys[j+1]-y;if(!inside(x+w/2,y+h/2))continue;for(const [dx,dy,rect] of [[-1,0,{x:x-10,y,width:10,height:h}],[1,0,{x:x+w,y,width:10,height:h}],[0,-1,{x,y:y-10,width:w,height:10}],[0,1,{x,y:y+h,width:w,height:10}]] as const){if(!inside(x+w/2+dx*(w/2+.1),y+h/2+dy*(h/2+.1)))block('transit-wall-'+edge++,rect,0,L.street-10,'building','#759cae');}}
+for(const stair of TRANSIT_STAIRS)for(const side of [0,1])block(stair.id+'-street-rail-'+side,{x:stair.x+(side?stair.width:-6),y:stair.y,width:6,height:stair.height},L.street,L.street+28,'rail');
+// Landmark: accessible low circular plinth, four smooth approaches, and a solid slender tower.
+deck('monument-platform',{x:1500,y:1550,width:240,height:240,shape:'ellipse'},130,20);
+block('central-monument',{x:1580,y:1630,width:80,height:80,shape:'ellipse'},130,450,'monument',CYAN,'CENTRAL PLAZA');
+for(const [id,x,y,axis,from,to,w,h] of [['north',1580,1490,'y',110,130,80,80],['south',1580,1770,'y',130,110,80,80],['west',1440,1630,'x',110,130,80,80],['east',1720,1630,'x',130,110,80,80]] as const)surfaces.push({id:'monument-'+id,x,y,width:w,height:h,elevation:130,style:'stairs',ramp:{axis,from,to}});
+for(const p of PLAZA_PROPS)block(p.id,p,p.bottom,p.top,p.kind==='planter'?'planter':p.kind==='crate'?'crate':'barrier',p.accent);
+for(const [id,r] of [['north',{x:20,y:20,width:3160,height:14}],['south',{x:20,y:3166,width:3160,height:14}],['west',{x:20,y:34,width:14,height:3132}],['east',{x:3166,y:34,width:14,height:3132}]] as const)block('district-boundary-'+id,r,L.street,L.street+95,'barrier','#627b8a');
+export const centralPlaza:MapDefinition={id:'central_plaza',name:'Central Plaza',bounds:CP_BOUNDS,plaza:{x:1040,y:1090,width:1160,height:1160},blocks,surfaces,ground:TRANSIT_GROUND,
+ spawns:[{x:1030,y:2410,elevation:L.street},{x:2170,y:2400,elevation:L.street},{x:920,y:1350,elevation:L.street},{x:2280,y:1520,elevation:L.street},{x:1040,y:900,elevation:L.street},{x:2060,y:870,elevation:L.street},{x:500,y:1940,elevation:L.street},{x:3090,y:1940,elevation:L.street}],
+ districts:[{id:'center',name:'CENTRAL PLAZA',x:1620,y:1670,accent:CYAN},...PLAZA_BUILDINGS.map(b=>({id:b.id,name:b.name,x:b.x+b.width/2,y:b.y+b.height/2,accent:b.accent}))],
+ minimapLabels:PLAZA_BUILDINGS.map(b=>({text:b.number,x:b.x+b.width/2,y:b.y+b.height/2})),
+ environment:{base:'#14202b',fog:'#070f20',accent:CYAN,lighting:{sky:'#9bb5d7',ground:'#394a5e',sun:'#c6d6e8',points:[{color:'#56d9ff',x:48.6,y:8,z:50.1,intensity:45,distance:25},{color:'#e947c4',x:19,y:6,z:26,intensity:30,distance:20},{color:'#ff7845',x:43,y:5,z:74,intensity:28,distance:18},{color:'#509fff',x:70,y:6,z:63,intensity:28,distance:20}]}}};
+

@@ -1,0 +1,9 @@
+{
+  "results": [
+    "Two real clients: server selection/deadline, immutable equip, touch browsing, early loading readiness, correct replicated models",
+    "Desktop movement/jump/attack; separate full run captured all eight models and all five environments",
+    "Actual 30-second random assignment, mobile WebSocket reconnect recovery, new-match reset, shared preparation, under 39-second window",
+    "KO/respawn character persistence, normal 3-round rotation/results without repeated selection"
+  ],
+  "errors": []
+}
