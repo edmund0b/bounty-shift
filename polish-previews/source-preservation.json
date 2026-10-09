@@ -1,0 +1,10 @@
+{
+  "baseline": "Bounty-shift-intergrated-maps-skins.zip",
+  "existingProductionFilesChanged": [
+    "src/CharacterSelection.tsx",
+    "src/GameHud.tsx",
+    "src/Minimap.tsx",
+    "src/hud-polish.css"
+  ],
+  "serverGameplayMapsModelsUnchanged": true
+}

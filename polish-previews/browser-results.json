@@ -1,0 +1,9 @@
+{
+  "results": [
+    "Two real clients: keyboard-selected Gravel and touch-selected Kirin equip correctly; each HUD uses its own replicated character.",
+    "Keyboard wrapping, shared on-screen arrows, repeat suppression, rapid presses, editable-focus exclusion, locked selection and normal gameplay arrow input all pass.",
+    "All eight static HUD portraits load. Verified desktop/mobile compact/full names, switching, expand/close for: vikings_fjord. Other map screenshots from the same build are retained.",
+    "KO/respawn, three rounds/results, map rotation and re-entered selection listener cleanup pass."
+  ],
+  "errors": []
+}

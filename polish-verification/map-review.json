@@ -1,0 +1,13 @@
+{
+  "productionBuild": "same build for all screenshots",
+  "mapsVisuallyReviewed": [
+    "central_plaza",
+    "scorched_point",
+    "aerie_sky_port",
+    "outlaws_canyon",
+    "vikings_fjord"
+  ],
+  "desktopAndMobileExpanded": true,
+  "firstFourMaps": "Full browser audit completed these map checks; final mobile Fjord step exposed a test readiness race.",
+  "finalRun": "Passed targeted Fjord audit and complete multiplayer/round/keyboard/portrait regression after waiting for both client scenes."
+}
