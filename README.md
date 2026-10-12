@@ -1,3 +1,7 @@
+# Current movement animation integration
+
+See `MOVEMENT_ANIMATION_INTEGRATION.md` and `movement-verification/Checklist.md` for the current Workshop movement transfer and exact test coverage. Earlier reports below describe prior updates.
+
 ## Current control update
 
 See CONTROL_SYSTEM_UPDATE.md for the current controls, verification, and mobile layout. Earlier implementation notes below describe prior versions.
