@@ -1,0 +1,33 @@
+import * as T from 'three';
+import type {Rig} from '../characters/rig';
+import {channels,sampleMotion} from './clips';
+type Cache={pose:Float64Array;fingers:{node:T.Object3D;rotation:T.Euler}[];matrix:T.Matrix4;target:T.Vector3;dir:T.Vector3;bend:T.Vector3;knee:T.Vector3;lower:T.Vector3;q:T.Quaternion;inverse:T.Quaternion;box:T.Box3;partBox:T.Box3;meshBounds:{node:T.Mesh;bounds:T.Box3}[];fallPhase:number;fallFloor:number;fallScale:number;fallCorrection:number;scale:T.Vector3};
+const caches=new WeakMap<Rig,Cache>(),down=new T.Vector3(0,-1,0),axisX=new T.Vector3(1,0,0);
+function cache(r:Rig){let c=caches.get(r);if(!c){const fingers:{node:T.Object3D;rotation:T.Euler}[]=[];for(const a of r.arms)for(const f of a.fingers){fingers.push({node:f,rotation:f.rotation.clone()});for(const child of f.children)if(child.name==='distal')fingers.push({node:child,rotation:child.rotation.clone()});}const meshBounds:{node:T.Mesh;bounds:T.Box3}[]=[];r.hips.traverse(node=>{if(!(node instanceof T.Mesh))return;let visible=true;for(let parent:T.Object3D|null=node;parent&&parent!==r.root;parent=parent.parent)if(!parent.visible)visible=false;if(!visible)return;if(node instanceof T.InstancedMesh){node.computeBoundingBox();if(node.boundingBox)meshBounds.push({node,bounds:node.boundingBox.clone()});}else{node.geometry.computeBoundingBox();if(node.geometry.boundingBox)meshBounds.push({node,bounds:node.geometry.boundingBox.clone()});}});
+ c={pose:new Float64Array(channels.length),fingers,matrix:new T.Matrix4(),target:new T.Vector3(),dir:new T.Vector3(),bend:new T.Vector3(),knee:new T.Vector3(),lower:new T.Vector3(),q:new T.Quaternion(),inverse:new T.Quaternion(),box:new T.Box3(),partBox:new T.Box3(),meshBounds,fallPhase:-1,fallFloor:NaN,fallScale:NaN,fallCorrection:0,scale:new T.Vector3()};caches.set(r,c);}return c;}
+/** Restore the existing rig, never the owning scene root or character proportions. */
+export function resetRig(r:Rig){const c=cache(r);for(const j of r.joints)j.rotation.set(0,0,0);r.neck.rotation.set(0,0,0);r.hips.position.set(0,r.restHipsY,0);r.torso.scale.y=1;for(const f of c.fingers)f.node.rotation.copy(f.rotation);}
+/** Analytic two-bone solve: fixed ankle target and forward knee pole, in hip space. */
+function plant(r:Rig,index:number,x:number,y:number,z:number,toe:number,c:Cache){const leg=r.legs[index];c.target.set(x,y+.34*Math.sin(Math.max(0,toe)),z).applyMatrix4(c.matrix).sub(leg.hip.position);const distance=Math.max(.06,Math.min(1.3699,c.target.length()));c.dir.copy(c.target).normalize();
+ const along=(.72*.72-.65*.65+distance*distance)/(2*distance),height=Math.sqrt(Math.max(0,.72*.72-along*along));c.bend.set(0,0,1).addScaledVector(c.dir,-c.dir.z).normalize();c.knee.copy(c.dir).multiplyScalar(along).addScaledVector(c.bend,height);
+ leg.hip.quaternion.setFromUnitVectors(down,c.lower.copy(c.knee).normalize());c.inverse.copy(leg.hip.quaternion).invert();c.lower.copy(c.dir).multiplyScalar(distance).sub(c.knee).applyQuaternion(c.inverse).normalize();leg.knee.quaternion.setFromUnitVectors(down,c.lower);
+ c.q.copy(r.hips.quaternion).multiply(leg.hip.quaternion).multiply(leg.knee.quaternion).invert();leg.ankle.quaternion.copy(c.q);leg.ankle.rotateX(toe);
+}
+export function animateMotion(r:Rig,id:string,phase:number,inPlace=false,options:{suppressLift?:boolean;floorY?:number}={}){resetRig(r);const c=cache(r),v=c.pose;sampleMotion(id,phase,v);const p=(name:typeof channels[number])=>v[channels.indexOf(name)];
+ const travel=inPlace?0:p('travel')*.5,lift=options.suppressLift?0:p('lift');r.hips.position.set(p('hx'),r.restHipsY+p('hy')+lift,p('hz')+travel);r.hips.rotation.set(p('rx'),p('ry'),p('rz'));r.torso.rotation.set(p('tx'),p('ty'),p('tz'));r.head.rotation.set(p('headx')-p('tx')*.45,p('heady')-p('ry')*.45,0);r.neck.rotation.y=r.head.rotation.y*.12;
+ for(let i=0;i<2;i++){const a=r.arms[i],side=i===0?'0':'1';a.shoulder.rotation.set(p(('a'+side+'x') as typeof channels[number]),p(('a'+side+'y') as typeof channels[number]),p(('a'+side+'z') as typeof channels[number]));a.elbow.rotation.set(p(('e'+side+'x') as typeof channels[number]),p(('e'+side+'y') as typeof channels[number]),0);a.wrist.rotation.z=p(('w'+side+'z') as typeof channels[number]);}
+ for(const f of c.fingers)if(f.node.name!=='thumb')f.node.rotation.x=f.rotation.x+(-1.15-f.rotation.x)*p('fist');
+ r.hips.updateMatrix();c.matrix.copy(r.hips.matrix).invert();for(let i=0;i<2;i++){const s=i===0?'0':'1';plant(r,i,(i?1:-1)*(r.shape.hip+.025)+p(('f'+s+'x') as typeof channels[number]),.185+lift+p(('f'+s+'y') as typeof channels[number]),travel+p(('f'+s+'z') as typeof channels[number]),p(('foot'+s) as typeof channels[number]),c);
+  const fall=p('fall');if(fall>0){c.q.setFromAxisAngle(axisX,p(('l'+s) as typeof channels[number]));r.legs[i].hip.quaternion.slerp(c.q,fall);c.q.setFromAxisAngle(axisX,p(('k'+s) as typeof channels[number]));r.legs[i].knee.quaternion.slerp(c.q,fall);c.q.identity();r.legs[i].ankle.quaternion.slerp(c.q,fall);}}
+ // Account for each preserved skin's actual mesh thickness during a collapse.
+ if(p('fall')>0){const floor=(options.floorY??0)+.012;r.root.getWorldScale(c.scale);
+  if(c.fallPhase!==phase||c.fallFloor!==floor||c.fallScale!==c.scale.y){r.hips.updateWorldMatrix(true,true);c.box.makeEmpty();for(const part of c.meshBounds){c.partBox.copy(part.bounds).applyMatrix4(part.node.matrixWorld);c.box.union(c.partBox);}c.fallCorrection=Math.max(0,(floor-c.box.min.y)/c.scale.y);c.fallPhase=phase;c.fallFloor=floor;c.fallScale=c.scale.y;}
+  r.hips.position.y+=c.fallCorrection;
+ }
+}
+export type BlendSnapshot={nodes:T.Object3D[];positions:T.Vector3[];quaternions:T.Quaternion[];scales:T.Vector3[]};
+export function capturePose(r:Rig):BlendSnapshot{const nodes:T.Object3D[]=[...r.joints,r.neck,...cache(r).fingers.map(f=>f.node)];return {nodes,positions:nodes.map(n=>n.position.clone()),quaternions:nodes.map(n=>n.quaternion.clone()),scales:nodes.map(n=>n.scale.clone())};}
+export function blendPose(snapshot:BlendSnapshot,weight:number){if(weight>=1)return;for(let i=0;i<snapshot.nodes.length;i++){const n=snapshot.nodes[i];if(weight<=0){n.position.copy(snapshot.positions[i]);n.quaternion.copy(snapshot.quaternions[i]);n.scale.copy(snapshot.scales[i]);continue;}n.position.lerp(snapshot.positions[i],1-weight);n.quaternion.slerp(snapshot.quaternions[i],1-weight);n.scale.lerp(snapshot.scales[i],1-weight);}}
+
+/** Refresh an existing transition buffer instead of allocating on every state change. */
+export function savePose(s:BlendSnapshot){for(let i=0;i<s.nodes.length;i++){s.positions[i].copy(s.nodes[i].position);s.quaternions[i].copy(s.nodes[i].quaternion);s.scales[i].copy(s.nodes[i].scale);}}
