@@ -1,0 +1,134 @@
+{
+  "status": "passed",
+  "clips": [
+    {
+      "id": "hit",
+      "duration": 0.62
+    },
+    {
+      "id": "knockback",
+      "duration": 1.05
+    },
+    {
+      "id": "recover",
+      "duration": 0.45
+    },
+    {
+      "id": "elimination",
+      "duration": 1.75
+    },
+    {
+      "id": "dash",
+      "duration": 0.78
+    },
+    {
+      "id": "jump-start",
+      "duration": 0.38
+    },
+    {
+      "id": "airborne",
+      "duration": 0.55
+    },
+    {
+      "id": "falling",
+      "duration": 0.36
+    },
+    {
+      "id": "land",
+      "duration": 0.46
+    },
+    {
+      "id": "slide-entry",
+      "duration": 0.42
+    },
+    {
+      "id": "slide-loop",
+      "duration": 0.72
+    },
+    {
+      "id": "slide-exit",
+      "duration": 0.5
+    },
+    {
+      "id": "crouch-enter",
+      "duration": 0.4
+    },
+    {
+      "id": "crouch-idle",
+      "duration": 2
+    },
+    {
+      "id": "crouch-walk",
+      "duration": 1.35
+    },
+    {
+      "id": "crouch-exit",
+      "duration": 0.45
+    },
+    {
+      "id": "jump",
+      "duration": 1.75
+    },
+    {
+      "id": "slide",
+      "duration": 1.64
+    },
+    {
+      "id": "crouch",
+      "duration": 1.85
+    },
+    {
+      "id": "knockback-recovery",
+      "duration": 1.5
+    }
+  ],
+  "comparisons": 420,
+  "channels": [
+    "hx",
+    "hy",
+    "hz",
+    "rx",
+    "ry",
+    "rz",
+    "tx",
+    "ty",
+    "tz",
+    "headx",
+    "heady",
+    "a0x",
+    "a0y",
+    "a0z",
+    "e0x",
+    "e0y",
+    "w0z",
+    "a1x",
+    "a1y",
+    "a1z",
+    "e1x",
+    "e1y",
+    "w1z",
+    "f0x",
+    "f0y",
+    "f0z",
+    "f1x",
+    "f1y",
+    "f1z",
+    "foot0",
+    "foot1",
+    "lift",
+    "travel",
+    "fall",
+    "k0",
+    "k1",
+    "l0",
+    "l1",
+    "fist"
+  ],
+  "excluded": [
+    "attack",
+    "attack2",
+    "attack3",
+    "combo"
+  ],
+  "notes": "Every copied authorized keyframe/sample matches the supplied Workshop. Rendering adapter removes preview lift/travel and retains actual physics."
+}

@@ -1,0 +1,18 @@
+{
+  "phase": "maps",
+  "results": [
+    "PASS: two real browser clients create/join/ready/select distinct existing characters and start the production-built game.",
+    "PASS: Central Plaza rendered source crouch/idle on both clients at a supported fixture; physics/traversal stages also covered by automated map regressions.",
+    "PASS: Scorched Point rendered source crouch/idle on both clients at a supported fixture; physics/traversal stages also covered by automated map regressions.",
+    "PASS: Aerie Sky-Port rendered source crouch/idle on both clients at a supported fixture; physics/traversal stages also covered by automated map regressions.",
+    "PASS: Outlaw's Canyon rendered source crouch/idle on both clients at a supported fixture; physics/traversal stages also covered by automated map regressions.",
+    "PASS: Viking's Fjord rendered source crouch/idle on both clients at a supported fixture; physics/traversal stages also covered by automated map regressions.",
+    "PASS: all eight skins render unchanged with articulated crouch, and both players see articulated stance on all five supplied arenas through supported test fixtures. Existing automated traversal tests cover ramps, platforms, bridges, walkways and map edges.",
+    "PASS: unchanged minimap/full map, hint visibility, loadout and desktop/mobile no-scroll HUD; no browser/graphics errors."
+  ],
+  "errors": [],
+  "notTested": [
+    "Physical phones and sustained real-GPU/public-network performance.",
+    "Live knockback/recovery: supplied gameplay has no knockback mechanic; all eight rigs and explicit visual hook are covered by automated tests."
+  ]
+}

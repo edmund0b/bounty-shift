@@ -1,0 +1,47 @@
+{
+  "desktopCompletedChecks": [
+    "PASS: two real browser clients create/join/ready/select distinct existing characters and start the production-built game.",
+    "PASS: both clients render physical jump and landing; low software-GPU frame rate may skip brief sub-stages. Observed: [[\"idle\",\"jump_start\",\"falling\",\"landing\"],[\"idle\",\"airborne\",\"falling\",\"landing\"]]",
+    "PASS: existing double-Space dash input/physical burst; rendered states under software GPU: [[\"idle\",\"dash\",\"falling\",\"landing\"],[\"idle\",\"airborne\",\"landing\"]]",
+    "PASS: existing hold-X slide and exit; rendered stages under software GPU: [[\"idle\",\"walk\",\"slide_travel\",\"slide_exit\"],[\"idle\",\"slide_entry\",\"slide_exit\"]]",
+    "PASS: desktop run/sprint, stationary camera, physics-driven jump and landing, dash/dodge inputs, crouch stages and adaptive slide stages render for local and remote observers.",
+    "PASS: real melee damage causes a visible local/remote Workshop hit and elimination, with unchanged authoritative score and five-second respawn.",
+    "PASS: prolonged falling fixture holds the falling pose until actual touchdown; no fixed complete-jump playback."
+  ],
+  "mapCompletedChecks": [
+    "PASS: two real browser clients create/join/ready/select distinct existing characters and start the production-built game.",
+    "PASS: Central Plaza rendered source crouch/idle on both clients at a supported fixture; physics/traversal stages also covered by automated map regressions.",
+    "PASS: Scorched Point rendered source crouch/idle on both clients at a supported fixture; physics/traversal stages also covered by automated map regressions.",
+    "PASS: Aerie Sky-Port rendered source crouch/idle on both clients at a supported fixture; physics/traversal stages also covered by automated map regressions.",
+    "PASS: Outlaw's Canyon rendered source crouch/idle on both clients at a supported fixture; physics/traversal stages also covered by automated map regressions.",
+    "PASS: Viking's Fjord rendered source crouch/idle on both clients at a supported fixture; physics/traversal stages also covered by automated map regressions.",
+    "PASS: all eight skins render unchanged with articulated crouch, and both players see articulated stance on all five supplied arenas through supported test fixtures. Existing automated traversal tests cover ramps, platforms, bridges, walkways and map edges.",
+    "PASS: unchanged minimap/full map, hint visibility, loadout and desktop/mobile no-scroll HUD; no browser/graphics errors."
+  ],
+  "mobileRecordedChecks": [
+    "PASS: two real browser clients create/join/ready/select distinct existing characters and start the production-built game.",
+    "PASS: touch jump/landing, observed phases: [[\"idle\",\"falling\",\"landing\"],[\"idle\",\"falling\",\"landing\"]]",
+    "PASS: mobile dash control, observed phases: [[\"idle\",\"dash\"],[\"idle\"]]"
+  ],
+  "allEightCharacters": "passed; see all-eight-character-browser.json",
+  "browserErrors": [],
+  "limits": [
+    "Individual short phases may fall between rendered software-GPU frames; not all were captured on each client.",
+    "Mobile slide inputs/replicated states were exercised but its short rendered pose was not consistently captured; complete pose/timeline coverage is automated.",
+    "Knockback/recovery have no existing live trigger.",
+    "Physical phones and real-GPU/public-network performance not tested."
+  ],
+  "harnessNotes": [
+    "Separate focused runs were used after transient-frame assertions timed out.",
+    "Tap fixtures hold the input timestamp constant only during synchronous down/up dispatch to avoid software-GPU scheduling turning a tap into a hold.",
+    "Production input code and animation/network/gameplay clocks are unchanged by these test-page fixtures."
+  ],
+  "mobileCompletedBeforeShortStageAssertion": [
+    "Simultaneous joystick movement/right-look with measured facing change",
+    "Touch jump and landing on both clients",
+    "Touch dash request/physical completion",
+    "Touch crouch idle on both clients",
+    "Actual socket close/resume restored crouch and character",
+    "Held touch sprint seen by both clients"
+  ]
+}

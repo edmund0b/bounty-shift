@@ -1,0 +1,19 @@
+{
+  "status": "passed",
+  "characters": [
+    "voltrix",
+    "kirin",
+    "emberjack",
+    "mossbyte",
+    "novaa",
+    "gravel",
+    "lumi",
+    "shade"
+  ],
+  "checks": [
+    "Existing model rendered in actual multiplayer Arena",
+    "Crouch idle asserted on local and remote clients",
+    "Return to idle asserted on both clients"
+  ],
+  "note": "Completed during world audit before a later, over-strict short falling-stage assertion in map testing. Final map audit separately verifies every arena using persistent stance."
+}

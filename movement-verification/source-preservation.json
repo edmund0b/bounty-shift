@@ -1,0 +1,11 @@
+{
+  "status": "passed",
+  "baseline": "Bounty_Shift_Polish_Updates.zip",
+  "preservedOriginalFiles": 199,
+  "changedOriginalFiles": [
+    "README.md",
+    "scripts/bundle-smoke.mjs",
+    "src/scene.ts"
+  ],
+  "protected": "All server/shared, maps/environments, character assets, portraits, CSS and original attack code unchanged."
+}
