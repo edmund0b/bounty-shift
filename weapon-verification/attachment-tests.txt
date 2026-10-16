@@ -1,0 +1,19 @@
+✔ VOLTRIX: all nine V5 weapons preserve wrists, root and movement/combat attachments (217.199792ms)
+✔ KIRIN: all nine V5 weapons preserve wrists, root and movement/combat attachments (141.194351ms)
+✔ EMBERJACK: all nine V5 weapons preserve wrists, root and movement/combat attachments (123.486275ms)
+✔ MOSSBYTE: all nine V5 weapons preserve wrists, root and movement/combat attachments (116.717153ms)
+✔ NOVAA: all nine V5 weapons preserve wrists, root and movement/combat attachments (112.153992ms)
+✔ GRAVEL: all nine V5 weapons preserve wrists, root and movement/combat attachments (140.466178ms)
+✔ LUMI: all nine V5 weapons preserve wrists, root and movement/combat attachments (173.259361ms)
+✔ SHADE: all nine V5 weapons preserve wrists, root and movement/combat attachments (126.191166ms)
+✔ gameplay adapter keeps actual feet/root during moving, airborne, low stance and reload across 72 combinations (704.078914ms)
+✔ three minute dagger finisher sampling has zero cumulative actor root drift (264.598227ms)
+✔ server action durations and hit/shot/reload events equal the exact V5 visual source (2.58399ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2535.009763

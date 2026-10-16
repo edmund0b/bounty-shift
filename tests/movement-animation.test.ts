@@ -6,14 +6,15 @@ import {createRig,disposeTree} from '../src/characters/rig';
 import {AnimationTimeline,GameplayAnimator,type VisualSample} from '../src/animations/gameplay';
 import {animateMotion,resetRig} from '../src/animations/motion';
 import {animateLocomotion} from '../src/animations/locomotion';
+import {jumpRiseTime,jumpFallTime,jumpDuration,slideDuration} from '../src/animations/tuning';
 import {motions,motionById,channels,sampleMotion} from '../src/animations/clips';
 import {ACTIVE_MAP} from '../shared/map';
 import {freshMotion,advanceMotion,STEP,ARENA} from '../shared/game';
 const sample=(extra:Partial<VisualSample>={}):VisualSample=>({health:100,spawnVersion:1,airborne:false,verticalVelocity:0,crouched:false,sprinting:false,traversalState:'idle',dashRemaining:0,hitFlash:0,koRemaining:0,...extra});
 const transforms=(r:ReturnType<typeof createRig>)=>r.joints.flatMap(j=>[...j.position.toArray(),...j.quaternion.toArray(),...j.scale.toArray()]);
-test('authorized Workshop movement/reaction clips retain reference timing; no combat clips transferred',()=>{
- for(const [id,duration] of Object.entries({'dash':.78,'jump-start':.38,'airborne':.55,'falling':.36,'land':.46,'jump':1.75,'slide-entry':.42,'slide-loop':.72,'slide-exit':.5,'slide':1.64,'crouch-enter':.4,'crouch-idle':2,'crouch-walk':1.35,'crouch-exit':.45,'hit':.62,'knockback':1.05,'recover':.45,'elimination':1.75}))assert.equal(motionById.get(id)?.duration,duration,id);
- for(const id of ['attack','attack2','attack3','combo'])assert(!motionById.has(id));
+test('Workshop V5 movement/reaction clips retain source timing; gameplay adapts the actual physics',()=>{
+ for(const [id,duration] of Object.entries({'dash':.78,'jump-start':.1,'airborne':jumpRiseTime(),'falling':jumpFallTime(),'land':.46,'jump':jumpDuration(),'slide-entry':.2,'slide-loop':.72,'slide-exit':.32,'slide':slideDuration(),'crouch-enter':.4,'crouch-idle':2,'crouch-walk':1.35,'crouch-exit':.45,'hit':.62,'knockback':1.05,'recover':.45,'elimination':1.75}))assert.equal(motionById.get(id)?.duration,duration,id);
+ for(const id of ['attack','attack2','attack3','combo'])assert(motionById.has(id),'V5 combat clip '+id);
  const pose=new Float64Array(channels.length);sampleMotion('crouch-idle',.5,pose);assert.equal(pose[channels.indexOf('hy')],-.55);
 });
 test('movement chooses idle/walk/run/sprint by actual speed; loops retain phase instead of restarting with snapshots',()=>{

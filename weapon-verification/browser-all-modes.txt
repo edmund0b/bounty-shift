@@ -1,0 +1,31 @@
+MODE tag
+WEAPON tag heavy-blade
+WEAPON tag impact-hammer
+WEAPON tag riot-bat
+WEAPON tag twin-daggers
+WEAPON tag pulse-katana
+MODE flag_run
+WEAPON flag_run heavy-blade
+WEAPON flag_run impact-hammer
+WEAPON flag_run riot-bat
+WEAPON flag_run twin-daggers
+WEAPON flag_run pulse-katana
+WEAPON flag_run pistol
+WEAPON flag_run assault-rifle
+WEAPON flag_run shotgun
+WEAPON flag_run sniper-rifle
+MODE kill_race
+WEAPON kill_race heavy-blade
+WEAPON kill_race impact-hammer
+WEAPON kill_race riot-bat
+WEAPON kill_race twin-daggers
+WEAPON kill_race pulse-katana
+WEAPON kill_race pistol
+WEAPON kill_race assault-rifle
+WEAPON kill_race shotgun
+WEAPON kill_race sniper-rifle
+PASS [
+  'tag: all permitted weapons collected from correct sources, replicated/equipped/rendered on both clients; attack/reload/drop state and ammo verified; Tag ammo HUD hidden.',
+  'flag_run: all permitted weapons collected from correct sources, replicated/equipped/rendered on both clients; attack/reload/drop state and ammo verified; Tag ammo HUD hidden.',
+  'kill_race: all permitted weapons collected from correct sources, replicated/equipped/rendered on both clients; attack/reload/drop state and ammo verified; Tag ammo HUD hidden.'
+]

@@ -1,0 +1,13 @@
+MODE kill_race
+WEAPON kill_race heavy-blade
+WEAPON kill_race impact-hammer
+WEAPON kill_race riot-bat
+WEAPON kill_race twin-daggers
+WEAPON kill_race pulse-katana
+WEAPON kill_race pistol
+WEAPON kill_race assault-rifle
+WEAPON kill_race shotgun
+WEAPON kill_race sniper-rifle
+PASS [
+  'kill_race: all permitted weapons collected from correct sources, replicated/equipped/rendered on both clients; attack/reload/drop state and ammo verified; Tag ammo HUD hidden.'
+]

@@ -1,3 +1,5 @@
+import {pickup} from '../shared/inventory';
+import {createWeapon,LOOT_CONFIG,weaponAction} from '../shared/weapons';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import type {WebSocket} from 'ws';
@@ -25,7 +27,7 @@ test('host authority, enum validation, ready reset, and invalid Duo roster rejec
 });
 for(const mode of ['tag','kill_race','flag_run'] as const)for(const [count,format] of [[2,'solo'],[4,'solo'],[6,'solo'],[4,'duo'],[6,'duo']] as const)test(`${mode}: ${count} ${format}, stable teams, three rounds, map rotation, results and lobby`,()=>{
  const f=fixture(count,mode,format);f.start();assert.equal(f.room.phase,'arena');const teams={...f.room.mode.teams};assert.equal(new Set(Object.values(teams)).size,format==='duo'?count/2:count);
- for(let i=1;i<=3;i++){assert.equal(f.room.match.roundNumber,i);assert.equal(f.room.selectedGameMode,mode);assert.deepEqual(f.room.mode.teams,teams);assert.equal(f.room.mode.items.length,MAPS[f.room.mapId].spawns.length);f.server.tick(f.room.round.endsAt);assert.equal(f.room.phase,i===3?'complete':'intermission');if(i<3)f.server.tick(f.room.round.returnAt);}
+ for(let i=1;i<=3;i++){assert.equal(f.room.match.roundNumber,i);assert.equal(f.room.selectedGameMode,mode);assert.deepEqual(f.room.mode.teams,teams);assert.equal(f.room.mode.items.length,LOOT_CONFIG.groundCount+LOOT_CONFIG.chestCount+LOOT_CONFIG.utilityCount);f.server.tick(f.room.round.endsAt);assert.equal(f.room.phase,i===3?'complete':'intermission');if(i<3)f.server.tick(f.room.round.returnAt);}
  assert.equal(f.room.match.history.length,3);assert.equal(f.room.match.mapHistory[0],'central_plaza');assert.notEqual(f.room.match.mapHistory[0],f.room.match.mapHistory[1]);assert(f.room.match.results.length>0);f.send(0,{type:'lobby'});assert.equal(f.room.phase,'lobby');assert.equal(f.room.mode.items.length,0);assert(f.room.players.every(p=>!p.ready));
 });
 test('all map anchors are walkable and flag destinations are separated',()=>{for(const id of Object.keys(MAPS)){const a=mapAnchors(id);assert(isWalkable(a.capture,MAPS[id]),id);assert(a.flags.length>0,id);for(const p of [...a.chests,...a.floor,...a.flags])assert(isWalkable(p,MAPS[id]),id);}});
@@ -57,6 +59,6 @@ test('permanent Duo departure returns to a valid lobby instead of creating an un
  const f=fixture(4,'kill_race','duo');f.start();f.send(3,{type:'leave'});assert.equal(f.room.phase,'lobby');assert(f.room.players.every(p=>!p.ready));f.send(0,{type:'start'});assert.equal(f.room.phase,'lobby');
 });
 test('weapon damage is captured before simultaneous KOs clear inventories',()=>{
- const f=fixture(2,'kill_race');f.start();f.room.players.forEach((p,i)=>{Object.assign(p,{x:1000+i*40,y:700,elevation:0,health:40,heldItem:'hammer',protection:0});f.send(i,{type:'input',matchId:f.room.match.id,roundNumber:1,seq:1,dx:0,dy:0,attackId:1,aimX:i?-1:1,aimY:0});});f.server.tick();assert(f.room.players.every(p=>p.health===0&&p.eliminations===1));
+ const f=fixture(2,'kill_race');f.start();const now=Date.now();f.room.players.forEach((p,i)=>{Object.assign(p,{x:1000+i*40,y:700,elevation:0,health:40,protection:0});const w=createWeapon('impact-hammer','hammer-'+i);pickup(p,'impact-hammer',w);f.send(i,{type:'input',matchId:f.room.match.id,roundNumber:1,seq:1,dx:0,dy:0,attackId:1,weaponInstanceId:w.instanceId,aimX:i?-1:1,aimY:0});});f.server.tick(now);const event=weaponAction('impact-hammer','attack1').events[0];f.server.tick(now+event.time*1000+2);assert(f.room.players.every(p=>p.health===0&&p.eliminations===1));
 });
 test('disconnect cannot discard IT during reconnect grace',()=>{const f=fixture();f.start();f.room.mode.it=f.room.players[0].id;f.server.disconnect(f.sockets[0]);tickMode(f.room,Date.now(),STEP);assert.equal(f.room.mode.it,f.room.players[0].id);});

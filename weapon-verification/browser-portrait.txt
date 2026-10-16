@@ -1,0 +1,5 @@
+MODE kill_race
+WEAPON kill_race assault-rifle
+PASS [
+  'kill_race: assault-rifle collected from correct sources, replicated/equipped/rendered on both clients; attack/reload/drop state and ammo verified; Tag ammo HUD hidden.'
+]

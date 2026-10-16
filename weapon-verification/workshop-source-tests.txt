@@ -1,0 +1,43 @@
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> bounty-shift-workshop@0.1.0 test
+> node scripts/test.mjs
+
+✔ all requested clips are implemented with distinct strikes and three combo contacts (183.753569ms)
+✔ all motion evaluation is deterministic after elimination, backward scrubbing and repeats (152.478355ms)
+✔ opening strike keeps its lead ankle planted while pelvis and torso rotate (80.235383ms)
+✔ displacing motions move visually but in-place mode removes horizontal travel (80.245153ms)
+✔ sequence boundaries are continuous and use actual component poses (0.812089ms)
+✔ collapse stays above the floor and resets across all preserved skins (520.855837ms)
+✔ pose blending preserves exact old and new endpoint transforms (58.4204ms)
+✔ playback clamps a non-looping clip and wraps looping clips (2.192199ms)
+✔ all eight source identities share an articulated rig and preserve accessories (718.435533ms)
+✔ all available poses remain finite across cycles and parameter extremes (109.701498ms)
+✔ walk has opposite arm / leg swing and a bending swing knee (44.554086ms)
+✔ all source maps retain eight spawns and bounded real data (0.476746ms)
+✔ export carries review status and explicitly requires manual integration (0.702143ms)
+✔ all upgraded skins keep grounded rest poses, finger chains and finite motion (455.854014ms)
+✔ signature attachments follow moving joints and dummy stays generic (367.64704ms)
+✔ all nine weapons constrain both grips on all eight rigs throughout handling and movement (2153.862059ms)
+✔ weapon sequences scrub deterministically and have synchronized authored events (136.681808ms)
+✔ muzzle and twin dagger anchors follow actual equipped geometry (80.722771ms)
+✔ all melee stances keep both ankle targets planted across every skin and repeated scrubs (1307.797885ms)
+✔ preview contact requires actual strike geometry; remote targets never react (150.661061ms)
+✔ dagger finisher alternates wrists and hammer uses the head face, not handle (60.248403ms)
+✔ firearm recoil is distinct and all reload components restore their rest positions (83.741559ms)
+✔ 15 unique registered models with complete geometry and valid attachment nodes (262.888857ms)
+✔ twin dagger pivots move independently and real firearm sizes differ (27.50612ms)
+✔ asset disposal releases each owned resource once and detaches the model (5.279967ms)
+✔ portrait framing increases camera distance while enclosing the bounding sphere (0.224006ms)
+✔ ammo conservation, exhaustion, partial reserves, per-shell reload and persistent switching (2.174944ms)
+✔ real preview playback gates empty shots; scrubbing is read-only and reload interruption retains only seated shells (250.331582ms)
+✔ jump preserves height with shorter ballistic apex and slide momentum decelerates within a fixed bound (0.22631ms)
+✔ all 72 pairings keep finite motion, attached grips, planted slide ankles and stable roots through movement and landing (1931.931471ms)
+ℹ tests 30
+ℹ suites 0
+ℹ pass 30
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2552.557021

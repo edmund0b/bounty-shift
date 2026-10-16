@@ -1,0 +1,2 @@
+PASS: extracted compiled archive serves health, client HTML and all linked bundles; two real clients create/join the same lobby.
+PASS: ZIP CRC checks and extracted byte comparison for every file.

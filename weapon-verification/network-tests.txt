@@ -1,0 +1,12 @@
+Verified network mode tag
+Verified network mode flag_run
+Verified network mode kill_race
+✔ two real sockets: all three modes, weapon rewards/pickups/equipment/actions/ammo/drops/resume/results agree (11794.968389ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 12152.360944
