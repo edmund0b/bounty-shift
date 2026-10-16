@@ -10,9 +10,11 @@
     "dev": "node --import tsx server/index.ts",
     "build": "tsc --noEmit && vite build && esbuild server/index.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/server.js",
     "start": "node dist/server.js",
-    "test": "node --import tsx --test tests/*.test.ts",
+    "test": "node --import tsx --test --test-concurrency=2 tests/*.test.ts",
     "test:browser": "node --import tsx scripts/controls-browser-qa.mjs",
-    "test:browser:mobile": "node --import tsx scripts/controls-browser-qa.mjs --mobile"
+    "test:browser:mobile": "node --import tsx scripts/controls-browser-qa.mjs --mobile",
+    "test:weapons": "node --import tsx --test --test-concurrency=2 tests/weapon-*.test.ts",
+    "test:browser:weapons": "node --import tsx scripts/weapons-browser-qa.mjs"
   },
   "dependencies": {
     "express": "^5.1.0",

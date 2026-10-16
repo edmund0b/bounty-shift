@@ -1,3 +1,23 @@
+# Bounty Shift — Weapons Integrated V1
+
+This is the complete multiplayer game with all nine Workshop V5 weapons integrated. Start with [WEAPONS_INTEGRATION_V1.md](WEAPONS_INTEGRATION_V1.md) for current controls, setup, equipment rules, balance defaults and implementation details. Executed tests are recorded in [weapon-verification/TEST_RESULTS.md](weapon-verification/TEST_RESULTS.md).
+
+Requires Node.js 22+. From this directory:
+
+```sh
+npm ci
+npm run build
+npm start
+```
+
+Open the printed server address. Use two clients: create/join a real room, select a mode, ready up, start and equip characters. Tag permits melee and existing Freeze Ball only. Flag Run and Kill Race also permit firearms. E interacts, 1/2 switch weapons, 3 selects utility, R reloads, G drops; Q/C are keyboard camera fallbacks. The live deployment was not changed.
+
+To validate: `npm test` and `npm run build`. For real-browser QA, set `BOUNTY_QA_BROWSER` to an installed Chromium executable and run `npm run test:browser:weapons` after building. Browser QA uses deterministic server fixtures; no test-only loot or clock behavior is enabled by the shipping service.
+
+## Historical release documentation
+
+The sections below are preserved from the supplied game for project history. Statements about empty inventory space, earlier key bindings or test counts describe those older releases; the V1 report above documents the current game.
+
 # Current movement animation integration
 
 See `MOVEMENT_ANIMATION_INTEGRATION.md` and `movement-verification/Checklist.md` for the current Workshop movement transfer and exact test coverage. Earlier reports below describe prior updates.
