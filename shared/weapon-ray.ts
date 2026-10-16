@@ -1,0 +1,9 @@
+import type {MapDefinition,MapBlock} from './map.js';
+import {inside,surfaceHeight} from './traversal.js';
+export type Vec3={x:number;y:number;z:number};
+export const unit=(v:Vec3):Vec3=>{const n=Math.hypot(v.x,v.y,v.z)||1;return{x:v.x/n,y:v.y/n,z:v.z/n};};
+export const along=(a:Vec3,d:Vec3,t:number)=>({x:a.x+d.x*t,y:a.y+d.y*t,z:a.z+d.z*t});
+export function rayBox(a:Vec3,d:Vec3,min:Vec3,max:Vec3,limit:number){let enter=0,exit=limit;for(const axis of ['x','y','z'] as const){if(Math.abs(d[axis])<1e-9){if(a[axis]<min[axis]||a[axis]>max[axis])return Infinity;}else{const u=(min[axis]-a[axis])/d[axis],v=(max[axis]-a[axis])/d[axis];enter=Math.max(enter,Math.min(u,v));exit=Math.min(exit,Math.max(u,v));if(enter>exit)return Infinity;}}return enter;}
+function solid(a:Vec3,d:Vec3,b:MapBlock,limit:number){let t=rayBox(a,d,{x:b.x,y:b.y,z:b.bottom},{x:b.x+b.width,y:b.y+b.height,z:b.top},limit);if(!Number.isFinite(t)||b.shape!=='ellipse')return t;const rx=b.width/2,ry=b.height/2,x=(a.x-b.x-rx)/rx,y=(a.y-b.y-ry)/ry,dx=d.x/rx,dy=d.y/ry,A=dx*dx+dy*dy,B=2*(x*dx+y*dy),C=x*x+y*y-1;if(A<1e-15)return C<=0?t:Infinity;const disc=B*B-4*A*C;if(disc<0)return Infinity;const lo=(-B-Math.sqrt(disc))/(2*A),hi=(-B+Math.sqrt(disc))/(2*A);t=Math.max(t,lo,0);const p=along(a,d,t);return t<=Math.min(limit,hi)&&p.z>=b.bottom-1e-6&&p.z<=b.top+1e-6?t:Infinity;}
+export function rayMap(map:MapDefinition,a:Vec3,d:Vec3,limit:number){let nearest=limit;for(const b of map.blocks)nearest=Math.min(nearest,solid(a,d,b,nearest));const ramps=map.surfaces.filter(s=>s.ramp);for(let t=0;t<nearest;t+=4){const p=along(a,d,t);if(p.z>=0&&ramps.some(s=>inside(p,s)&&p.z<=surfaceHeight(s,p)))return t;}return nearest;}
+export function clearRay(map:MapDefinition,a:Vec3,b:Vec3){const n=Math.hypot(b.x-a.x,b.y-a.y,b.z-a.z);return n<1e-6||rayMap(map,a,unit({x:b.x-a.x,y:b.y-a.y,z:b.z-a.z}),n)>=n-1e-5;}

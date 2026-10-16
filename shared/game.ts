@@ -13,9 +13,9 @@ export const COLORS = ['#60cfff','#ffbc66','#b6a2ff','#77d8a4','#ff8da5','#e9df7
 export const MOVEMENT = { sprintMultiplier: 1.5, staminaMax: 100, staminaDrain: 28, staminaRegen: 22, regenDelay: 0.6, dashSpeed: 850, dashDuration: 0.18, dashCooldown: 3 };
 export type Position = { x: number; y: number; elevation?:number };
 export const JUMP={velocity:300,gravity:900};
-export type Input = { matchId: string; roundNumber: number; seq: number; dx: number; dy: number; sprint?: boolean; jumpId?:number; crouch?:boolean; dashId?: number; dashStyle?: 'dash'|'dodge'|'slide'; attackId?: number; aimX?: number; aimY?: number };
+export type Input = { weaponInstanceId?:string;aimZ?:number;aimOrigin?:{x:number;y:number;elevation:number};matchId: string; roundNumber: number; seq: number; dx: number; dy: number; sprint?: boolean; jumpId?:number; crouch?:boolean; dashId?: number; dashStyle?: 'dash'|'dodge'|'slide'; attackId?: number; aimX?: number; aimY?: number };
 export type Motion = Position & { jumpSeen?:number;airborne?:boolean;verticalVelocity?:number;jumpOrigin?:Position;crouched?:boolean;traversalState?:'idle'|'walk'|'sprint'|'dash'|'dodge'|'slide'|'jump'|'fall'|'crouch'; elevation:number; stamina: number; regenWait: number; exhausted: boolean; dashCooldown: number; dashRemaining: number; dashX: number; dashY: number; facingX: number; facingY: number; dashSeen: number; sprinting: boolean };
-export type PlayerView = {characterId?:CharacterId|null;characterAutoAssigned?:boolean;frozenUntil:number;heldItem:ItemKind|null;inventory?:import('./inventory.js').Inventory;selectedSlot?:import('./inventory.js').Slot} & Motion & CombatState & { id: string; name: string; color: string; ready: boolean; connected: boolean; ack: number };
+export type PlayerView = {weaponAction?:import('./weapons.js').WeaponAction|null;characterId?:CharacterId|null;characterAutoAssigned?:boolean;frozenUntil:number;heldItem:ItemKind|null;inventory?:import('./inventory.js').Inventory;selectedSlot?:import('./inventory.js').Slot} & Motion & CombatState & { id: string; name: string; color: string; ready: boolean; connected: boolean; ack: number };
 export type RoomView = { selectedGameMode:GameMode;selectedFormat:Format;mode:ModeState; mapId:string; mapVariant:string|null; nextMapId:string|null; nextMapVariant:string|null; code: string; hostId: string; phase: 'lobby'|'character_selection'|'match_loading'|'arena'|'intermission'|'complete'; selection?:CharacterSelection|null; match: MatchView; round: RoundView; objective: PrivateObjective; players: PlayerView[]; tick: number; serverTime: number; notice: string };
 export type ClientMessage =
  | { type: 'create'; name: string }
@@ -23,7 +23,8 @@ export type ClientMessage =
  | { type: 'resume'; code: string; token: string }
  | { type:'settings';mode:GameMode;format:Format }
  | {type:'equip';slot:import('./inventory.js').Slot;matchId:string;roundNumber:number}
- | {type:'interact';matchId:string;roundNumber:number}
+ | {type:'interact';matchId:string;roundNumber:number;itemId?:string;replaceSlot?:1|2}
+ | {type:'reload'|'drop_weapon';matchId:string;roundNumber:number;slot?:1|2;instanceId:string}
  | { type:'choose_character';matchId:string;characterId:CharacterId }
  | { type:'character_prepared';matchId:string }
  | { type: 'ready'; ready: boolean }
@@ -73,7 +74,7 @@ export function advanceMotion(previous:Motion,input:Pick<Input,'dx'|'dy'|'sprint
   return p;
  };
  let pos:Position;
- if(s.dashRemaining>0){const time=Math.min(dt,s.dashRemaining);pos=travel(s.dashX,s.dashY,time,s.traversalState==='slide'?400:s.traversalState==='dodge'?580:MOVEMENT.dashSpeed);s.dashRemaining=Math.max(0,s.dashRemaining-dt);}
+ if(s.dashRemaining>0){const time=Math.min(dt,s.dashRemaining);pos=travel(s.dashX,s.dashY,time,s.traversalState==='slide'?250+300*(s.dashRemaining-time/2)/.42:s.traversalState==='dodge'?580:MOVEMENT.dashSpeed);s.dashRemaining=Math.max(0,s.dashRemaining-dt);}
  else pos=travel(dx,dy,dt,ARENA.speed*(s.sprinting?MOVEMENT.sprintMultiplier:1));
  if(s.dashRemaining<=0)s.traversalState=s.sprinting?'sprint':length>0?'walk':'idle';
  if(s.airborne){
