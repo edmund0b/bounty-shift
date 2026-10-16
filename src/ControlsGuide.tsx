@@ -13,7 +13,7 @@ function Key({children}:{children:React.ReactNode}){return <kbd className="contr
 function MouseInput({click=false}:{click?:boolean}){return <span className={`control-mouse ${click?'left-click':''}`}><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="1.6"><rect x="6" y="2" width="12" height="20" rx="6"/>{click&&<path d="M12 3C9 3 7 5 7 8v2h5Z" fill="currentColor" stroke="none"/>}<path d="M12 2v8m-6 0h12"/></svg><span>{click?'Left click':'Mouse'}</span></span>}
 function Row({input,action,note}:{input:React.ReactNode;action:string;note?:string}){return <li className="control-row"><span className="control-input">{input}</span><span className="control-action">{action}{note&&<small>{note}</small>}</span></li>}
 function Group({name,icon,children,hint}:{name:string;icon:Category;children:React.ReactNode;hint?:string}){return <section className="control-section" aria-label={name}><h3><ControlSymbol name={icon}/>{name}{hint&&<span>{hint}</span>}</h3><ul>{children}</ul></section>}
-export function ControlsGuide({coarse}:{coarse:boolean}){return <div className="controls-guide">
+export function ControlsGuide({coarse,firearms=true}:{coarse:boolean;firearms?:boolean}){return <div className="controls-guide">
  <span className="control-device">{coarse?'TOUCH CONTROLS':'KEYBOARD + MOUSE'}</span>
  <Group name="MOVEMENT" icon="movement" hint="Camera-relative">
   {coarse?<><Row input={<span className="control-touch"><ControlSymbol name="joystick"/></span>} action="Move" note="Left joystick"/><Row input={<span className="control-touch"><ActionIcon action="sprint"/></span>} action="Sprint" note="Hold Sprint"/><Row input={<span className="control-touch"><ActionIcon action="dash"/></span>} action="Dash" note="Tap Dash"/><Row input={<span>JUMP</span>} action="Jump"/></>:<>
@@ -26,12 +26,12 @@ export function ControlsGuide({coarse}:{coarse:boolean}){return <div className="
   </>}
  </Group>
  <Group name="CAMERA" icon="camera">
-  {coarse?<Row input={<span className="control-touch"><ControlSymbol name="swipe"/></span>} action="Look Around" note="Drag open right side"/>:<><Row input={<MouseInput/>} action="Look Around" note="Click game to capture mouse"/><Row input={<><Key>Q</Key><Key>R</Key></>} action="Rotate Camera" note="Fallback"/></>}
+  {coarse?<Row input={<span className="control-touch"><ControlSymbol name="swipe"/></span>} action="Look Around" note="Drag open right side"/>:<><Row input={<MouseInput/>} action="Look Around" note="Click game to capture mouse"/><Row input={<><Key>Q</Key><Key>C</Key></>} action="Rotate Camera" note="Fallback"/></>}
  </Group>
  <Group name="COMBAT" icon="combat">
   {coarse?<Row input={<span className="control-touch"><ControlSymbol name="combat"/></span>} action="Attack" note="Tap Attack"/>:<><Row input={<MouseInput click/>} action="Attack" note="After mouse capture"/><Row input={<Key>F</Key>} action="Attack" note="Alternative"/></>}
  </Group>
- <Group name="ITEMS + EVASION" icon="general">
+ <Group name="ITEMS + EVASION" icon="general">{firearms&&<Row input={coarse?<span>RELOAD</span>:<Key>R</Key>} action="Reload firearm" note="Firearm modes only"/>}<Row input={coarse?<span>DROP</span>:<Key>G</Key>} action="Drop equipped weapon"/>
   <Row input={coarse?<span>OPEN / PICK UP</span>:<Key>E</Key>} action="Open / Pick up" note="Chest opens first; use again to claim"/>
   <Row input={coarse?<span>DODGE</span>:<Key>Z</Key>} action="Dodge" note="Shares Dash cooldown"/>
   <Row input={coarse?<span>CROUCH</span>:<Key>X</Key>} action="Crouch / Slide" note="Tap to toggle crouch; hold to slide while moving"/>

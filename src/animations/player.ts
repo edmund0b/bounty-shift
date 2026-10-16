@@ -1,8 +1,11 @@
+import {motionById} from './clips';
+import {animateMotion} from './motion';
 import type {Rig} from '../characters/rig';
 export const animations=[{id:'idle',name:'Idle',category:'Locomotion',status:'implemented',duration:3},{id:'walk',name:'Walk',category:'Locomotion',status:'experimental',duration:1.2},{id:'run',name:'Run',category:'Locomotion',status:'experimental',duration:.8},{id:'sprint',name:'Sprint',category:'Locomotion',status:'experimental',duration:.65},{id:'strafe-left',name:'Strafe left',category:'Locomotion',status:'not created',duration:1},{id:'strafe-right',name:'Strafe right',category:'Locomotion',status:'not created',duration:1},{id:'backward',name:'Walk backward',category:'Locomotion',status:'not created',duration:1},{id:'jump',name:'Jump',category:'Movement',status:'not created',duration:1},{id:'land',name:'Land',category:'Movement',status:'not created',duration:1},{id:'dash',name:'Dash',category:'Movement',status:'experimental',duration:.7},{id:'turn',name:'Turn',category:'Movement',status:'not created',duration:1},{id:'attack',name:'Attack 1',category:'Combat',status:'experimental',duration:1},{id:'attack2',name:'Attack 2',category:'Combat',status:'not created',duration:1},{id:'attack3',name:'Attack 3',category:'Combat',status:'not created',duration:1},{id:'hit',name:'Hit reaction',category:'Combat',status:'experimental',duration:.7},...['Knockback','Elimination','Target acquired','Bounty earned','Round win','Match win'].map(name=>({id:name.toLowerCase().replaceAll(' ','-'),name,category:['Knockback','Elimination'].includes(name)?'Combat':'Bounty / gameplay',status:'not created',duration:1}))];
 export const defaults={cadence:1,stride:.55,armSwing:.45,kneeBend:.75,twist:.12,bob:.055,lean:.15,windup:.3,strike:.45};
 export type Params=typeof defaults;
-export function animate(r:Rig,id:string,phase:number,p:Params){
+export function animate(r:Rig,id:string,phase:number,p:Params,inPlace=false){
+ if(motionById.has(id)){animateMotion(r,id,phase,inPlace);return;}
  r.joints.forEach(j=>j.rotation.set(0,0,0));r.hips.position.set(0,r.restHipsY,0);const t=phase*Math.PI*2;
  if(id==='idle'){r.torso.scale.y=1+Math.sin(t)*.008;r.head.rotation.y=Math.sin(t)*.07;r.arms.forEach((a,i)=>a.shoulder.rotation.z=(i?1:-1)*.055);return;}
  r.torso.scale.y=1;

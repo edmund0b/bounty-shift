@@ -1,3 +1,5 @@
+import {createEquipment} from './weapons/models';
+import {canonicalWeapon} from '../shared/weapons';
 import * as THREE from 'three';
 import type {WorldItem} from '../shared/modes';
 import {CHEST_OPEN_MS,pickupPosition} from '../shared/loot';
@@ -14,7 +16,8 @@ export function createItemArt(track:Track){
  const snowGeometry=track(new THREE.BufferGeometry());snowGeometry.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));const snowMat=track(new THREE.LineBasicMaterial({color:'#efffff'}));
  const freezeBall=()=>{const group=new THREE.Group();group.add(new THREE.Mesh(sphere,ice));for(const angle of [0,Math.PI]){const snow=new THREE.LineSegments(snowGeometry,snowMat);snow.rotation.y=angle;group.add(snow);}return group;};
  // Item art is a registry; adding a later Lab model doesn't require changing the chest.
- const item=(kind:string)=>{if(kind==='freeze_ball')return freezeBall();const group=new THREE.Group();box(group,0,.02,0,.09,.65,.09,white);box(group,0,-.28,0,.15,.18,.14,body);if(kind==='hammer')box(group,0,.24,0,.42,.22,.2,gold);else box(group,0,-.18,0,.3,.04,.09,metal);return group;};
+ const templates=new Map<string,THREE.Group>();
+ const item=(kind:string)=>{if(kind==='freeze_ball')return freezeBall();const id=canonicalWeapon(kind);if(!id)return new THREE.Group();let template=templates.get(id);if(!template){const model=createEquipment(id);for(const r of model.kit.resources)track(r);template=new THREE.Group();model.root.rotation.set(0,0,.2);model.root.scale.setScalar(.38);template.add(model.root);templates.set(id,template);}return template.clone(true);};
  const chest=()=>{
   const group=new THREE.Group();group.name='GAMEPLAY_LOOT_CHEST';
   box(group,0,.08,0,1.02,.16,.65,body);box(group,0,.32,.29,1.02,.4,.07,body);box(group,0,.32,-.29,1.02,.4,.07,body);for(const x of [-.48,.48])box(group,x,.32,0,.07,.4,.65,body);
