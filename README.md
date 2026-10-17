@@ -1,3 +1,13 @@
+# Current release: Tag Run 2.0 — Hot Potato & Power-Up Integration
+
+This complete game builds on Gun Combat Upgrade 1. See [TAG_RUN_2.md](TAG_RUN_2.md), [CHANGELOG_TAG_RUN_2.md](CHANGELOG_TAG_RUN_2.md), and [tag-verification/TEST_RESULTS.md](tag-verification/TEST_RESULTS.md). Tag Run permits melee and all 20 mystery power-ups, with no firearms. Each of its three rounds lasts 135 seconds. Flag Run and Kill Race retain their existing rules and guns.
+
+Node.js 22+: `npm ci`, `npm run build`, `npm start`. Automated checks: `npm test`. Two-client browser checks: build first, set `BOUNTY_QA_BROWSER` to an installed Chromium executable, then run `node --import tsx scripts/tag-browser-qa.mjs`. Browser fixtures run only inside the test process; no production cheat or clock endpoint is added.
+
+The documents below describe earlier releases. Read the Tag report for current mode-specific rules and deployment status.
+
+---
+
 # Current release: Gun Combat Upgrade 1
 
 See [GUN_UPGRADE_1.md](GUN_UPGRADE_1.md) for current gun rules, controls, verification and limits. Earlier V1 documents below describe the preserved integration baseline.
