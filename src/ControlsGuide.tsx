@@ -29,6 +29,7 @@ export function ControlsGuide({coarse,firearms=true}:{coarse:boolean;firearms?:b
   {coarse?<Row input={<span className="control-touch"><ControlSymbol name="swipe"/></span>} action="Look Around" note="Drag open right side"/>:<><Row input={<MouseInput/>} action="Look Around" note="Click game to capture mouse"/><Row input={<><Key>Q</Key><Key>C</Key></>} action="Rotate Camera" note="Fallback"/></>}
  </Group>
  <Group name="COMBAT" icon="combat">
+  {firearms&&<Row input={coarse?<span>AIM</span>:<Key>RMB</Key>} action={coarse?'Aim (toggle)':'Aim (hold)'} note="Sniper: scope"/>}{firearms&&!coarse&&<Row input={<Key>V</Key>} action="Switch shoulder"/>}
   {coarse?<Row input={<span className="control-touch"><ControlSymbol name="combat"/></span>} action="Attack" note="Tap Attack"/>:<><Row input={<MouseInput click/>} action="Attack" note="After mouse capture"/><Row input={<Key>F</Key>} action="Attack" note="Alternative"/></>}
  </Group>
  <Group name="ITEMS + EVASION" icon="general">{firearms&&<Row input={coarse?<span>RELOAD</span>:<Key>R</Key>} action="Reload firearm" note="Firearm modes only"/>}<Row input={coarse?<span>DROP</span>:<Key>G</Key>} action="Drop equipped weapon"/>
