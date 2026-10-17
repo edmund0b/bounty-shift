@@ -5,501 +5,6 @@ import { WebSocketServer } from "ws";
 import { fileURLToPath } from "node:url";
 import { resolve, dirname } from "node:path";
 
-// server/weapon-combat.ts
-import { randomUUID } from "node:crypto";
-
-// shared/workshop-weapons.ts
-var WORKSHOP_WEAPONS = {
-  "heavy-blade": {
-    "name": "Heavy Futuristic Blade",
-    "category": "melee",
-    "actions": {
-      "equip": {
-        "duration": 0.7,
-        "events": []
-      },
-      "attack1": {
-        "duration": 1.15,
-        "events": [
-          {
-            "time": 0.6325,
-            "kind": "contact",
-            "hand": 1
-          }
-        ]
-      },
-      "attack2": {
-        "duration": 1.05,
-        "events": [
-          {
-            "time": 0.546,
-            "kind": "contact",
-            "hand": 1
-          }
-        ]
-      },
-      "attack3": {
-        "duration": 1.5,
-        "events": [
-          {
-            "time": 0.8250000000000001,
-            "kind": "contact",
-            "hand": 1
-          }
-        ]
-      }
-    }
-  },
-  "impact-hammer": {
-    "name": "Heavy Impact Hammer",
-    "category": "melee",
-    "actions": {
-      "equip": {
-        "duration": 0.7,
-        "events": []
-      },
-      "attack1": {
-        "duration": 1.25,
-        "events": [
-          {
-            "time": 0.7000000000000001,
-            "kind": "contact",
-            "hand": 1
-          }
-        ]
-      },
-      "attack2": {
-        "duration": 1.15,
-        "events": [
-          {
-            "time": 0.575,
-            "kind": "contact",
-            "hand": 1
-          }
-        ]
-      },
-      "attack3": {
-        "duration": 1.6,
-        "events": [
-          {
-            "time": 0.9119999999999999,
-            "kind": "contact",
-            "hand": 1
-          }
-        ]
-      }
-    }
-  },
-  "riot-bat": {
-    "name": "Riot Bat",
-    "category": "melee",
-    "actions": {
-      "equip": {
-        "duration": 0.7,
-        "events": []
-      },
-      "attack1": {
-        "duration": 0.9,
-        "events": [
-          {
-            "time": 0.468,
-            "kind": "contact",
-            "hand": 1
-          }
-        ]
-      },
-      "attack2": {
-        "duration": 0.8,
-        "events": [
-          {
-            "time": 0.384,
-            "kind": "contact",
-            "hand": 1
-          }
-        ]
-      },
-      "attack3": {
-        "duration": 1.1,
-        "events": [
-          {
-            "time": 0.5830000000000001,
-            "kind": "contact",
-            "hand": 1
-          }
-        ]
-      }
-    }
-  },
-  "twin-daggers": {
-    "name": "Twin Daggers",
-    "category": "melee",
-    "actions": {
-      "equip": {
-        "duration": 0.7,
-        "events": []
-      },
-      "attack1": {
-        "duration": 0.42,
-        "events": [
-          {
-            "time": 0.17639999999999997,
-            "kind": "contact",
-            "hand": 1
-          }
-        ]
-      },
-      "attack2": {
-        "duration": 0.42,
-        "events": [
-          {
-            "time": 0.18059999999999998,
-            "kind": "contact",
-            "hand": 0
-          }
-        ]
-      },
-      "attack3": {
-        "duration": 0.72,
-        "events": [
-          {
-            "time": 0.216,
-            "kind": "contact",
-            "hand": 1
-          },
-          {
-            "time": 0.504,
-            "kind": "contact",
-            "hand": 0
-          }
-        ]
-      }
-    }
-  },
-  "pulse-katana": {
-    "name": "Pulse Katana",
-    "category": "melee",
-    "actions": {
-      "equip": {
-        "duration": 0.7,
-        "events": []
-      },
-      "attack1": {
-        "duration": 0.8,
-        "events": [
-          {
-            "time": 0.4,
-            "kind": "contact",
-            "hand": 1
-          }
-        ]
-      },
-      "attack2": {
-        "duration": 0.72,
-        "events": [
-          {
-            "time": 0.3384,
-            "kind": "contact",
-            "hand": 1
-          }
-        ]
-      },
-      "attack3": {
-        "duration": 1.05,
-        "events": [
-          {
-            "time": 0.5565000000000001,
-            "kind": "contact",
-            "hand": 1
-          }
-        ]
-      }
-    }
-  },
-  "pistol": {
-    "name": "Pistol",
-    "category": "firearms",
-    "actions": {
-      "equip": {
-        "duration": 0.7,
-        "events": []
-      },
-      "fire": {
-        "duration": 0.8,
-        "events": [
-          {
-            "time": 0.256,
-            "kind": "shot",
-            "hand": 1
-          }
-        ]
-      },
-      "reload": {
-        "duration": 1.7,
-        "events": [
-          {
-            "time": 0.935,
-            "kind": "reload",
-            "hand": 0
-          }
-        ]
-      }
-    }
-  },
-  "assault-rifle": {
-    "name": "Assault Rifle",
-    "category": "firearms",
-    "actions": {
-      "equip": {
-        "duration": 0.7,
-        "events": []
-      },
-      "fire": {
-        "duration": 0.8,
-        "events": [
-          {
-            "time": 0.144,
-            "kind": "shot",
-            "hand": 1
-          },
-          {
-            "time": 0.272,
-            "kind": "shot",
-            "hand": 1
-          },
-          {
-            "time": 0.4,
-            "kind": "shot",
-            "hand": 1
-          },
-          {
-            "time": 0.528,
-            "kind": "shot",
-            "hand": 1
-          }
-        ]
-      },
-      "reload": {
-        "duration": 1.7,
-        "events": [
-          {
-            "time": 1.02,
-            "kind": "reload",
-            "hand": 0
-          }
-        ]
-      }
-    }
-  },
-  "shotgun": {
-    "name": "Shotgun",
-    "category": "firearms",
-    "actions": {
-      "equip": {
-        "duration": 0.7,
-        "events": []
-      },
-      "fire": {
-        "duration": 1.3,
-        "events": [
-          {
-            "time": 0.41600000000000004,
-            "kind": "shot",
-            "hand": 1
-          }
-        ]
-      },
-      "reload": {
-        "duration": 4,
-        "events": [
-          {
-            "time": 0.8680000000000001,
-            "kind": "reload",
-            "hand": 0
-          },
-          {
-            "time": 1.308,
-            "kind": "reload",
-            "hand": 0
-          },
-          {
-            "time": 1.7480000000000002,
-            "kind": "reload",
-            "hand": 0
-          },
-          {
-            "time": 2.188,
-            "kind": "reload",
-            "hand": 0
-          },
-          {
-            "time": 2.628,
-            "kind": "reload",
-            "hand": 0
-          },
-          {
-            "time": 3.068,
-            "kind": "reload",
-            "hand": 0
-          }
-        ]
-      }
-    }
-  },
-  "sniper-rifle": {
-    "name": "Sniper Rifle",
-    "category": "firearms",
-    "actions": {
-      "equip": {
-        "duration": 0.7,
-        "events": []
-      },
-      "fire": {
-        "duration": 1.3,
-        "events": [
-          {
-            "time": 0.41600000000000004,
-            "kind": "shot",
-            "hand": 1
-          }
-        ]
-      },
-      "reload": {
-        "duration": 2.4,
-        "events": [
-          {
-            "time": 1.44,
-            "kind": "reload",
-            "hand": 0
-          }
-        ]
-      }
-    }
-  }
-};
-var AMMO_CONFIG = {
-  "pistol": {
-    "magazine": 12,
-    "reserve": 48,
-    "reloadAt": [
-      0.55
-    ]
-  },
-  "assault-rifle": {
-    "magazine": 30,
-    "reserve": 30,
-    "reloadAt": [
-      0.6
-    ]
-  },
-  "shotgun": {
-    "magazine": 6,
-    "reserve": 18,
-    "reloadAt": [
-      0.21700000000000003,
-      0.327,
-      0.43700000000000006,
-      0.547,
-      0.657,
-      0.767
-    ]
-  },
-  "sniper-rifle": {
-    "magazine": 5,
-    "reserve": 15,
-    "reloadAt": [
-      0.6
-    ]
-  }
-};
-
-// shared/weapons.ts
-var WEAPON_IDS = Object.keys(WORKSHOP_WEAPONS);
-var isWeapon = (id) => typeof id === "string" && Object.hasOwn(WORKSHOP_WEAPONS, id);
-var canonicalWeapon = (id) => id === "blade" ? "heavy-blade" : id === "hammer" ? "impact-hammer" : isWeapon(id) ? id : null;
-var isGun = (id) => !!canonicalWeapon(id) && WORKSHOP_WEAPONS[canonicalWeapon(id)].category === "firearms";
-var MODE_EQUIPMENT = { tag: { melee: true, firearms: false, powerUps: true }, flag_run: { melee: true, firearms: true, powerUps: true }, kill_race: { melee: true, firearms: true, powerUps: true } };
-var allowedWeapon = (mode, id) => !!canonicalWeapon(id) && MODE_EQUIPMENT[mode][isGun(id) ? "firearms" : "melee"];
-var GROUND_WEAPONS = ["heavy-blade", "impact-hammer"];
-var CHEST_WEAPONS = ["riot-bat", "twin-daggers", "pulse-katana", "pistol", "assault-rifle", "shotgun", "sniper-rifle"];
-var LOOT_CONFIG = { groundCount: 4, chestCount: 4, utilityCount: 2, respawnMs: 12e3, droppedLifetimeMs: 6e4, capacity: 2, weights: Object.fromEntries(CHEST_WEAPONS.map((id) => [id, 1])), clearOnKO: true, clearOnRound: true };
-var WEAPON_BALANCE = {
-  "heavy-blade": { damage: 25, range: 105, pellets: 1, spread: 0 },
-  "impact-hammer": { damage: 40, range: 110, pellets: 1, spread: 0 },
-  "riot-bat": { damage: 22, range: 100, pellets: 1, spread: 0 },
-  "twin-daggers": { damage: 12, range: 75, pellets: 1, spread: 0 },
-  "pulse-katana": { damage: 28, range: 120, pellets: 1, spread: 0 },
-  pistol: { damage: 20, range: 1e3, pellets: 1, spread: 0 },
-  "assault-rifle": { damage: 12, range: 1400, pellets: 1, spread: 0 },
-  shotgun: { damage: 10, range: 550, pellets: 8, spread: 0.09 },
-  "sniper-rifle": { damage: 80, range: 2200, pellets: 1, spread: 0 }
-};
-function weaponAction(id, clip) {
-  const all = WORKSHOP_WEAPONS[id].actions;
-  return all[clip] ?? all[isGun(id) ? "fire" : "attack1"];
-}
-function createWeapon(weaponId, instanceId) {
-  const ammo = AMMO_CONFIG[weaponId];
-  return { instanceId, weaponId, magazine: ammo?.magazine ?? 0, reserve: ammo?.reserve ?? 0 };
-}
-
-// shared/inventory.ts
-var fixtureId = 0;
-function clearInventory(p) {
-  p.inventory = { weapon: null, utility: null, weapons: [null, null] };
-  p.selectedSlot = 1;
-  p.heldItem = null;
-}
-function weaponSlots(p) {
-  p.inventory ??= { weapon: null, utility: null };
-  p.inventory.weapons ??= [p.inventory.weapon && canonicalWeapon(p.inventory.weapon) ? createWeapon(canonicalWeapon(p.inventory.weapon), `legacy-${++fixtureId}`) : null, null];
-  return p.inventory.weapons;
-}
-function syncEquipped(p) {
-  const weapons = weaponSlots(p);
-  p.inventory.weapon = weapons[(p.selectedSlot ?? 1) === 2 ? 1 : 0]?.weaponId ?? weapons.find(Boolean)?.weaponId ?? null;
-  p.heldItem = p.selectedSlot === 3 ? p.inventory.utility : weapons[p.selectedSlot === 2 ? 1 : 0]?.weaponId ?? null;
-}
-function activeWeapon(p) {
-  return p.selectedSlot === 3 ? null : weaponSlots(p)[p.selectedSlot === 2 ? 1 : 0];
-}
-function pickup(p, kind, instance, replaceSlot) {
-  p.inventory ??= { weapon: null, utility: null };
-  if (kind === "freeze_ball") {
-    if (p.inventory.utility) return false;
-    p.inventory.utility = kind;
-    p.selectedSlot = 3;
-    p.heldItem = kind;
-    return true;
-  }
-  const canonical = canonicalWeapon(kind);
-  if (!canonical) return false;
-  const slots = weaponSlots(p);
-  if (slots.some((w) => w?.weaponId === canonical)) return false;
-  const index = replaceSlot ? replaceSlot - 1 : slots.findIndex((w) => !w);
-  if (index < 0) return false;
-  slots[index] = instance ?? createWeapon(canonical, `legacy-${++fixtureId}`);
-  p.selectedSlot = index + 1;
-  syncEquipped(p);
-  if (kind === "blade" || kind === "hammer") {
-    p.inventory.weapon = kind;
-    p.heldItem = kind;
-  }
-  return true;
-}
-function equip(p, slot, carry) {
-  p.inventory ??= { weapon: null, utility: null };
-  const slots = weaponSlots(p);
-  if (slot === 3 && !p.inventory.utility || slot === 2 && !slots[1] && !carry) return false;
-  p.selectedSlot = slot;
-  syncEquipped(p);
-  return true;
-}
-function consumeUtility(p) {
-  if (p.inventory) p.inventory.utility = null;
-  p.selectedSlot = 1;
-  syncEquipped(p);
-}
-
 // shared/maps/fjord-layout.ts
 var FJORD_TERRACES = [
   { id: "village", x: 800, y: 1e3, width: 1400, height: 950, elevation: 120 },
@@ -1318,6 +823,579 @@ function nextPosition(previous, x, y, map = ACTIVE_MAP) {
   return null;
 }
 
+// shared/weapon-ray.ts
+var unit = (v) => {
+  const n = Math.hypot(v.x, v.y, v.z) || 1;
+  return { x: v.x / n, y: v.y / n, z: v.z / n };
+};
+var along = (a, d, t) => ({ x: a.x + d.x * t, y: a.y + d.y * t, z: a.z + d.z * t });
+function rayBox(a, d, min, max, limit) {
+  let enter = 0, exit = limit;
+  for (const axis of ["x", "y", "z"]) {
+    if (Math.abs(d[axis]) < 1e-9) {
+      if (a[axis] < min[axis] || a[axis] > max[axis]) return Infinity;
+    } else {
+      const u = (min[axis] - a[axis]) / d[axis], v = (max[axis] - a[axis]) / d[axis];
+      enter = Math.max(enter, Math.min(u, v));
+      exit = Math.min(exit, Math.max(u, v));
+      if (enter > exit) return Infinity;
+    }
+  }
+  return enter;
+}
+function solid(a, d, b, limit) {
+  let t = rayBox(a, d, { x: b.x, y: b.y, z: b.bottom }, { x: b.x + b.width, y: b.y + b.height, z: b.top }, limit);
+  if (!Number.isFinite(t) || b.shape !== "ellipse") return t;
+  const rx = b.width / 2, ry = b.height / 2, x = (a.x - b.x - rx) / rx, y = (a.y - b.y - ry) / ry, dx = d.x / rx, dy = d.y / ry, A = dx * dx + dy * dy, B = 2 * (x * dx + y * dy), C = x * x + y * y - 1;
+  if (A < 1e-15) return C <= 0 ? t : Infinity;
+  const disc = B * B - 4 * A * C;
+  if (disc < 0) return Infinity;
+  const lo = (-B - Math.sqrt(disc)) / (2 * A), hi = (-B + Math.sqrt(disc)) / (2 * A);
+  t = Math.max(t, lo, 0);
+  const p = along(a, d, t);
+  return t <= Math.min(limit, hi) && p.z >= b.bottom - 1e-6 && p.z <= b.top + 1e-6 ? t : Infinity;
+}
+function rayMap(map, a, d, limit) {
+  let nearest = limit;
+  for (const b of map.blocks) nearest = Math.min(nearest, solid(a, d, b, nearest));
+  const ramps = map.surfaces.filter((s) => s.ramp);
+  for (let t = 0; t < nearest; t += 4) {
+    const p = along(a, d, t);
+    if (p.z >= 0 && ramps.some((s) => inside2(p, s) && p.z <= surfaceHeight(s, p))) return t;
+  }
+  return nearest;
+}
+function clearRay(map, a, b) {
+  const n = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
+  return n < 1e-6 || rayMap(map, a, unit({ x: b.x - a.x, y: b.y - a.y, z: b.z - a.z }), n) >= n - 1e-5;
+}
+
+// shared/gun-config.ts
+var ADS = { seconds: 0.18, blendSpeed: 14 };
+var GUNS = {
+  pistol: { body: 10, head: 20, range: 1e3, pellets: 1, hip: 0.017, ads: 18e-4, recoil: 3e-3, recovery: 4, cameraKick: 0.014, duration: 0.35, event: 0.015, fov: 48, distance: 3.1, shoulder: 1.25 },
+  "assault-rifle": { body: 30, head: 45, range: 1400, pellets: 1, hip: 0.026, ads: 3e-3, recoil: 5e-3, recovery: 3, cameraKick: 0.01, duration: 0.12, event: 0.012, fov: 44, distance: 3, shoulder: 1.25 },
+  shotgun: { body: 5, head: 8.5, range: 550, pellets: 10, hip: 0.055, ads: 0.038, recoil: 8e-3, recovery: 3.5, cameraKick: 0.042, duration: 1.1, event: 0.025, fov: 50, distance: 3.2, shoulder: 1.25 },
+  "sniper-rifle": { body: 80, head: 100, range: 2200, pellets: 1, hip: 0.036, ads: 0, recoil: 9e-3, recovery: 2.7, cameraKick: 0.065, duration: 1.3, event: 0.02, fov: 16, distance: 0.65, shoulder: 0 }
+};
+var gunId = (id) => typeof id === "string" && Object.hasOwn(GUNS, id);
+var decayedHeat = (heat, at, now, id) => Math.max(0, heat - Math.max(0, now - at) / 1e3 * GUNS[id].recovery);
+var shotgunFalloff = (distance) => distance <= 100 ? 1 : distance <= 240 ? 1 - (distance - 100) / 140 * 0.4 : Math.max(0, 0.6 * (550 - distance) / 310);
+
+// shared/gun-combat.ts
+function hitBoxes(p) {
+  const z = (p.elevation ?? 0) - (p.traversalState === "slide" && (p.dashRemaining ?? 0) > 0 ? 25 : p.crouched ? 14 : 0);
+  return [{ region: "head", min: { x: p.x - 8, y: p.y - 8, z: z + 49 }, max: { x: p.x + 8, y: p.y + 8, z: z + 65 } }, { region: "body", min: { x: p.x - 19, y: p.y - 19, z: z + 4 }, max: { x: p.x + 19, y: p.y + 19, z: z + 49 } }];
+}
+function spreadDirection(base, cone, index, count, sequence) {
+  if (cone === 0) return base;
+  const ref = Math.abs(base.z) < 0.95 ? { x: 0, y: 0, z: 1 } : { x: 0, y: 1, z: 0 };
+  const right = unit({ x: base.y * ref.z - base.z * ref.y, y: base.z * ref.x - base.x * ref.z, z: base.x * ref.y - base.y * ref.x });
+  const up = { x: right.y * base.z - right.z * base.y, y: right.z * base.x - right.x * base.z, z: right.x * base.y - right.y * base.x };
+  const angle = index * 2.3999632297 + sequence * 1.61803398875, radius = cone * (count === 1 ? 1 : Math.sqrt((index + 0.5) / count));
+  return unit({ x: base.x + radius * (Math.cos(angle) * right.x + Math.sin(angle) * up.x), y: base.y + radius * (Math.cos(angle) * right.y + Math.sin(angle) * up.y), z: base.z + radius * (Math.cos(angle) * right.z + Math.sin(angle) * up.z) });
+}
+function plausibleCamera(origin, chest, aim) {
+  const v = { x: origin.x - chest.x, y: origin.y - chest.y, z: origin.z - chest.z }, length = Math.hypot(aim.x, aim.y) || 1, forward = (v.x * aim.x + v.y * aim.y) / length, side = (v.x * aim.y - v.y * aim.x) / length;
+  return Object.values(origin).every(Number.isFinite) && Math.hypot(v.x, v.y, v.z) <= 270 && forward >= -245 && forward <= 32 && Math.abs(side) <= 85 && Math.abs(v.z) <= 240;
+}
+
+// server/weapon-combat.ts
+import { randomUUID } from "node:crypto";
+
+// shared/workshop-weapons.ts
+var WORKSHOP_WEAPONS = {
+  "heavy-blade": {
+    "name": "Heavy Futuristic Blade",
+    "category": "melee",
+    "actions": {
+      "equip": {
+        "duration": 0.7,
+        "events": []
+      },
+      "attack1": {
+        "duration": 1.15,
+        "events": [
+          {
+            "time": 0.6325,
+            "kind": "contact",
+            "hand": 1
+          }
+        ]
+      },
+      "attack2": {
+        "duration": 1.05,
+        "events": [
+          {
+            "time": 0.546,
+            "kind": "contact",
+            "hand": 1
+          }
+        ]
+      },
+      "attack3": {
+        "duration": 1.5,
+        "events": [
+          {
+            "time": 0.8250000000000001,
+            "kind": "contact",
+            "hand": 1
+          }
+        ]
+      }
+    }
+  },
+  "impact-hammer": {
+    "name": "Heavy Impact Hammer",
+    "category": "melee",
+    "actions": {
+      "equip": {
+        "duration": 0.7,
+        "events": []
+      },
+      "attack1": {
+        "duration": 1.25,
+        "events": [
+          {
+            "time": 0.7000000000000001,
+            "kind": "contact",
+            "hand": 1
+          }
+        ]
+      },
+      "attack2": {
+        "duration": 1.15,
+        "events": [
+          {
+            "time": 0.575,
+            "kind": "contact",
+            "hand": 1
+          }
+        ]
+      },
+      "attack3": {
+        "duration": 1.6,
+        "events": [
+          {
+            "time": 0.9119999999999999,
+            "kind": "contact",
+            "hand": 1
+          }
+        ]
+      }
+    }
+  },
+  "riot-bat": {
+    "name": "Riot Bat",
+    "category": "melee",
+    "actions": {
+      "equip": {
+        "duration": 0.7,
+        "events": []
+      },
+      "attack1": {
+        "duration": 0.9,
+        "events": [
+          {
+            "time": 0.468,
+            "kind": "contact",
+            "hand": 1
+          }
+        ]
+      },
+      "attack2": {
+        "duration": 0.8,
+        "events": [
+          {
+            "time": 0.384,
+            "kind": "contact",
+            "hand": 1
+          }
+        ]
+      },
+      "attack3": {
+        "duration": 1.1,
+        "events": [
+          {
+            "time": 0.5830000000000001,
+            "kind": "contact",
+            "hand": 1
+          }
+        ]
+      }
+    }
+  },
+  "twin-daggers": {
+    "name": "Twin Daggers",
+    "category": "melee",
+    "actions": {
+      "equip": {
+        "duration": 0.7,
+        "events": []
+      },
+      "attack1": {
+        "duration": 0.42,
+        "events": [
+          {
+            "time": 0.17639999999999997,
+            "kind": "contact",
+            "hand": 1
+          }
+        ]
+      },
+      "attack2": {
+        "duration": 0.42,
+        "events": [
+          {
+            "time": 0.18059999999999998,
+            "kind": "contact",
+            "hand": 0
+          }
+        ]
+      },
+      "attack3": {
+        "duration": 0.72,
+        "events": [
+          {
+            "time": 0.216,
+            "kind": "contact",
+            "hand": 1
+          },
+          {
+            "time": 0.504,
+            "kind": "contact",
+            "hand": 0
+          }
+        ]
+      }
+    }
+  },
+  "pulse-katana": {
+    "name": "Pulse Katana",
+    "category": "melee",
+    "actions": {
+      "equip": {
+        "duration": 0.7,
+        "events": []
+      },
+      "attack1": {
+        "duration": 0.8,
+        "events": [
+          {
+            "time": 0.4,
+            "kind": "contact",
+            "hand": 1
+          }
+        ]
+      },
+      "attack2": {
+        "duration": 0.72,
+        "events": [
+          {
+            "time": 0.3384,
+            "kind": "contact",
+            "hand": 1
+          }
+        ]
+      },
+      "attack3": {
+        "duration": 1.05,
+        "events": [
+          {
+            "time": 0.5565000000000001,
+            "kind": "contact",
+            "hand": 1
+          }
+        ]
+      }
+    }
+  },
+  "pistol": {
+    "name": "Pistol",
+    "category": "firearms",
+    "actions": {
+      "equip": {
+        "duration": 0.7,
+        "events": []
+      },
+      "fire": {
+        "duration": 0.8,
+        "events": [
+          {
+            "time": 0.256,
+            "kind": "shot",
+            "hand": 1
+          }
+        ]
+      },
+      "reload": {
+        "duration": 1.7,
+        "events": [
+          {
+            "time": 0.935,
+            "kind": "reload",
+            "hand": 0
+          }
+        ]
+      }
+    }
+  },
+  "assault-rifle": {
+    "name": "Assault Rifle",
+    "category": "firearms",
+    "actions": {
+      "equip": {
+        "duration": 0.7,
+        "events": []
+      },
+      "fire": {
+        "duration": 0.8,
+        "events": [
+          {
+            "time": 0.144,
+            "kind": "shot",
+            "hand": 1
+          },
+          {
+            "time": 0.272,
+            "kind": "shot",
+            "hand": 1
+          },
+          {
+            "time": 0.4,
+            "kind": "shot",
+            "hand": 1
+          },
+          {
+            "time": 0.528,
+            "kind": "shot",
+            "hand": 1
+          }
+        ]
+      },
+      "reload": {
+        "duration": 1.7,
+        "events": [
+          {
+            "time": 1.02,
+            "kind": "reload",
+            "hand": 0
+          }
+        ]
+      }
+    }
+  },
+  "shotgun": {
+    "name": "Shotgun",
+    "category": "firearms",
+    "actions": {
+      "equip": {
+        "duration": 0.7,
+        "events": []
+      },
+      "fire": {
+        "duration": 1.3,
+        "events": [
+          {
+            "time": 0.41600000000000004,
+            "kind": "shot",
+            "hand": 1
+          }
+        ]
+      },
+      "reload": {
+        "duration": 4,
+        "events": [
+          {
+            "time": 0.8680000000000001,
+            "kind": "reload",
+            "hand": 0
+          },
+          {
+            "time": 1.308,
+            "kind": "reload",
+            "hand": 0
+          },
+          {
+            "time": 1.7480000000000002,
+            "kind": "reload",
+            "hand": 0
+          },
+          {
+            "time": 2.188,
+            "kind": "reload",
+            "hand": 0
+          },
+          {
+            "time": 2.628,
+            "kind": "reload",
+            "hand": 0
+          },
+          {
+            "time": 3.068,
+            "kind": "reload",
+            "hand": 0
+          }
+        ]
+      }
+    }
+  },
+  "sniper-rifle": {
+    "name": "Sniper Rifle",
+    "category": "firearms",
+    "actions": {
+      "equip": {
+        "duration": 0.7,
+        "events": []
+      },
+      "fire": {
+        "duration": 1.3,
+        "events": [
+          {
+            "time": 0.41600000000000004,
+            "kind": "shot",
+            "hand": 1
+          }
+        ]
+      },
+      "reload": {
+        "duration": 2.4,
+        "events": [
+          {
+            "time": 1.44,
+            "kind": "reload",
+            "hand": 0
+          }
+        ]
+      }
+    }
+  }
+};
+var AMMO_CONFIG = {
+  "pistol": {
+    "magazine": 12,
+    "reserve": 48,
+    "reloadAt": [
+      0.55
+    ]
+  },
+  "assault-rifle": {
+    "magazine": 30,
+    "reserve": 30,
+    "reloadAt": [
+      0.6
+    ]
+  },
+  "shotgun": {
+    "magazine": 6,
+    "reserve": 18,
+    "reloadAt": [
+      0.21700000000000003,
+      0.327,
+      0.43700000000000006,
+      0.547,
+      0.657,
+      0.767
+    ]
+  },
+  "sniper-rifle": {
+    "magazine": 5,
+    "reserve": 15,
+    "reloadAt": [
+      0.6
+    ]
+  }
+};
+
+// shared/weapons.ts
+var WEAPON_IDS = Object.keys(WORKSHOP_WEAPONS);
+var isWeapon = (id) => typeof id === "string" && Object.hasOwn(WORKSHOP_WEAPONS, id);
+var canonicalWeapon = (id) => id === "blade" ? "heavy-blade" : id === "hammer" ? "impact-hammer" : isWeapon(id) ? id : null;
+var isGun = (id) => !!canonicalWeapon(id) && WORKSHOP_WEAPONS[canonicalWeapon(id)].category === "firearms";
+var MODE_EQUIPMENT = { tag: { melee: true, firearms: false, powerUps: true }, flag_run: { melee: true, firearms: true, powerUps: true }, kill_race: { melee: true, firearms: true, powerUps: true } };
+var allowedWeapon = (mode, id) => !!canonicalWeapon(id) && MODE_EQUIPMENT[mode][isGun(id) ? "firearms" : "melee"];
+var GROUND_WEAPONS = ["heavy-blade", "impact-hammer"];
+var CHEST_WEAPONS = ["riot-bat", "twin-daggers", "pulse-katana", "pistol", "assault-rifle", "shotgun", "sniper-rifle"];
+var LOOT_CONFIG = { groundCount: 4, chestCount: 4, utilityCount: 2, respawnMs: 12e3, droppedLifetimeMs: 6e4, capacity: 2, weights: Object.fromEntries(CHEST_WEAPONS.map((id) => [id, 1])), clearOnKO: true, clearOnRound: true };
+var WEAPON_BALANCE = {
+  "heavy-blade": { damage: 25, range: 105, pellets: 1, spread: 0 },
+  "impact-hammer": { damage: 40, range: 110, pellets: 1, spread: 0 },
+  "riot-bat": { damage: 22, range: 100, pellets: 1, spread: 0 },
+  "twin-daggers": { damage: 12, range: 75, pellets: 1, spread: 0 },
+  "pulse-katana": { damage: 28, range: 120, pellets: 1, spread: 0 },
+  ...Object.fromEntries(Object.entries(GUNS).map(([id, g]) => [id, { damage: g.body, range: g.range, pellets: g.pellets, spread: g.hip }]))
+};
+function weaponAction(id, clip) {
+  if (gunId(id) && clip === "fire") {
+    const g = GUNS[id];
+    return { duration: g.duration, events: [{ time: g.event, kind: "shot", hand: 1 }] };
+  }
+  const all = WORKSHOP_WEAPONS[id].actions;
+  return all[clip] ?? all[isGun(id) ? "fire" : "attack1"];
+}
+function createWeapon(weaponId, instanceId) {
+  const ammo = AMMO_CONFIG[weaponId];
+  return { instanceId, weaponId, magazine: ammo?.magazine ?? 0, reserve: ammo?.reserve ?? 0 };
+}
+
+// shared/inventory.ts
+var fixtureId = 0;
+function clearInventory(p) {
+  p.inventory = { weapon: null, utility: null, weapons: [null, null] };
+  p.selectedSlot = 1;
+  p.heldItem = null;
+}
+function weaponSlots(p) {
+  p.inventory ??= { weapon: null, utility: null };
+  p.inventory.weapons ??= [p.inventory.weapon && canonicalWeapon(p.inventory.weapon) ? createWeapon(canonicalWeapon(p.inventory.weapon), `legacy-${++fixtureId}`) : null, null];
+  return p.inventory.weapons;
+}
+function syncEquipped(p) {
+  const weapons = weaponSlots(p);
+  p.inventory.weapon = weapons[(p.selectedSlot ?? 1) === 2 ? 1 : 0]?.weaponId ?? weapons.find(Boolean)?.weaponId ?? null;
+  p.heldItem = p.selectedSlot === 3 ? p.inventory.utility : weapons[p.selectedSlot === 2 ? 1 : 0]?.weaponId ?? null;
+}
+function activeWeapon(p) {
+  return p.selectedSlot === 3 ? null : weaponSlots(p)[p.selectedSlot === 2 ? 1 : 0];
+}
+function pickup(p, kind, instance, replaceSlot) {
+  p.inventory ??= { weapon: null, utility: null };
+  if (kind === "freeze_ball") {
+    if (p.inventory.utility) return false;
+    p.inventory.utility = kind;
+    p.selectedSlot = 3;
+    p.heldItem = kind;
+    return true;
+  }
+  const canonical = canonicalWeapon(kind);
+  if (!canonical) return false;
+  const slots = weaponSlots(p);
+  if (slots.some((w) => w?.weaponId === canonical)) return false;
+  const index = replaceSlot ? replaceSlot - 1 : slots.findIndex((w) => !w);
+  if (index < 0) return false;
+  slots[index] = instance ?? createWeapon(canonical, `legacy-${++fixtureId}`);
+  p.selectedSlot = index + 1;
+  syncEquipped(p);
+  if (kind === "blade" || kind === "hammer") {
+    p.inventory.weapon = kind;
+    p.heldItem = kind;
+  }
+  return true;
+}
+function equip(p, slot, carry) {
+  p.inventory ??= { weapon: null, utility: null };
+  const slots = weaponSlots(p);
+  if (slot === 3 && !p.inventory.utility || slot === 2 && !slots[1] && !carry) return false;
+  p.selectedSlot = slot;
+  syncEquipped(p);
+  return true;
+}
+function consumeUtility(p) {
+  if (p.inventory) p.inventory.utility = null;
+  p.selectedSlot = 1;
+  syncEquipped(p);
+}
+
 // shared/game.ts
 var ARENA = { ...WORLD, radius: TRAVERSAL.radius, speed: 220 };
 var STEP = 1 / 30;
@@ -1503,53 +1581,6 @@ function safeSpawn(others, map = ACTIVE_MAP) {
   return { ...best };
 }
 
-// shared/weapon-ray.ts
-var unit = (v) => {
-  const n = Math.hypot(v.x, v.y, v.z) || 1;
-  return { x: v.x / n, y: v.y / n, z: v.z / n };
-};
-var along = (a, d, t) => ({ x: a.x + d.x * t, y: a.y + d.y * t, z: a.z + d.z * t });
-function rayBox(a, d, min, max, limit) {
-  let enter = 0, exit = limit;
-  for (const axis of ["x", "y", "z"]) {
-    if (Math.abs(d[axis]) < 1e-9) {
-      if (a[axis] < min[axis] || a[axis] > max[axis]) return Infinity;
-    } else {
-      const u = (min[axis] - a[axis]) / d[axis], v = (max[axis] - a[axis]) / d[axis];
-      enter = Math.max(enter, Math.min(u, v));
-      exit = Math.min(exit, Math.max(u, v));
-      if (enter > exit) return Infinity;
-    }
-  }
-  return enter;
-}
-function solid(a, d, b, limit) {
-  let t = rayBox(a, d, { x: b.x, y: b.y, z: b.bottom }, { x: b.x + b.width, y: b.y + b.height, z: b.top }, limit);
-  if (!Number.isFinite(t) || b.shape !== "ellipse") return t;
-  const rx = b.width / 2, ry = b.height / 2, x = (a.x - b.x - rx) / rx, y = (a.y - b.y - ry) / ry, dx = d.x / rx, dy = d.y / ry, A = dx * dx + dy * dy, B = 2 * (x * dx + y * dy), C = x * x + y * y - 1;
-  if (A < 1e-15) return C <= 0 ? t : Infinity;
-  const disc = B * B - 4 * A * C;
-  if (disc < 0) return Infinity;
-  const lo = (-B - Math.sqrt(disc)) / (2 * A), hi = (-B + Math.sqrt(disc)) / (2 * A);
-  t = Math.max(t, lo, 0);
-  const p = along(a, d, t);
-  return t <= Math.min(limit, hi) && p.z >= b.bottom - 1e-6 && p.z <= b.top + 1e-6 ? t : Infinity;
-}
-function rayMap(map, a, d, limit) {
-  let nearest = limit;
-  for (const b of map.blocks) nearest = Math.min(nearest, solid(a, d, b, nearest));
-  const ramps = map.surfaces.filter((s) => s.ramp);
-  for (let t = 0; t < nearest; t += 4) {
-    const p = along(a, d, t);
-    if (p.z >= 0 && ramps.some((s) => inside2(p, s) && p.z <= surfaceHeight(s, p))) return t;
-  }
-  return nearest;
-}
-function clearRay(map, a, b) {
-  const n = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
-  return n < 1e-6 || rayMap(map, a, unit({ x: b.x - a.x, y: b.y - a.y, z: b.z - a.z }), n) >= n - 1e-5;
-}
-
 // server/weapon-combat.ts
 var live = (p, now) => !!p.socket && p.health > 0 && p.frozenUntil <= now;
 function cancelWeapon(p) {
@@ -1557,6 +1588,8 @@ function cancelWeapon(p) {
 }
 function beginWeaponEquip(p, now) {
   cancelWeapon(p);
+  p.ads = false;
+  p.adsSince = 0;
   p.combo = 0;
   p.comboUntil = 0;
   const w = activeWeapon(p);
@@ -1594,6 +1627,8 @@ function reloadWeapon(p, room, now) {
   if (!live(p, now) || !w || !allowedWeapon(room.selectedGameMode, w.weaponId) || !isGun(w.weaponId) || p.weaponAction || p.attackCooldown > 1e-8) return false;
   const ammo = AMMO_CONFIG[w.weaponId];
   if (!ammo || w.magazine >= ammo.magazine || w.reserve <= 0) return false;
+  p.ads = false;
+  p.adsSince = 0;
   const action = weaponAction(w.weaponId, "reload");
   p.weaponAction = { serial: (p.weaponSerial ?? 0) + 1, weaponId: w.weaponId, instanceId: w.instanceId, clip: "reload", startedAt: now, endsAt: now + action.duration * 1e3, nextEvent: 0, aimX: p.attackX, aimY: p.attackY, aimZ: 0 };
   p.weaponSerial = p.weaponAction.serial;
@@ -1601,38 +1636,53 @@ function reloadWeapon(p, room, now) {
 }
 var hostile = (r, a, b) => a.id !== b.id && (r.mode.teams[a.id] ?? a.id) !== (r.mode.teams[b.id] ?? b.id);
 function firstPlayer(room, p, a, d, limit) {
-  let distance = limit, target;
+  let distance = limit, target, region = "body";
   for (const other of room.players) {
-    if (!hostile(room, p, other) || !other.socket || other.health <= 0 || other.protection > 0) continue;
-    const z = other.elevation ?? 0, t = rayBox(a, d, { x: other.x - 20, y: other.y - 20, z: z + 5 }, { x: other.x + 20, y: other.y + 20, z: z + 62 }, distance);
-    if (t < distance) {
-      target = other;
-      distance = t;
+    if (!hostile(room, p, other) || !other.socket || other.health <= 0) continue;
+    for (const box of hitBoxes(other)) {
+      const t = rayBox(a, d, box.min, box.max, distance);
+      if (t < distance) {
+        target = other;
+        distance = t;
+        region = box.region;
+      }
     }
   }
-  return { target, distance };
+  return { target, distance, region };
 }
-function effect(room, p, w, now, type, a, b, target) {
-  (room.mode.weaponEffects ??= []).push({ id: randomUUID(), ownerId: p.id, weaponId: w.weaponId, type, at: now, x: a.x, y: a.y, elevation: a.z, toX: b.x, toY: b.y, toZ: b.z, targetId: target?.id });
+function effect(room, p, w, now, type, a, b, target, details = {}) {
+  (room.mode.weaponEffects ??= []).push({ id: randomUUID(), ownerId: p.id, weaponId: w.weaponId, instanceId: w.instanceId, type, at: now, x: a.x, y: a.y, elevation: a.z, toX: b.x, toY: b.y, toZ: b.z, targetId: target?.id, ...details });
 }
 function fire(room, p, w, action, now) {
-  if (w.magazine <= 0) return [];
+  if (w.magazine <= 0 || !gunId(w.weaponId)) return [];
   w.magazine--;
-  const map = MAPS[room.mapId], balance = WEAPON_BALANCE[w.weaponId], aim = unit({ x: action.aimX, y: action.aimY, z: action.aimZ }), chest = { x: p.x, y: p.y, z: (p.elevation ?? 0) + COMBAT.chestHeight };
+  const g = GUNS[w.weaponId], map = MAPS[room.mapId], aim = unit({ x: action.aimX, y: action.aimY, z: action.aimZ });
+  const stance = p.traversalState === "slide" && (p.dashRemaining ?? 0) > 0 ? 25 : p.crouched ? 14 : 0, chest = { x: p.x, y: p.y, z: (p.elevation ?? 0) + COMBAT.chestHeight - stance };
   let origin = action.origin ? { x: action.origin.x, y: action.origin.y, z: action.origin.elevation } : chest;
-  if (Math.hypot(origin.x - chest.x, origin.y - chest.y, origin.z - chest.z) > 400 || !clearRay(map, chest, origin)) origin = chest;
-  const cameraWall = rayMap(map, origin, aim, balance.range), sight = firstPlayer(room, p, origin, aim, cameraWall), reticle = along(origin, aim, sight.distance), muzzle = { x: p.x + action.aimX * 22, y: p.y + action.aimY * 22, z: (p.elevation ?? 0) + 38 };
+  if (!plausibleCamera(origin, chest, aim) || !clearRay(map, chest, origin)) origin = chest;
+  const cameraWall = rayMap(map, origin, aim, g.range), sight = firstPlayer(room, p, origin, aim, cameraWall), reticle = along(origin, aim, sight.distance), n = Math.hypot(aim.x, aim.y) || 1, dx = aim.x / n, dy = aim.y / n;
+  const precise = !!p.ads && now - (p.adsSince ?? now) >= ADS.seconds * 1e3, muzzle = { x: p.x + dx * 24 + dy * 10, y: p.y + dy * 24 - dx * 10, z: (p.elevation ?? 0) + (precise ? 48 : 42) - stance };
+  const old = p.gunHeat?.instanceId === w.instanceId ? p.gunHeat : void 0, heat = old ? decayedHeat(old.heat, old.at, now, w.weaponId) : 0, sequence = (old?.sequence ?? 0) + 1, cone = (precise ? g.ads : g.hip) + heat * g.recoil, shotId = p.id + ":" + action.serial;
+  p.gunHeat = { instanceId: w.instanceId, at: now, heat: Math.min(6, heat + 1), sequence };
   if (!clearRay(map, chest, muzzle)) {
-    effect(room, p, w, now, "shot", chest, muzzle);
+    const t = rayMap(map, chest, unit({ x: muzzle.x - chest.x, y: muzzle.y - chest.y, z: muzzle.z - chest.z }), Math.hypot(muzzle.x - chest.x, muzzle.y - chest.y, muzzle.z - chest.z));
+    effect(room, p, w, now, "shot", chest, along(chest, unit({ x: muzzle.x - chest.x, y: muzzle.y - chest.y, z: muzzle.z - chest.z }), t), void 0, { shotId, surface: true, spread: cone, heat: p.gunHeat.heat });
     return [];
   }
   const base = unit({ x: reticle.x - muzzle.x, y: reticle.y - muzzle.y, z: reticle.z - muzzle.z }), hits = /* @__PURE__ */ new Map();
-  for (let i = 0; i < balance.pellets; i++) {
-    const a = i * Math.PI * 2 / balance.pellets, spread = balance.pellets > 1 ? balance.spread : 0, dir = unit({ x: base.x - base.y * Math.cos(a) * spread, y: base.y + base.x * Math.cos(a) * spread, z: base.z + Math.sin(a) * spread }), wall2 = rayMap(map, muzzle, dir, balance.range), hit = firstPlayer(room, p, muzzle, dir, wall2);
-    if (hit.target) hits.set(hit.target, (hits.get(hit.target) ?? 0) + balance.damage);
-    effect(room, p, w, now, "shot", muzzle, along(muzzle, dir, hit.distance), hit.target);
+  for (let i = 0; i < g.pellets; i++) {
+    const dir = spreadDirection(base, cone, i, g.pellets, sequence), wall2 = rayMap(map, muzzle, dir, g.range), hit = firstPlayer(room, p, muzzle, dir, wall2), end = along(muzzle, dir, hit.distance);
+    if (hit.target && hit.target.protection <= 0) {
+      const value = (hit.region === "head" ? g.head : g.body) * (w.weaponId === "shotgun" ? shotgunFalloff(hit.distance) : 1), old2 = hits.get(hit.target);
+      hits.set(hit.target, { damage: (old2?.damage ?? 0) + value, head: !!old2?.head || hit.region === "head", end });
+    }
+    effect(room, p, w, now, "shot", muzzle, end, hit.target, { shotId, region: hit.region, spread: cone, heat: p.gunHeat.heat, surface: wall2 < g.range && !hit.target });
   }
-  return [...hits].map(([target, damage]) => ({ attacker: p, target, damage }));
+  return [...hits].map(([target, hit]) => {
+    const damage = Math.round(Math.min(w.weaponId === "shotgun" ? 85 : Infinity, hit.damage));
+    if (damage > 0) effect(room, p, w, now, "damage", muzzle, hit.end, target, { shotId, damage, region: hit.head ? "head" : "body" });
+    return { attacker: p, target, damage };
+  }).filter((h) => h.damage > 0);
 }
 function tickWeapon(room, p, now) {
   const action = p.weaponAction;
@@ -2038,7 +2088,7 @@ var RoomServer = class {
   }
   view(room, recipient) {
     const target = room.players.find((p) => p.id === recipient?.targetId);
-    return { selection: room.selection, selectedGameMode: room.selectedGameMode, selectedFormat: room.selectedFormat, mode: room.mode, mapId: room.mapId, mapVariant: room.mapVariant, nextMapId: room.nextMapId, nextMapVariant: room.nextMapVariant, match: room.match, round: room.round, objective: { target: target ? { id: target.id, name: target.name } : null, eliminations: recipient?.eliminations ?? 0, matchEliminations: recipient?.matchEliminations ?? 0 }, code: room.code, hostId: room.hostId, phase: room.phase, tick: room.tick, notice: room.notice, serverTime: Date.now(), players: room.players.map((p) => ({ weaponAction: p.weaponAction, characterId: p.characterId, characterAutoAssigned: p.characterAutoAssigned, jumpSeen: p.jumpSeen, airborne: p.airborne, verticalVelocity: p.verticalVelocity, jumpOrigin: p.jumpOrigin, crouched: p.crouched, inventory: p.inventory, selectedSlot: p.selectedSlot, traversalState: p.traversalState, frozenUntil: p.frozenUntil, heldItem: p.heldItem, id: p.id, name: p.name, color: p.color, ready: p.ready, connected: !!p.socket, x: p.x, y: p.y, elevation: p.elevation, ack: p.ack, stamina: p.stamina, regenWait: p.regenWait, exhausted: p.exhausted, dashCooldown: p.dashCooldown, dashRemaining: p.dashRemaining, dashX: p.dashX, dashY: p.dashY, facingX: p.facingX, facingY: p.facingY, dashSeen: p.dashSeen, sprinting: p.sprinting, health: p.health, koRemaining: p.koRemaining, protection: p.protection, attackCooldown: p.attackCooldown, attackSeen: p.attackSeen, attackFlash: p.attackFlash, hitFlash: p.hitFlash, attackX: p.attackX, attackY: p.attackY, spawnVersion: p.spawnVersion })) };
+    return { selection: room.selection, selectedGameMode: room.selectedGameMode, selectedFormat: room.selectedFormat, mode: room.mode, mapId: room.mapId, mapVariant: room.mapVariant, nextMapId: room.nextMapId, nextMapVariant: room.nextMapVariant, match: room.match, round: room.round, objective: { target: target ? { id: target.id, name: target.name } : null, eliminations: recipient?.eliminations ?? 0, matchEliminations: recipient?.matchEliminations ?? 0 }, code: room.code, hostId: room.hostId, phase: room.phase, tick: room.tick, notice: room.notice, serverTime: Date.now(), players: room.players.map((p) => ({ ads: !!p.ads, adsSince: p.adsSince ?? 0, aimX: p.aimX, aimY: p.aimY, aimZ: p.aimZ ?? 0, weaponAction: p.weaponAction, characterId: p.characterId, characterAutoAssigned: p.characterAutoAssigned, jumpSeen: p.jumpSeen, airborne: p.airborne, verticalVelocity: p.verticalVelocity, jumpOrigin: p.jumpOrigin, crouched: p.crouched, inventory: p.inventory, selectedSlot: p.selectedSlot, traversalState: p.traversalState, frozenUntil: p.frozenUntil, heldItem: p.heldItem, id: p.id, name: p.name, color: p.color, ready: p.ready, connected: !!p.socket, x: p.x, y: p.y, elevation: p.elevation, ack: p.ack, stamina: p.stamina, regenWait: p.regenWait, exhausted: p.exhausted, dashCooldown: p.dashCooldown, dashRemaining: p.dashRemaining, dashX: p.dashX, dashY: p.dashY, facingX: p.facingX, facingY: p.facingY, dashSeen: p.dashSeen, sprinting: p.sprinting, health: p.health, koRemaining: p.koRemaining, protection: p.protection, attackCooldown: p.attackCooldown, attackSeen: p.attackSeen, attackFlash: p.attackFlash, hitFlash: p.hitFlash, attackX: p.attackX, attackY: p.attackY, spawnVersion: p.spawnVersion })) };
   }
   broadcast(room) {
     for (const p of room.players) if (p.socket) this.send(p.socket, { type: "state", room: this.view(room, p) });
@@ -2296,6 +2346,7 @@ var RoomServer = class {
     if (m.type === "input" && room.phase === "arena") {
       if (m.matchId !== room.match.id || m.roundNumber !== room.match.roundNumber || Date.now() >= room.round.endsAt) return;
       if (!Number.isSafeInteger(m.seq) || m.seq <= p.seq || m.seq > p.seq + NETWORK.maxInputAdvance || !Number.isFinite(m.dx) || !Number.isFinite(m.dy) || Math.abs(m.dx) > 1 || Math.abs(m.dy) > 1) return;
+      if (m.ads !== void 0 && typeof m.ads !== "boolean") return;
       if (m.crouch !== void 0 && typeof m.crouch !== "boolean") return;
       if (m.jumpId !== void 0 && (!Number.isSafeInteger(m.jumpId) || m.jumpId < p.jumpId || m.jumpId > p.jumpId + NETWORK.maxInputAdvance)) return;
       if (m.sprint !== void 0 && typeof m.sprint !== "boolean") return;
@@ -2305,6 +2356,10 @@ var RoomServer = class {
       if (m.dashStyle !== void 0 && !["dash", "dodge", "slide"].includes(m.dashStyle)) return;
       if (m.aimZ !== void 0 && (!Number.isFinite(m.aimZ) || Math.abs(m.aimZ) > 1)) return;
       if (m.aimOrigin !== void 0 && (!m.aimOrigin || !["x", "y", "elevation"].every((k) => Number.isFinite(m.aimOrigin[k])) || Math.hypot(m.aimOrigin.x - p.x, m.aimOrigin.y - p.y, m.aimOrigin.elevation - p.elevation) > 400)) return;
+      const aiming = !!m.ads && isGun(p.heldItem) && p.health > 0 && p.frozenUntil <= Date.now() && !["reload", "equip"].includes(p.weaponAction?.clip ?? "");
+      if (aiming && !p.ads) p.adsSince = Date.now();
+      p.ads = aiming;
+      if (!aiming) p.adsSince = 0;
       p.aimZ = m.aimZ ?? 0;
       p.aimOrigin = m.aimOrigin;
       p.jumpId = m.jumpId ?? p.jumpId;
@@ -2340,6 +2395,9 @@ var RoomServer = class {
     room.nextMapVariant = null;
     room.notice = notice;
     for (const p of room.players) {
+      p.ads = false;
+      p.adsSince = 0;
+      p.gunHeat = void 0;
       Object.assign(p, freshMotion(mapFor(room).spawns[0]), freshCombat());
       p.jumpSeen = p.jumpId;
       p.crouch = false;
@@ -2370,6 +2428,8 @@ var RoomServer = class {
     const { room, player: p } = s;
     dropFlag(room, p);
     cancelWeapon(p);
+    p.ads = false;
+    p.adsSince = 0;
     p.socket = null;
     p.ready = false;
     p.dx = 0;
@@ -2451,6 +2511,9 @@ var RoomServer = class {
       return;
     }
     for (const p of room.roster) {
+      p.ads = false;
+      p.adsSince = 0;
+      p.gunHeat = void 0;
       p.eliminations = 0;
       cancelWeapon(p);
       p.combo = 0;
@@ -2563,9 +2626,13 @@ var RoomServer = class {
         continue;
       }
       if (room.phase === "arena") {
-        room.mode.weaponEffects = (room.mode.weaponEffects ?? []).filter((e) => now - e.at < 350).slice(-64);
+        room.mode.weaponEffects = (room.mode.weaponEffects ?? []).filter((e) => now - e.at < (e.type === "damage" || e.type === "elimination" ? 1500 : 350)).slice(-96);
         room.round.remainingSeconds = Math.max(0, Math.ceil((room.round.endsAt - now) / 1e3));
         for (const p of room.players) {
+          if (!p.socket || p.health <= 0 || p.frozenUntil > now || now - p.lastInput >= NETWORK.inputTimeoutMs || !isGun(p.heldItem)) {
+            p.ads = false;
+            p.adsSince = 0;
+          }
           p.attackCooldown = Math.max(0, p.attackCooldown - STEP);
           p.protection = Math.max(0, p.protection - STEP);
           p.attackFlash = Math.max(0, p.attackFlash - STEP);
@@ -2661,11 +2728,18 @@ var RoomServer = class {
             total += hit.damage;
             if (!killer && total >= p.health) killer = hit.attacker;
           }
-          if (killer && !this.legacyBounty) onElimination(room, killer, p);
+          if (killer && !this.legacyBounty) {
+            onElimination(room, killer, p);
+            const w = activeWeapon(killer);
+            if (w && isGun(w.weaponId)) (room.mode.weaponEffects ??= []).push({ id: randomUUID4(), type: "elimination", ownerId: killer.id, weaponId: w.weaponId, at: now, targetId: p.id, x: killer.x, y: killer.y, elevation: killer.elevation, toX: p.x, toY: p.y, toZ: p.elevation + 50 });
+          }
           if (this.legacyBounty && killer && killer.targetId === p.id) completions.push(killer);
           p.health = Math.max(0, p.health - total);
           p.hitFlash = COMBAT.hitFlash;
           if (p.health === 0) {
+            p.ads = false;
+            p.adsSince = 0;
+            p.gunHeat = void 0;
             p.koRemaining = COMBAT.respawnDelay;
             cancelWeapon(p);
             p.dx = 0;

@@ -1,0 +1,29 @@
+GUN pistol
+HIT pistol body 10
+HIT pistol head 20
+GUN assault-rifle
+HIT assault-rifle body 30
+HIT assault-rifle head 45
+GUN shotgun
+HIT shotgun body 50
+HIT shotgun head 85
+GUN sniper-rifle
+HIT sniper-rifle body 80
+HIT sniper-rifle head 100
+PASS [
+  'pistol body: 10 authoritative damage, both clients synchronized',
+  'pistol head: 20 authoritative damage, both clients synchronized',
+  'pistol: desktop release, touch ADS/fire/reload/exit',
+  'assault-rifle body: 30 authoritative damage, both clients synchronized',
+  'assault-rifle head: 45 authoritative damage, both clients synchronized',
+  'assault-rifle: desktop release, touch ADS/fire/reload/exit',
+  'shotgun body: 50 authoritative damage, both clients synchronized',
+  'shotgun head: 85 authoritative damage, both clients synchronized',
+  'shotgun: desktop release, touch ADS/fire/reload/exit',
+  'sniper-rifle body: 80 authoritative damage, both clients synchronized',
+  'sniper-rifle head: 100 authoritative damage, both clients synchronized',
+  'sniper-rifle: desktop release, touch ADS/fire/reload/exit',
+  'Held rifle trigger fires repeatedly while moving; release stops; V switches shoulder',
+  'Touch joystick and right-side camera swipe operate together while aimed',
+  'Four mobile layouts: ADS target in viewport, no control overlap or document scroll'
+]

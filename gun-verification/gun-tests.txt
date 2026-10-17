@@ -1,0 +1,26 @@
+✔ pistol body: authoritative exact damage from geometry (3.713258ms)
+✔ pistol head: authoritative exact damage from geometry (0.558031ms)
+✔ assault-rifle body: authoritative exact damage from geometry (0.433013ms)
+✔ assault-rifle head: authoritative exact damage from geometry (0.37179ms)
+✔ sniper-rifle body: authoritative exact damage from geometry (0.434786ms)
+✔ sniper-rifle head: authoritative exact damage from geometry (0.317679ms)
+✔ shotgun close body: ten deterministic pellets aggregate once (2.476983ms)
+✔ shotgun close head: ten deterministic pellets aggregate once (0.579113ms)
+✔ shotgun deterministic falloff and partial hit loss at distance (1.641334ms)
+✔ protected target blocks pellets and remains immune; no target behind is hit (0.483559ms)
+✔ duplicate event processing cannot consume ammunition or register damage twice (0.388485ms)
+✔ empty, frozen and reloading guns cannot shoot; existing shotgun per-shell interrupt remains supported (0.279732ms)
+✔ muzzle cover and camera-ray cover both block sniper hits (0.574856ms)
+✔ head boxes follow crouch, active slide and actual airborne height (0.147102ms)
+✔ camera origins reject impossible lateral/forward displacement and non-finite values (0.153321ms)
+✔ rifle recoil heat, reticle cone and server recovery use the same shared rule (0.575077ms)
+✔ all live firearms have one server shot event per ammunition consumption (0.167602ms)
+✔ real room ignores forged damage/region, registers sniper head KO and score once, then respawns at 100 HP (156.428038ms)
+ℹ tests 18
+ℹ suites 0
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 583.358887
