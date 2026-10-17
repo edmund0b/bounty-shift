@@ -1,3 +1,7 @@
+# Current release: Gun Combat Upgrade 1
+
+See [GUN_UPGRADE_1.md](GUN_UPGRADE_1.md) for current gun rules, controls, verification and limits. Earlier V1 documents below describe the preserved integration baseline.
+
 # Bounty Shift — Weapons Integrated V1
 
 This is the complete multiplayer game with all nine Workshop V5 weapons integrated. Start with [WEAPONS_INTEGRATION_V1.md](WEAPONS_INTEGRATION_V1.md) for current controls, setup, equipment rules, balance defaults and implementation details. Executed tests are recorded in [weapon-verification/TEST_RESULTS.md](weapon-verification/TEST_RESULTS.md).
