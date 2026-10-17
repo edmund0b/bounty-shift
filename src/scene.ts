@@ -1,3 +1,6 @@
+import {createTagVisuals} from './TagVisuals';
+import {tagReach} from './tag-animation';
+import {canonicalWeapon} from '../shared/weapons';
 import {GUNS,gunId,ADS,decayedHeat} from '../shared/gun-config';
 import type {AimControl} from '../shared/presentation';
 import {GameplayWeapon} from './weapons/gameplay';
@@ -17,7 +20,7 @@ import { VIEW, cameraAim, CONTROLLER, smoothAngle } from '../shared/presentation
 import { constrainOrbit } from './camera';
 
 const S=VIEW.scale;
-type Avatar={weapon:GameplayWeapon;animationTime:number|null;sample:PlayerView;animation:GameplayAnimator;rig:Rig;characterId:string;bases:THREE.Color[];transparent:boolean[];heldBall:THREE.Group;frost:THREE.Group;frostMat:THREE.MeshBasicMaterial;frostMix:number;group:THREE.Group;limbs:THREE.Group[];materials:THREE.MeshStandardMaterial[];label:THREE.Sprite;labelCanvas:HTMLCanvasElement;labelTexture:THREE.CanvasTexture;ring:THREE.Mesh;arc:THREE.Mesh;lastLabel:string;version:number;x:number;z:number;elevation:number};
+type Avatar={tagSeen?:number;tagAt?:number;weapon:GameplayWeapon;animationTime:number|null;sample:PlayerView;animation:GameplayAnimator;rig:Rig;characterId:string;bases:THREE.Color[];transparent:boolean[];heldBall:THREE.Group;frost:THREE.Group;frostMat:THREE.MeshBasicMaterial;frostMix:number;group:THREE.Group;limbs:THREE.Group[];materials:THREE.MeshStandardMaterial[];label:THREE.Sprite;labelCanvas:HTMLCanvasElement;labelTexture:THREE.CanvasTexture;ring:THREE.Mesh;arc:THREE.Mesh;lastLabel:string;version:number;x:number;z:number;elevation:number};
 export function createArenaScene(canvas:HTMLCanvasElement,map:MapDefinition=ACTIVE_MAP,variant:string|null=null){
  const env=mapEnvironment(map,variant);
  const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
@@ -34,7 +37,7 @@ export function createArenaScene(canvas:HTMLCanvasElement,map:MapDefinition=ACTI
  const cube=track(new THREE.BoxGeometry(1,1,1));
  const box=(parent:THREE.Object3D,x:number,y:number,z:number,w:number,h:number,d:number,mat:THREE.Material)=>{const mesh=new THREE.Mesh(cube,mat);mesh.position.set(x,y,z);mesh.scale.set(w,h,d);parent.add(mesh);return mesh;};
  const environment=buildEnvironment(scene,map,variant);solids.push(...environment.solids as THREE.Mesh[]);
- const lootEffects=createLootEffects(scene,track);
+ const lootEffects=createLootEffects(scene,track),tagVisuals=createTagVisuals(scene,track);
  const frostGeometry=track(new THREE.OctahedronGeometry(.035,0));
  const limbGeometry=track(new THREE.BoxGeometry(1,1,1));
  const makeAvatar=(id:string,color:string,characterId:string,player:PlayerView):Avatar=>{
@@ -42,6 +45,7 @@ export function createArenaScene(canvas:HTMLCanvasElement,map:MapDefinition=ACTI
   const rig=createRig(characterById(characterId));rig.root.scale.multiplyScalar(.55);rig.ring.visible=false;group.add(rig.root);
   const mats:THREE.MeshStandardMaterial[]=[];rig.root.traverse(o=>{const m=(o as THREE.Mesh).material;for(const mat of Array.isArray(m)?m:[m])if(mat instanceof THREE.MeshStandardMaterial&&!mats.includes(mat))mats.push(mat);});
   const bases=mats.map(m=>m.color.clone()),transparent=mats.map(m=>m.transparent);const limbs=[...rig.legs.map(l=>l.hip),...rig.arms.map(a=>a.shoulder)];
+  const aura=new THREE.Mesh(track(new THREE.CylinderGeometry(.66,.66,1.85,16,1,true)),track(new THREE.MeshBasicMaterial({color:'#ff345e',transparent:true,opacity:.08,depthWrite:false,side:THREE.DoubleSide})));aura.position.y=.95;aura.visible=false;aura.name='tagger-aura';group.add(aura);
   const ring=new THREE.Mesh(track(new THREE.RingGeometry(.55,.6,40)),track(new THREE.MeshBasicMaterial({color,transparent:true,opacity:.85,side:THREE.DoubleSide})));ring.rotation.x=-Math.PI/2;ring.position.y=.035;group.add(ring);
   const arc=new THREE.Mesh(track(new THREE.RingGeometry(.6,COMBAT.range*S,32,1,-COMBAT.halfAngle,COMBAT.halfAngle*2)),track(new THREE.MeshBasicMaterial({color:'#bdeeff',transparent:true,opacity:.3,side:THREE.DoubleSide})));arc.rotation.x=-Math.PI/2;arc.rotation.z=-Math.PI/2;arc.position.y=.06;arc.visible=false;group.add(arc);
   const c=document.createElement('canvas');c.width=512;c.height=128;const t=track(new THREE.CanvasTexture(c));t.colorSpace=THREE.SRGBColorSpace;
@@ -88,7 +92,7 @@ export function createArenaScene(canvas:HTMLCanvasElement,map:MapDefinition=ACTI
    if(a&&a.characterId!==characterId){scene.remove(a.group);a.weapon.dispose();disposeTree(a.rig.root);avatars.delete(p.id);a=undefined;}
    a=a||makeAvatar(p.id,color,characterId,p);const pos=p.id===id?local:p;
    const oldX=a.x,oldZ=a.z,resetPosition=a.version!==p.spawnVersion;if(a.version!==p.spawnVersion||p.id===id){a.x=pos.x*S;a.z=pos.y*S;a.elevation=pos.elevation??0;a.version=p.spawnVersion;}else{const f=1-Math.exp(-dt*18);const candidate={x:a.x/S+(p.x-a.x/S)*f,y:a.z/S+(p.y-a.z/S)*f,elevation:0};const height=p.airborne?a.elevation+(p.elevation-a.elevation)*f:displayElevation(candidate,a.elevation+(p.elevation-a.elevation)*f,map);candidate.elevation=height??p.elevation;if(Math.hypot(a.x-p.x*S,a.z-p.y*S)<=180*S&&height!==null&&(p.airborne||isWalkable(candidate,map))){a.x=candidate.x*S;a.z=candidate.y*S;a.elevation=candidate.elevation;}else{a.x=p.x*S;a.z=p.y*S;a.elevation=p.elevation;}}
-   a.group.scale.y=1;a.rig.root.visible=!(p.id===id&&self.heldItem==='sniper-rifle'&&aimBlend>.65);
+   a.group.visible=!p.concealed;a.group.getObjectByName('tagger-aura')!.visible=isIt;(a.group.getObjectByName('tagger-aura') as THREE.Mesh).scale.setScalar(room.round.remainingSeconds<=20?1.08:1);a.group.scale.y=1;a.rig.root.visible=!(p.id===id&&self.heldItem==='sniper-rifle'&&aimBlend>.65);
    a.group.position.set(a.x,a.elevation*S,a.z);const armedAim=p.weaponAction;const facing=p.ads?{x:p.aimX??pos.facingX,y:p.aimY??pos.facingY}:armedAim?{x:armedAim.aimX,y:armedAim.aimY}:p.attackFlash>0?{x:p.attackX,y:p.attackY}:{x:pos.facingX,y:pos.facingY};a.group.rotation.y=smoothAngle(a.group.rotation.y,Math.atan2(facing.x,facing.y),CONTROLLER.avatarTurnSpeed,dt);a.arc.rotation.z=-Math.PI/2+(p.attackFlash>0?Math.atan2(p.attackX,p.attackY)-a.group.rotation.y:0);
    for(let i=0;i<a.materials.length;i++){const mat=a.materials[i];mat.color.copy(a.bases[i]);if(p.hitFlash>0)mat.color.lerp(new THREE.Color('#ffffff'),.65);if(p.health===0)mat.color.multiplyScalar(.3);if(frozen)mat.color.lerp(new THREE.Color('#91cddd'),.35);mat.opacity=p.id===id&&camera.position.distanceTo(target)<CONTROLLER.avatarFadeDistance?.18:1;mat.transparent=mat.opacity<1||a.transparent[i];}
    a.frostMix+=(Number(frozen)-a.frostMix)*(1-Math.exp(-dt*(frozen?20:8)));if(p.health===0||!frozen&&a.frostMix<.015)a.frostMix=0;a.frost.visible=a.frostMix>.015;a.frostMat.opacity=a.frostMix*.6;a.frost.children.forEach((mesh,j)=>{const angle=time*.8+j*Math.PI/3;mesh.position.set(Math.sin(angle)*.45,.35+(j%3)*.45+Math.sin(time*2+j)*.06,Math.cos(angle)*.32);});
@@ -97,8 +101,10 @@ export function createArenaScene(canvas:HTMLCanvasElement,map:MapDefinition=ACTI
    const animationDt=a.animationTime===null?0:Math.max(0,time-a.animationTime);a.animationTime=time;
    const speed=!resetPosition&&animationDt>0?Math.min(ARENA.speed*4,Math.hypot(a.x-oldX,a.z-oldZ)/(S*animationDt)):0;
    Object.assign(a.sample,p);if(p.id===id){a.sample.airborne=local.airborne;a.sample.verticalVelocity=local.verticalVelocity;a.sample.crouched=local.crouched;a.sample.sprinting=local.sprinting;a.sample.traversalState=local.traversalState;a.sample.dashRemaining=local.dashRemaining;}
+   if(room.mode.tag&&!canonicalWeapon(p.heldItem))a.sample.attackFlash=0;
    a.animation.update(a.sample,speed,animationDt,a.elevation*S,frozen);
    a.weapon.update(a.sample,a.animation.timeline,room.selectedGameMode,visualNow,speed);
+   if(room.mode.tag&&!canonicalWeapon(p.heldItem)){if(a.tagSeen!==undefined&&a.tagSeen!==p.attackSeen)a.tagAt=visualNow;a.tagSeen=p.attackSeen;tagReach(a.rig,(visualNow-(a.tagAt??-10000))/1000);}else a.tagSeen=p.attackSeen;
    a.rig.head.getWorldPosition(labelAnchor);a.label.position.y=labelAnchor.y-a.group.position.y+.8;a.label.visible=p.id!==id;
    const labelWorld=2*camera.position.distanceTo(labelAnchor)*Math.tan(camera.fov*Math.PI/360)/height*(width<700?120:160);a.label.scale.set(labelWorld,labelWorld/4,1);
    const throwing=room.mode.effects.filter(e=>e.type==='throw'&&e.ownerId===p.id).at(-1),throwAge=throwing?visualNow-throwing.at:Infinity;
@@ -111,7 +117,8 @@ export function createArenaScene(canvas:HTMLCanvasElement,map:MapDefinition=ACTI
   const animationVersions=room.players.map(p=>`${p.id}:${avatars.get(p.id)?.version}`).join(',');if(canvas.dataset.animationVersions!==animationVersions)canvas.dataset.animationVersions=animationVersions;
   canvas.dataset.weapons=room.players.map(p=>`${p.id}:${avatars.get(p.id)?.weapon.weapon?.id??'unarmed'}:${avatars.get(p.id)?.weapon.lastClip}`).join(',');
   canvas.dataset.aimPoses=room.players.map(p=>`${p.id}:${Number(avatars.get(p.id)?.rig.root.userData.aimBlend??0).toFixed(2)}`).join(',');
+  tagVisuals.update(room,id,visualNow);
   canvas.dataset.characters=room.players.map(p=>`${p.id}:${p.characterId}`).join(',');renderer.render(scene,camera);
  }
- const shotDirection=new THREE.Vector3();return {update,aimRay(){camera.getWorldDirection(shotDirection);return {x:shotDirection.x,y:shotDirection.z,z:shotDirection.y,origin:{x:camera.position.x/S,y:camera.position.z/S,elevation:camera.position.y/S}};},dispose(){for(const a of avatars.values()){a.weapon.dispose();disposeTree(a.rig.root);}for(const r of resources)r.dispose();resources.clear();avatars.clear();lootEffects.dispose();environment.dispose();renderer.dispose();}};
+ const shotDirection=new THREE.Vector3();return {update,aimRay(){camera.getWorldDirection(shotDirection);return {x:shotDirection.x,y:shotDirection.z,z:shotDirection.y,origin:{x:camera.position.x/S,y:camera.position.z/S,elevation:camera.position.y/S}};},dispose(){for(const a of avatars.values()){a.weapon.dispose();disposeTree(a.rig.root);}for(const r of resources)r.dispose();resources.clear();avatars.clear();lootEffects.dispose();tagVisuals.dispose();environment.dispose();renderer.dispose();}};
 }
