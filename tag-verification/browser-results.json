@@ -1,0 +1,31 @@
+{
+  "results": [
+    "Real mystery capsule collected with E; reward revealed; disappearance synchronized",
+    "Actual F input transfers IT once, preserves HP and updates both clients",
+    "smoke_screen: actual UI activation consumed once; both clients synchronized",
+    "speed_surge: actual UI activation consumed once; both clients synchronized",
+    "sticky_trap: actual UI activation consumed once; both clients synchronized",
+    "jump_pad: actual UI activation consumed once; both clients synchronized",
+    "footprint_tracker: actual UI activation consumed once; both clients synchronized",
+    "healing_burst: actual UI activation consumed once; both clients synchronized",
+    "bounce_bomb: actual UI activation consumed once; both clients synchronized",
+    "freeze_ball: actual UI activation consumed once; both clients synchronized",
+    "gravity_bomb: actual UI activation consumed once; both clients synchronized",
+    "ghost_step: actual UI activation consumed once; both clients synchronized",
+    "flash_pop: actual UI activation consumed once; both clients synchronized",
+    "magnet_boots: actual UI activation consumed once; both clients synchronized",
+    "reverse_pulse: actual UI activation consumed once; both clients synchronized",
+    "trap_clone: actual UI activation consumed once; both clients synchronized",
+    "blink_beaker: actual UI activation consumed once; both clients synchronized",
+    "clone_decoy: actual UI activation consumed once; both clients synchronized",
+    "phase_dash: actual UI activation consumed once; both clients synchronized",
+    "portal_pair: actual UI activation consumed once; both clients synchronized",
+    "time_bubble: actual UI activation consumed once; both clients synchronized",
+    "seal_tug: actual UI activation consumed once; both clients synchronized",
+    "Mobile contextual utility button and simultaneous joystick/camera input work",
+    "Frenzy/countdown and three-round results rendered; zero page errors"
+  ],
+  "errors": [],
+  "softwareGPU": true,
+  "extendedFixtureClocks": true
+}

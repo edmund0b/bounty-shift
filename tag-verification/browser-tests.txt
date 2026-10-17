@@ -1,0 +1,50 @@
+BROWSER POWER smoke_screen
+BROWSER POWER speed_surge
+BROWSER POWER sticky_trap
+BROWSER POWER jump_pad
+BROWSER POWER footprint_tracker
+BROWSER POWER healing_burst
+BROWSER POWER bounce_bomb
+BROWSER POWER freeze_ball
+BROWSER POWER gravity_bomb
+BROWSER POWER ghost_step
+BROWSER POWER flash_pop
+BROWSER POWER magnet_boots
+BROWSER POWER reverse_pulse
+BROWSER POWER trap_clone
+BROWSER POWER blink_beaker
+BROWSER POWER clone_decoy
+BROWSER POWER phase_dash
+BROWSER POWER portal_pair
+BROWSER POWER time_bubble
+BROWSER POWER seal_tug
+LAYOUT { width: 844, height: 390 }
+LAYOUT { width: 390, height: 844 }
+LAYOUT { width: 375, height: 667 }
+LAYOUT { width: 640, height: 360 }
+PASS [
+  'Real mystery capsule collected with E; reward revealed; disappearance synchronized',
+  'Actual F input transfers IT once, preserves HP and updates both clients',
+  'smoke_screen: actual UI activation consumed once; both clients synchronized',
+  'speed_surge: actual UI activation consumed once; both clients synchronized',
+  'sticky_trap: actual UI activation consumed once; both clients synchronized',
+  'jump_pad: actual UI activation consumed once; both clients synchronized',
+  'footprint_tracker: actual UI activation consumed once; both clients synchronized',
+  'healing_burst: actual UI activation consumed once; both clients synchronized',
+  'bounce_bomb: actual UI activation consumed once; both clients synchronized',
+  'freeze_ball: actual UI activation consumed once; both clients synchronized',
+  'gravity_bomb: actual UI activation consumed once; both clients synchronized',
+  'ghost_step: actual UI activation consumed once; both clients synchronized',
+  'flash_pop: actual UI activation consumed once; both clients synchronized',
+  'magnet_boots: actual UI activation consumed once; both clients synchronized',
+  'reverse_pulse: actual UI activation consumed once; both clients synchronized',
+  'trap_clone: actual UI activation consumed once; both clients synchronized',
+  'blink_beaker: actual UI activation consumed once; both clients synchronized',
+  'clone_decoy: actual UI activation consumed once; both clients synchronized',
+  'phase_dash: actual UI activation consumed once; both clients synchronized',
+  'portal_pair: actual UI activation consumed once; both clients synchronized',
+  'time_bubble: actual UI activation consumed once; both clients synchronized',
+  'seal_tug: actual UI activation consumed once; both clients synchronized',
+  'Mobile contextual utility button and simultaneous joystick/camera input work',
+  'Frenzy/countdown and three-round results rendered; zero page errors'
+]

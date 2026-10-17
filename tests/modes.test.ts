@@ -1,3 +1,4 @@
+import {pickupCount} from '../shared/tag-run';
 import {pickup} from '../shared/inventory';
 import {createWeapon,LOOT_CONFIG,weaponAction} from '../shared/weapons';
 import {test} from 'node:test';
@@ -27,7 +28,7 @@ test('host authority, enum validation, ready reset, and invalid Duo roster rejec
 });
 for(const mode of ['tag','kill_race','flag_run'] as const)for(const [count,format] of [[2,'solo'],[4,'solo'],[6,'solo'],[4,'duo'],[6,'duo']] as const)test(`${mode}: ${count} ${format}, stable teams, three rounds, map rotation, results and lobby`,()=>{
  const f=fixture(count,mode,format);f.start();assert.equal(f.room.phase,'arena');const teams={...f.room.mode.teams};assert.equal(new Set(Object.values(teams)).size,format==='duo'?count/2:count);
- for(let i=1;i<=3;i++){assert.equal(f.room.match.roundNumber,i);assert.equal(f.room.selectedGameMode,mode);assert.deepEqual(f.room.mode.teams,teams);assert.equal(f.room.mode.items.length,LOOT_CONFIG.groundCount+LOOT_CONFIG.chestCount+LOOT_CONFIG.utilityCount);f.server.tick(f.room.round.endsAt);assert.equal(f.room.phase,i===3?'complete':'intermission');if(i<3)f.server.tick(f.room.round.returnAt);}
+ for(let i=1;i<=3;i++){assert.equal(f.room.match.roundNumber,i);assert.equal(f.room.selectedGameMode,mode);assert.deepEqual(f.room.mode.teams,teams);assert.equal(f.room.mode.items.length,LOOT_CONFIG.groundCount+LOOT_CONFIG.chestCount+(mode==='tag'?pickupCount(count):LOOT_CONFIG.utilityCount));f.server.tick(f.room.round.endsAt);assert.equal(f.room.phase,i===3?'complete':'intermission');if(i<3)f.server.tick(f.room.round.returnAt);}
  assert.equal(f.room.match.history.length,3);assert.equal(f.room.match.mapHistory[0],'central_plaza');assert.notEqual(f.room.match.mapHistory[0],f.room.match.mapHistory[1]);assert(f.room.match.results.length>0);f.send(0,{type:'lobby'});assert.equal(f.room.phase,'lobby');assert.equal(f.room.mode.items.length,0);assert(f.room.players.every(p=>!p.ready));
 });
 test('all map anchors are walkable and flag destinations are separated',()=>{for(const id of Object.keys(MAPS)){const a=mapAnchors(id);assert(isWalkable(a.capture,MAPS[id]),id);assert(a.flags.length>0,id);for(const p of [...a.chests,...a.floor,...a.flags])assert(isWalkable(p,MAPS[id]),id);}});
@@ -41,8 +42,8 @@ test('chest contention, mode loot isolation, replay and distance checks',()=>{
   f.send(0,{type:'interact',matchId:'stale',roundNumber:1});assert.equal(chest.state,'closed');interact(f.room,f.room.players[0],Date.now());assert.equal(chest.state,'opening');tickMode(f.room,Date.now()+CHEST_OPEN_MS+1,STEP);assert.equal(chest.state,'opened');f.room.players.forEach(p=>Object.assign(p,pickupPosition(chest)));interact(f.room,f.room.players[0],Date.now()+CHEST_OPEN_MS+1);interact(f.room,f.room.players[1],Date.now());assert.equal(chest.state,'empty');assert(f.room.players[0].heldItem);assert.equal(f.room.players[1].heldItem,null);assert(MODE_RULES[mode].loot.includes(f.room.players[0].heldItem!));
  }
 });
-test('freeze ball has authoritative hit, duration, wall collision and movement restoration',()=>{
- const f=fixture();f.start();const [p,q]=f.room.players;Object.assign(p,{x:1300,y:1400,elevation:110,heldItem:'freeze_ball',attackX:1,attackY:0});Object.assign(q,{x:1380,y:1400,elevation:110});const now=Date.now();assert(throwBall(f.room,p,now));assert.equal(p.heldItem,null);for(let i=0;i<6;i++)tickMode(f.room,now+i*STEP*1000,STEP);assert(q.frozenUntil>now);assert.equal(f.room.mode.projectiles.length,0);
+test('non-Tag freeze ball retains authoritative hit, duration, wall collision and movement restoration',()=>{
+ const f=fixture(2,'kill_race');f.start();const [p,q]=f.room.players;Object.assign(p,{x:1300,y:1400,elevation:110,heldItem:'freeze_ball',attackX:1,attackY:0});Object.assign(q,{x:1380,y:1400,elevation:110});const now=Date.now();assert(throwBall(f.room,p,now));assert.equal(p.heldItem,null);for(let i=0;i<6;i++)tickMode(f.room,now+i*STEP*1000,STEP);assert(q.frozenUntil>now);assert.equal(f.room.mode.projectiles.length,0);
  q.lastInput=now;q.dx=1;const x=q.x;f.server.tick(now+100);assert.equal(q.x,x);q.lastInput=q.frozenUntil+1;f.server.tick(q.frozenUntil+1);assert(q.x>x);
  Object.assign(p,{x:55,y:400,elevation:110,heldItem:'freeze_ball',attackX:-1,attackY:0});throwBall(f.room,p,now);for(let i=0;i<3;i++)tickMode(f.room,now+i*STEP*1000,STEP);assert.equal(f.room.mode.projectiles.length,0);
 });
