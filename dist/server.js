@@ -796,8 +796,8 @@ function groundSupport(p, map) {
 }
 function surfaceHeight(s, p) {
   if (!s.ramp) return s.elevation;
-  const distance = s.ramp.axis === "x" ? (p.x - s.x) / s.width : (p.y - s.y) / s.height;
-  return s.ramp.from + (s.ramp.to - s.ramp.from) * Math.max(0, Math.min(1, distance));
+  const distance2 = s.ramp.axis === "x" ? (p.x - s.x) / s.width : (p.y - s.y) / s.height;
+  return s.ramp.from + (s.ramp.to - s.ramp.from) * Math.max(0, Math.min(1, distance2));
 }
 function blockedAt(p, map = ACTIVE_MAP) {
   const z = p.elevation ?? 0, r = TRAVERSAL.radius;
@@ -823,51 +823,266 @@ function nextPosition(previous, x, y, map = ACTIVE_MAP) {
   return null;
 }
 
-// shared/weapon-ray.ts
-var unit = (v) => {
-  const n = Math.hypot(v.x, v.y, v.z) || 1;
-  return { x: v.x / n, y: v.y / n, z: v.z / n };
-};
-var along = (a, d, t) => ({ x: a.x + d.x * t, y: a.y + d.y * t, z: a.z + d.z * t });
-function rayBox(a, d, min, max, limit) {
-  let enter = 0, exit = limit;
-  for (const axis of ["x", "y", "z"]) {
-    if (Math.abs(d[axis]) < 1e-9) {
-      if (a[axis] < min[axis] || a[axis] > max[axis]) return Infinity;
-    } else {
-      const u = (min[axis] - a[axis]) / d[axis], v = (max[axis] - a[axis]) / d[axis];
-      enter = Math.max(enter, Math.min(u, v));
-      exit = Math.min(exit, Math.max(u, v));
-      if (enter > exit) return Infinity;
+// shared/game.ts
+var ARENA = { ...WORLD, radius: TRAVERSAL.radius, speed: 220 };
+var STEP = 1 / 30;
+var MAX_PLAYERS = 6;
+var RECONNECT_MS = 1e4;
+var NETWORK = { inputTimeoutMs: 300, maxInputAdvance: 120, resumeRetryMs: 1e3, resumeAttempts: 15 };
+var COLORS = ["#60cfff", "#ffbc66", "#b6a2ff", "#77d8a4", "#ff8da5", "#e9df78"];
+var MOVEMENT = { sprintMultiplier: 1.5, staminaMax: 100, staminaDrain: 28, staminaRegen: 22, regenDelay: 0.6, dashSpeed: 850, dashDuration: 0.18, dashCooldown: 3 };
+var JUMP = { velocity: 300, gravity: 900 };
+function freshMotion(position) {
+  return { ...position, jumpOrigin: { ...position, elevation: position.elevation ?? 0 }, jumpSeen: 0, airborne: false, verticalVelocity: 0, crouched: false, traversalState: "idle", elevation: position.elevation ?? 0, stamina: MOVEMENT.staminaMax, regenWait: 0, exhausted: false, dashCooldown: 0, dashRemaining: 0, dashX: 0, dashY: 1, facingX: 0, facingY: 1, dashSeen: 0, sprinting: false };
+}
+function isWalkable(p, map = ACTIVE_MAP) {
+  return walkable(p, map);
+}
+function move(p, dx, dy, dt = STEP, speed = ARENA.speed, map = ACTIVE_MAP) {
+  const length = Math.hypot(dx, dy);
+  if (length > 1) {
+    dx /= length;
+    dy /= length;
+  }
+  const totalX = dx * speed * dt, totalY = dy * speed * dt, steps = Math.max(1, Math.ceil(Math.max(Math.abs(totalX), Math.abs(totalY)) / 5));
+  let point = { ...p, elevation: p.elevation ?? 0 };
+  for (let i = 0; i < steps; i++) {
+    const x = Math.max(ARENA.radius, Math.min(map.bounds.width - ARENA.radius, point.x + totalX / steps));
+    point = nextPosition(point, x, point.y, map) ?? point;
+    const y = Math.max(ARENA.radius, Math.min(map.bounds.height - ARENA.radius, point.y + totalY / steps));
+    point = nextPosition(point, point.x, y, map) ?? point;
+  }
+  return point;
+}
+function advanceMotion(previous, input, dt = STEP, map = ACTIVE_MAP) {
+  const s = { ...previous };
+  s.crouched = !!input.crouch;
+  const jump = input.jumpId ?? s.jumpSeen ?? 0;
+  if (jump > (s.jumpSeen ?? 0)) {
+    s.jumpSeen = jump;
+    if (!s.airborne && walkable(s, map)) {
+      s.airborne = true;
+      s.verticalVelocity = JUMP.velocity;
+      s.jumpOrigin = { x: s.x, y: s.y, elevation: s.elevation };
     }
   }
-  return enter;
-}
-function solid(a, d, b, limit) {
-  let t = rayBox(a, d, { x: b.x, y: b.y, z: b.bottom }, { x: b.x + b.width, y: b.y + b.height, z: b.top }, limit);
-  if (!Number.isFinite(t) || b.shape !== "ellipse") return t;
-  const rx = b.width / 2, ry = b.height / 2, x = (a.x - b.x - rx) / rx, y = (a.y - b.y - ry) / ry, dx = d.x / rx, dy = d.y / ry, A = dx * dx + dy * dy, B = 2 * (x * dx + y * dy), C = x * x + y * y - 1;
-  if (A < 1e-15) return C <= 0 ? t : Infinity;
-  const disc = B * B - 4 * A * C;
-  if (disc < 0) return Infinity;
-  const lo = (-B - Math.sqrt(disc)) / (2 * A), hi = (-B + Math.sqrt(disc)) / (2 * A);
-  t = Math.max(t, lo, 0);
-  const p = along(a, d, t);
-  return t <= Math.min(limit, hi) && p.z >= b.bottom - 1e-6 && p.z <= b.top + 1e-6 ? t : Infinity;
-}
-function rayMap(map, a, d, limit) {
-  let nearest = limit;
-  for (const b of map.blocks) nearest = Math.min(nearest, solid(a, d, b, nearest));
-  const ramps = map.surfaces.filter((s) => s.ramp);
-  for (let t = 0; t < nearest; t += 4) {
-    const p = along(a, d, t);
-    if (p.z >= 0 && ramps.some((s) => inside2(p, s) && p.z <= surfaceHeight(s, p))) return t;
+  s.dashCooldown = Math.max(0, s.dashCooldown - dt);
+  s.regenWait = Math.max(0, s.regenWait - dt);
+  let dx = input.dx, dy = input.dy;
+  const length = Math.hypot(dx, dy);
+  if (length > 1) {
+    dx /= length;
+    dy /= length;
   }
-  return nearest;
+  if (length > 0) {
+    s.facingX = dx;
+    s.facingY = dy;
+  }
+  if (!input.sprint) s.exhausted = false;
+  const dashId = input.dashId ?? s.dashSeen;
+  if (dashId > s.dashSeen) {
+    s.dashSeen = dashId;
+    if (s.dashCooldown <= 0 && (input.dashStyle !== "slide" || length > 0)) {
+      s.traversalState = input.dashStyle ?? "dash";
+      s.dashCooldown = MOVEMENT.dashCooldown;
+      s.dashRemaining = s.traversalState === "slide" ? 0.42 : s.traversalState === "dodge" ? 0.24 : MOVEMENT.dashDuration;
+      s.dashX = length > 0 ? dx : s.facingX;
+      s.dashY = length > 0 ? dy : s.facingY;
+    }
+  }
+  s.sprinting = !!input.sprint && length > 0 && !s.exhausted && s.stamina > 0 && s.dashRemaining <= 0;
+  if (s.sprinting) {
+    s.stamina = Math.max(0, s.stamina - MOVEMENT.staminaDrain * dt);
+    s.regenWait = MOVEMENT.regenDelay;
+    if (s.stamina === 0) s.exhausted = true;
+  } else if (s.regenWait <= 0) s.stamina = Math.min(MOVEMENT.staminaMax, s.stamina + MOVEMENT.staminaRegen * dt);
+  const travel = (dx2, dy2, time, speed) => {
+    if (!s.airborne) return move(s, dx2, dy2, time, speed, map);
+    let p = { x: s.x, y: s.y, elevation: s.elevation };
+    const steps = Math.max(1, Math.ceil(speed * time / 5));
+    for (let i = 0; i < steps; i++) {
+      for (const axis of ["x", "y"]) {
+        const q = { ...p, [axis]: p[axis] + (axis === "x" ? dx2 : dy2) * speed * time / steps };
+        if (!blockedAt(q, map)) p = q;
+      }
+    }
+    return p;
+  };
+  let pos;
+  if (s.dashRemaining > 0) {
+    const time = Math.min(dt, s.dashRemaining);
+    pos = travel(s.dashX, s.dashY, time, s.traversalState === "slide" ? 250 + 300 * (s.dashRemaining - time / 2) / 0.42 : s.traversalState === "dodge" ? 580 : MOVEMENT.dashSpeed);
+    s.dashRemaining = Math.max(0, s.dashRemaining - dt);
+  } else pos = travel(dx, dy, dt, ARENA.speed * (s.sprinting ? MOVEMENT.sprintMultiplier : 1));
+  if (s.dashRemaining <= 0) s.traversalState = s.sprinting ? "sprint" : length > 0 ? "walk" : "idle";
+  if (s.airborne) {
+    const old = s.elevation;
+    s.verticalVelocity = (s.verticalVelocity ?? 0) - JUMP.gravity * dt;
+    const next = old + s.verticalVelocity * dt;
+    const landings = [0, ...map.surfaces.filter((v) => inside2(pos, v)).map((v) => surfaceHeight(v, pos))].sort((a, b) => b - a);
+    const floor4 = s.verticalVelocity <= 0 ? landings.find((z) => z <= old + 0.01 && z >= next - 0.01 && walkable({ ...pos, elevation: z }, map)) : void 0;
+    if (floor4 !== void 0) {
+      pos.elevation = floor4;
+      s.airborne = false;
+      s.verticalVelocity = 0;
+    } else if (next < 0) {
+      pos = s.jumpOrigin ?? pos;
+      s.airborne = false;
+      s.verticalVelocity = 0;
+    } else {
+      const steps = Math.max(1, Math.ceil(Math.abs(next - old) / 3));
+      let z = old;
+      for (let i = 0; i < steps; i++) {
+        const candidate = z + (next - old) / steps;
+        if (blockedAt({ ...pos, elevation: candidate }, map)) {
+          if ((s.verticalVelocity ?? 0) < 0) {
+            pos = s.jumpOrigin ?? pos;
+            z = pos.elevation ?? 0;
+            s.airborne = false;
+          }
+          s.verticalVelocity = 0;
+          break;
+        }
+        z = candidate;
+      }
+      pos.elevation = z;
+    }
+    if (s.airborne && s.dashRemaining <= 0) s.traversalState = (s.verticalVelocity ?? 0) > 0 ? "jump" : "fall";
+  }
+  if (!s.airborne && s.crouched && s.dashRemaining <= 0) s.traversalState = "crouch";
+  return { ...s, ...pos, elevation: pos.elevation ?? 0 };
 }
-function clearRay(map, a, b) {
-  const n = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
-  return n < 1e-6 || rayMap(map, a, unit({ x: b.x - a.x, y: b.y - a.y, z: b.z - a.z }), n) >= n - 1e-5;
+
+// shared/tag-run.ts
+var TAG = { roundMs: 135e3, immunityMs: 2e3, freezeMs: 2e3, freezeImmunityMs: 3e3, pickupRespawnMs: 14e3, unitsPerMeter: 1 / 0.03, fieldRadius: 4 / 0.03, blinkRange: 7 / 0.03, tagRange: 80 };
+var RARITIES = { common: { weight: 55, color: "#9bccd9" }, rare: { weight: 30, color: "#4bafff" }, epic: { weight: 13, color: "#be84ff" }, legendary: { weight: 2, color: "#ffcf65" } };
+var ability = (name, rarity, duration, description, icon) => ({ name, rarity, duration, description, icon, range: TAG.fieldRadius, cooldown: 1e3 });
+var POWERS = {
+  smoke_screen: ability("Smoke Screen", "common", 4e3, "Smoke hides players and nameplates.", "\u224B"),
+  speed_surge: ability("Speed Surge", "common", 3e3, "20% faster movement; normal stamina costs.", "\u219F"),
+  sticky_trap: ability("Sticky Trap", "common", 5e3, "First opponent is slowed 35% for 1.5s.", "\u25A7"),
+  jump_pad: ability("Jump Pad", "common", 8e3, "Launch upward and forward.", "\u21E1"),
+  footprint_tracker: ability("Footprint Tracker", "common", 5e3, "Reveal nearby recent movement trails.", "\u22EF"),
+  healing_burst: ability("Healing Burst", "common", 0, "Restore 35 stamina and clear ordinary slows.", "\u271A"),
+  bounce_bomb: ability("Bounce Bomb", "common", 1600, "Throw a directional knockback bomb.", "\u2197"),
+  freeze_ball: ability("Freeze Ball", "rare", 2e3, "Freeze for 2s, followed by 3s freeze immunity.", "\u2744"),
+  gravity_bomb: ability("Gravity Bomb", "rare", 2500, "A 4m field pulls opponents without crossing walls.", "\u25CE"),
+  ghost_step: ability("Ghost Step", "rare", 5e3, "Silent footsteps; no movement trails. Still taggable.", "\u25C7"),
+  flash_pop: ability("Flash Pop", "rare", 1250, "Briefly disrupt nearby opponents\u2019 vision.", "\u2726"),
+  magnet_boots: ability("Magnet Boots", "rare", 5e3, "70% knockback resistance and stable traction.", "\u2293"),
+  reverse_pulse: ability("Reverse Pulse", "rare", 0, "Push nearby opponents away in a 4m wave.", "\u2299"),
+  trap_clone: ability("Trap Clone", "rare", 5e3, "An attacked decoy bursts into a slowing cloud.", "\u265F"),
+  blink_beaker: ability("Blink Beaker", "rare", 0, "Blink up to 7m along a safe, clear route.", "\u21A6"),
+  clone_decoy: ability("Clone Decoy", "epic", 4e3, "Moving clone; you are invisible and cannot tag.", "\u2659"),
+  phase_dash: ability("Phase Dash", "epic", 400, "Fast directional dash; never crosses walls.", "\xBB"),
+  portal_pair: ability("Portal Pair", "epic", 8e3, "Two linked safe portals; 1s reentry lockout.", "\u25C9"),
+  time_bubble: ability("Time Bubble", "epic", 3e3, "Opponents inside move 25% slower.", "\u25F7"),
+  seal_tug: ability("Seal Tug", "legendary", 6e3, "Protected and stationary for 6s. Unusable in final 6s.", "\u2B21")
+};
+var POWER_IDS = Object.keys(POWERS);
+var isPower = (v) => typeof v === "string" && Object.hasOwn(POWERS, v);
+var pickupCount = (players) => [0, 0, 2, 3, 4, 4, 5][Math.min(6, Math.max(2, players))];
+function tagSweep(p, dx, dy, map, air = false) {
+  let point = { ...p, elevation: p.elevation ?? 0 };
+  const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 4));
+  for (let n = 0; n < steps; n++) {
+    const q = { ...point, x: point.x + dx / steps, y: point.y + dy / steps };
+    if (q.x < 20 || q.y < 20 || q.x > map.bounds.width - 20 || q.y > map.bounds.height - 20) break;
+    const next = air ? !blockedAt(q, map) ? q : null : nextPosition(point, q.x, q.y, map);
+    if (!next || !air && !walkable(next, map)) break;
+    point = { ...next, elevation: next.elevation ?? 0 };
+  }
+  return point;
+}
+function tagMultiplier(s, now) {
+  return (s?.speed && s.speed > now ? 1.2 : 1) * Math.min(s?.slow && s.slow > now ? 0.65 : 1, s?.bubble && s.bubble > now ? 0.75 : 1);
+}
+function advanceTagMotion(p, input, s, now, dt, map) {
+  if (s?.sealed && s.sealed > now) return { ...p, ...s.origin ?? p, sprinting: false, dashRemaining: 0 };
+  const result = advanceMotion(p, input, dt, map), factor = tagMultiplier(s, now);
+  if (factor !== 1) {
+    const next = tagSweep(p, (result.x - p.x) * factor, (result.y - p.y) * factor, map, !!result.airborne);
+    result.x = next.x;
+    result.y = next.y;
+    if (!result.airborne) result.elevation = next.elevation ?? result.elevation;
+  }
+  return result;
+}
+
+// server/tag-run.ts
+import { randomInt as randomInt2, randomUUID as randomUUID2 } from "node:crypto";
+
+// shared/combat.ts
+var COMBAT = { chestHeight: 30, maxHealth: 100, damage: 25, range: 80, halfAngle: Math.PI / 3, cooldown: 0.6, respawnDelay: 5, protection: 1.5, attackFlash: 0.15, hitFlash: 0.2 };
+function freshCombat() {
+  return { health: COMBAT.maxHealth, koRemaining: 0, protection: 0, attackCooldown: 0, attackSeen: 0, attackFlash: 0, hitFlash: 0, attackX: 0, attackY: 1, spawnVersion: 0 };
+}
+function clearAttackLine(a, b, map = ACTIVE_MAP) {
+  const az = (a.elevation ?? 0) + COMBAT.chestHeight, bz = (b.elevation ?? 0) + COMBAT.chestHeight;
+  const hit = map.blocks.some((w) => {
+    if (w.shape === "ellipse") {
+      const steps2 = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y, bz - az) / 2));
+      for (let i = 0; i <= steps2; i++) {
+        const t = i / steps2, z = az + (bz - az) * t;
+        if (z >= w.bottom && z <= w.top && inside2({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }, w)) return true;
+      }
+      return false;
+    }
+    let enter = 0, exit = 1;
+    for (const [start, delta, min, max] of [[a.x, b.x - a.x, w.x, w.x + w.width], [a.y, b.y - a.y, w.y, w.y + w.height], [az, bz - az, w.bottom, w.top]]) {
+      if (Math.abs(delta) < 1e-9) {
+        if (start < min || start > max) return false;
+        continue;
+      }
+      const t1 = (min - start) / delta, t2 = (max - start) / delta;
+      enter = Math.max(enter, Math.min(t1, t2));
+      exit = Math.min(exit, Math.max(t1, t2));
+      if (enter > exit) return false;
+    }
+    return enter <= exit;
+  });
+  if (hit) return false;
+  const steps = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y, bz - az) / 4));
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps, p = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }, z = az + (bz - az) * t;
+    if (map.surfaces.some((s) => s.ramp && inside2(p, s) && z >= 0 && z <= surfaceHeight(s, p))) return false;
+  }
+  return true;
+}
+function canHit(a, b, aimX, aimY, map = ACTIVE_MAP) {
+  const dx = b.x - a.x, dy = b.y - a.y, horizontal = Math.hypot(dx, dy), distance2 = Math.hypot(dx, dy, (b.elevation ?? 0) - (a.elevation ?? 0)), length = Math.hypot(aimX, aimY);
+  if (distance2 > COMBAT.range || length < 1e-6) return false;
+  return (horizontal < 1e-6 || (dx * aimX + dy * aimY) / (horizontal * length) >= Math.cos(COMBAT.halfAngle)) && clearAttackLine(a, b, map);
+}
+function safeSpawn(others, map = ACTIVE_MAP) {
+  let best = map.spawns[0], score = -1;
+  for (const point of map.spawns) {
+    if (!isWalkable(point, map)) continue;
+    const clearance = others.length ? Math.min(...others.map((p) => Math.hypot(p.x - point.x, p.y - point.y))) : Infinity;
+    if (clearance > score) {
+      best = point;
+      score = clearance;
+    }
+  }
+  return { ...best };
+}
+
+// shared/modes.ts
+var MODES = {
+  tag: { name: "TAG RUN", icon: "\u25C9", description: "Hot Potato: survive 2:15 without holding IT at zero. Mystery power-ups change the chase." },
+  flag_run: { name: "FLAG RUN", icon: "\u2691", description: "Loot and fight, then recover the flag and deliver it to the marked capture zone." },
+  kill_race: { name: "KILL RACE", icon: "\u2694", description: "Find weapons and earn eliminations. Duos race to 15; highest score wins at the buzzer." }
+};
+var RULES = { freezeMs: 3e3, retagGraceMs: 1200, flagSpawnMs: 3e4, flagWarningMs: 5e3, killTarget: 15, pickupRange: 65, ballSpeed: 650, ballLifetimeMs: 1600, itemRespawnMs: 12e3 };
+var WEAPONS = { blade: { damage: 25, cooldown: 0.38 }, hammer: { damage: 40, cooldown: 0.9 } };
+function emptyMode() {
+  return { teams: {}, scores: {}, matchPoints: {}, it: null, tagAfter: 0, items: [], projectiles: [], effects: [], flag: { state: "not_spawned", carrier: null, position: { x: 0, y: 0 }, spawnAt: 0 }, capture: { x: 0, y: 0 }, winnerKeys: [], reason: "" };
+}
+var validMode = (value) => typeof value === "string" && Object.hasOwn(MODES, value);
+var validFormat = (value) => value === "solo" || value === "duo";
+var validTeams = (format, count) => format === "solo" ? count >= 2 && count <= 6 : count === 4 || count === 6;
+function teamKey(state, id) {
+  return state.teams[id] ?? id;
 }
 
 // shared/gun-config.ts
@@ -880,28 +1095,7 @@ var GUNS = {
 };
 var gunId = (id) => typeof id === "string" && Object.hasOwn(GUNS, id);
 var decayedHeat = (heat, at, now, id) => Math.max(0, heat - Math.max(0, now - at) / 1e3 * GUNS[id].recovery);
-var shotgunFalloff = (distance) => distance <= 100 ? 1 : distance <= 240 ? 1 - (distance - 100) / 140 * 0.4 : Math.max(0, 0.6 * (550 - distance) / 310);
-
-// shared/gun-combat.ts
-function hitBoxes(p) {
-  const z = (p.elevation ?? 0) - (p.traversalState === "slide" && (p.dashRemaining ?? 0) > 0 ? 25 : p.crouched ? 14 : 0);
-  return [{ region: "head", min: { x: p.x - 8, y: p.y - 8, z: z + 49 }, max: { x: p.x + 8, y: p.y + 8, z: z + 65 } }, { region: "body", min: { x: p.x - 19, y: p.y - 19, z: z + 4 }, max: { x: p.x + 19, y: p.y + 19, z: z + 49 } }];
-}
-function spreadDirection(base, cone, index, count, sequence) {
-  if (cone === 0) return base;
-  const ref = Math.abs(base.z) < 0.95 ? { x: 0, y: 0, z: 1 } : { x: 0, y: 1, z: 0 };
-  const right = unit({ x: base.y * ref.z - base.z * ref.y, y: base.z * ref.x - base.x * ref.z, z: base.x * ref.y - base.y * ref.x });
-  const up = { x: right.y * base.z - right.z * base.y, y: right.z * base.x - right.x * base.z, z: right.x * base.y - right.y * base.x };
-  const angle = index * 2.3999632297 + sequence * 1.61803398875, radius = cone * (count === 1 ? 1 : Math.sqrt((index + 0.5) / count));
-  return unit({ x: base.x + radius * (Math.cos(angle) * right.x + Math.sin(angle) * up.x), y: base.y + radius * (Math.cos(angle) * right.y + Math.sin(angle) * up.y), z: base.z + radius * (Math.cos(angle) * right.z + Math.sin(angle) * up.z) });
-}
-function plausibleCamera(origin, chest, aim) {
-  const v = { x: origin.x - chest.x, y: origin.y - chest.y, z: origin.z - chest.z }, length = Math.hypot(aim.x, aim.y) || 1, forward = (v.x * aim.x + v.y * aim.y) / length, side = (v.x * aim.y - v.y * aim.x) / length;
-  return Object.values(origin).every(Number.isFinite) && Math.hypot(v.x, v.y, v.z) <= 270 && forward >= -245 && forward <= 32 && Math.abs(side) <= 85 && Math.abs(v.z) <= 240;
-}
-
-// server/weapon-combat.ts
-import { randomUUID } from "node:crypto";
+var shotgunFalloff = (distance2) => distance2 <= 100 ? 1 : distance2 <= 240 ? 1 - (distance2 - 100) / 140 * 0.4 : Math.max(0, 0.6 * (550 - distance2) / 310);
 
 // shared/workshop-weapons.ts
 var WORKSHOP_WEAPONS = {
@@ -1360,7 +1554,7 @@ function activeWeapon(p) {
 }
 function pickup(p, kind, instance, replaceSlot) {
   p.inventory ??= { weapon: null, utility: null };
-  if (kind === "freeze_ball") {
+  if (isPower(kind)) {
     if (p.inventory.utility) return false;
     p.inventory.utility = kind;
     p.selectedSlot = 3;
@@ -1391,197 +1585,598 @@ function equip(p, slot, carry) {
   return true;
 }
 function consumeUtility(p) {
-  if (p.inventory) p.inventory.utility = null;
+  if (p.inventory) {
+    p.inventory.utility = null;
+    delete p.inventory.utilityInstanceId;
+  }
   p.selectedSlot = 1;
   syncEquipped(p);
 }
 
-// shared/game.ts
-var ARENA = { ...WORLD, radius: TRAVERSAL.radius, speed: 220 };
-var STEP = 1 / 30;
-var MAX_PLAYERS = 6;
-var RECONNECT_MS = 1e4;
-var NETWORK = { inputTimeoutMs: 300, maxInputAdvance: 120, resumeRetryMs: 1e3, resumeAttempts: 15 };
-var COLORS = ["#60cfff", "#ffbc66", "#b6a2ff", "#77d8a4", "#ff8da5", "#e9df78"];
-var MOVEMENT = { sprintMultiplier: 1.5, staminaMax: 100, staminaDrain: 28, staminaRegen: 22, regenDelay: 0.6, dashSpeed: 850, dashDuration: 0.18, dashCooldown: 3 };
-var JUMP = { velocity: 300, gravity: 900 };
-function freshMotion(position) {
-  return { ...position, jumpOrigin: { ...position, elevation: position.elevation ?? 0 }, jumpSeen: 0, airborne: false, verticalVelocity: 0, crouched: false, traversalState: "idle", elevation: position.elevation ?? 0, stamina: MOVEMENT.staminaMax, regenWait: 0, exhausted: false, dashCooldown: 0, dashRemaining: 0, dashX: 0, dashY: 1, facingX: 0, facingY: 1, dashSeen: 0, sprinting: false };
-}
-function isWalkable(p, map = ACTIVE_MAP) {
-  return walkable(p, map);
-}
-function move(p, dx, dy, dt = STEP, speed = ARENA.speed, map = ACTIVE_MAP) {
-  const length = Math.hypot(dx, dy);
-  if (length > 1) {
-    dx /= length;
-    dy /= length;
+// server/weapon-loot.ts
+import { randomInt, randomUUID } from "node:crypto";
+
+// shared/map-anchors.ts
+var captures = { central_plaza: { x: 1620, y: 1450, elevation: 110 }, scorched_point: { x: 1400, y: 1500, elevation: 120 }, aerie_sky_port: { x: 1100, y: 1200 }, outlaws_canyon: { x: 900, y: 400 }, vikings_fjord: { x: 1470, y: 1800, elevation: 120 } };
+function mapAnchors(id) {
+  const map = MAPS[id];
+  if (!map) throw new Error(`Unknown map ${id}`);
+  const requested = captures[id];
+  let capture;
+  for (let radius = 0; radius <= 300 && !capture; radius += 25) for (let i = 0; i < 16 && !capture; i++) {
+    const point = { x: requested.x + Math.cos(i * Math.PI / 8) * radius, y: requested.y + Math.sin(i * Math.PI / 8) * radius, elevation: requested.elevation ?? 0 };
+    if (walkable(point, map)) capture = point;
   }
-  const totalX = dx * speed * dt, totalY = dy * speed * dt, steps = Math.max(1, Math.ceil(Math.max(Math.abs(totalX), Math.abs(totalY)) / 5));
-  let point = { ...p, elevation: p.elevation ?? 0 };
-  for (let i = 0; i < steps; i++) {
-    const x = Math.max(ARENA.radius, Math.min(map.bounds.width - ARENA.radius, point.x + totalX / steps));
-    point = nextPosition(point, x, point.y, map) ?? point;
-    const y = Math.max(ARENA.radius, Math.min(map.bounds.height - ARENA.radius, point.y + totalY / steps));
-    point = nextPosition(point, point.x, y, map) ?? point;
-  }
-  return point;
-}
-function advanceMotion(previous, input, dt = STEP, map = ACTIVE_MAP) {
-  const s = { ...previous };
-  s.crouched = !!input.crouch;
-  const jump = input.jumpId ?? s.jumpSeen ?? 0;
-  if (jump > (s.jumpSeen ?? 0)) {
-    s.jumpSeen = jump;
-    if (!s.airborne && walkable(s, map)) {
-      s.airborne = true;
-      s.verticalVelocity = JUMP.velocity;
-      s.jumpOrigin = { x: s.x, y: s.y, elevation: s.elevation };
-    }
-  }
-  s.dashCooldown = Math.max(0, s.dashCooldown - dt);
-  s.regenWait = Math.max(0, s.regenWait - dt);
-  let dx = input.dx, dy = input.dy;
-  const length = Math.hypot(dx, dy);
-  if (length > 1) {
-    dx /= length;
-    dy /= length;
-  }
-  if (length > 0) {
-    s.facingX = dx;
-    s.facingY = dy;
-  }
-  if (!input.sprint) s.exhausted = false;
-  const dashId = input.dashId ?? s.dashSeen;
-  if (dashId > s.dashSeen) {
-    s.dashSeen = dashId;
-    if (s.dashCooldown <= 0 && (input.dashStyle !== "slide" || length > 0)) {
-      s.traversalState = input.dashStyle ?? "dash";
-      s.dashCooldown = MOVEMENT.dashCooldown;
-      s.dashRemaining = s.traversalState === "slide" ? 0.42 : s.traversalState === "dodge" ? 0.24 : MOVEMENT.dashDuration;
-      s.dashX = length > 0 ? dx : s.facingX;
-      s.dashY = length > 0 ? dy : s.facingY;
-    }
-  }
-  s.sprinting = !!input.sprint && length > 0 && !s.exhausted && s.stamina > 0 && s.dashRemaining <= 0;
-  if (s.sprinting) {
-    s.stamina = Math.max(0, s.stamina - MOVEMENT.staminaDrain * dt);
-    s.regenWait = MOVEMENT.regenDelay;
-    if (s.stamina === 0) s.exhausted = true;
-  } else if (s.regenWait <= 0) s.stamina = Math.min(MOVEMENT.staminaMax, s.stamina + MOVEMENT.staminaRegen * dt);
-  const travel = (dx2, dy2, time, speed) => {
-    if (!s.airborne) return move(s, dx2, dy2, time, speed, map);
-    let p = { x: s.x, y: s.y, elevation: s.elevation };
-    const steps = Math.max(1, Math.ceil(speed * time / 5));
-    for (let i = 0; i < steps; i++) {
-      for (const axis of ["x", "y"]) {
-        const q = { ...p, [axis]: p[axis] + (axis === "x" ? dx2 : dy2) * speed * time / steps };
-        if (!blockedAt(q, map)) p = q;
-      }
-    }
-    return p;
-  };
-  let pos;
-  if (s.dashRemaining > 0) {
-    const time = Math.min(dt, s.dashRemaining);
-    pos = travel(s.dashX, s.dashY, time, s.traversalState === "slide" ? 250 + 300 * (s.dashRemaining - time / 2) / 0.42 : s.traversalState === "dodge" ? 580 : MOVEMENT.dashSpeed);
-    s.dashRemaining = Math.max(0, s.dashRemaining - dt);
-  } else pos = travel(dx, dy, dt, ARENA.speed * (s.sprinting ? MOVEMENT.sprintMultiplier : 1));
-  if (s.dashRemaining <= 0) s.traversalState = s.sprinting ? "sprint" : length > 0 ? "walk" : "idle";
-  if (s.airborne) {
-    const old = s.elevation;
-    s.verticalVelocity = (s.verticalVelocity ?? 0) - JUMP.gravity * dt;
-    const next = old + s.verticalVelocity * dt;
-    const landings = [0, ...map.surfaces.filter((v) => inside2(pos, v)).map((v) => surfaceHeight(v, pos))].sort((a, b) => b - a);
-    const floor4 = s.verticalVelocity <= 0 ? landings.find((z) => z <= old + 0.01 && z >= next - 0.01 && walkable({ ...pos, elevation: z }, map)) : void 0;
-    if (floor4 !== void 0) {
-      pos.elevation = floor4;
-      s.airborne = false;
-      s.verticalVelocity = 0;
-    } else if (next < 0) {
-      pos = s.jumpOrigin ?? pos;
-      s.airborne = false;
-      s.verticalVelocity = 0;
-    } else {
-      const steps = Math.max(1, Math.ceil(Math.abs(next - old) / 3));
-      let z = old;
-      for (let i = 0; i < steps; i++) {
-        const candidate = z + (next - old) / steps;
-        if (blockedAt({ ...pos, elevation: candidate }, map)) {
-          if ((s.verticalVelocity ?? 0) < 0) {
-            pos = s.jumpOrigin ?? pos;
-            z = pos.elevation ?? 0;
-            s.airborne = false;
-          }
-          s.verticalVelocity = 0;
-          break;
-        }
-        z = candidate;
-      }
-      pos.elevation = z;
-    }
-    if (s.airborne && s.dashRemaining <= 0) s.traversalState = (s.verticalVelocity ?? 0) > 0 ? "jump" : "fall";
-  }
-  if (!s.airborne && s.crouched && s.dashRemaining <= 0) s.traversalState = "crouch";
-  return { ...s, ...pos, elevation: pos.elevation ?? 0 };
+  if (!capture) throw new Error(`No valid capture zone for ${id}`);
+  const points = map.spawns.filter((p) => walkable(p, map)).map((p) => ({ ...p }));
+  return { capture, respawns: points, chests: points.filter((_, i) => i % 2 === 0), floor: points.filter((_, i) => i % 2 === 1), flags: points.filter((p) => Math.hypot(p.x - capture.x, p.y - capture.y) > 250) };
 }
 
-// shared/combat.ts
-var COMBAT = { chestHeight: 30, maxHealth: 100, damage: 25, range: 80, halfAngle: Math.PI / 3, cooldown: 0.6, respawnDelay: 5, protection: 1.5, attackFlash: 0.15, hitFlash: 0.2 };
-function freshCombat() {
-  return { health: COMBAT.maxHealth, koRemaining: 0, protection: 0, attackCooldown: 0, attackSeen: 0, attackFlash: 0, hitFlash: 0, attackX: 0, attackY: 1, spawnVersion: 0 };
+// server/weapon-loot.ts
+function chestReward(mode) {
+  const pool = CHEST_WEAPONS.filter((id) => allowedWeapon(mode, id)), total = pool.reduce((n, id) => n + Math.max(0, LOOT_CONFIG.weights[id] ?? 1), 0);
+  if (total <= 0) return pool[randomInt(pool.length)];
+  let roll = randomInt(1e6) / 1e6 * total;
+  for (const id of pool) {
+    roll -= Math.max(0, LOOT_CONFIG.weights[id] ?? 1);
+    if (roll < 0) return id;
+  }
+  return pool[pool.length - 1];
 }
-function clearAttackLine(a, b, map = ACTIVE_MAP) {
-  const az = (a.elevation ?? 0) + COMBAT.chestHeight, bz = (b.elevation ?? 0) + COMBAT.chestHeight;
-  const hit = map.blocks.some((w) => {
-    if (w.shape === "ellipse") {
-      const steps2 = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y, bz - az) / 2));
-      for (let i = 0; i <= steps2; i++) {
-        const t = i / steps2, z = az + (bz - az) * t;
-        if (z >= w.bottom && z <= w.top && inside2({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }, w)) return true;
-      }
-      return false;
+function lootPositions(mapId) {
+  const anchors = mapAnchors(mapId), map = MAPS[mapId], pool = [];
+  for (const base of anchors.respawns) for (const radius of [0, 80, 140, 200]) for (let i = 0; i < (radius ? 8 : 1); i++) {
+    const p = { x: base.x + Math.cos(i * Math.PI / 4) * radius, y: base.y + Math.sin(i * Math.PI / 4) * radius, elevation: base.elevation ?? 0 };
+    if (isWalkable(p, map) && clearAttackLine(base, p, map)) {
+      const steps = Math.max(1, Math.ceil(radius / 15));
+      if (Array.from({ length: steps + 1 }, (_, n) => ({ x: base.x + (p.x - base.x) * n / steps, y: base.y + (p.y - base.y) * n / steps, elevation: p.elevation })).every((q) => isWalkable(q, map))) pool.push(p);
     }
-    let enter = 0, exit = 1;
-    for (const [start, delta, min, max] of [[a.x, b.x - a.x, w.x, w.x + w.width], [a.y, b.y - a.y, w.y, w.y + w.height], [az, bz - az, w.bottom, w.top]]) {
-      if (Math.abs(delta) < 1e-9) {
-        if (start < min || start > max) return false;
-        continue;
-      }
-      const t1 = (min - start) / delta, t2 = (max - start) / delta;
-      enter = Math.max(enter, Math.min(t1, t2));
-      exit = Math.min(exit, Math.max(t1, t2));
-      if (enter > exit) return false;
+  }
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = randomInt(i + 1);
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  const picked = [];
+  for (const p of pool) if (!picked.some((q) => Math.hypot(p.x - q.x, p.y - q.y) < 90)) picked.push(p);
+  return picked;
+}
+function buildLoot(mapId) {
+  const positions = lootPositions(mapId), items = [];
+  let n = 0;
+  for (let i = 0; i < LOOT_CONFIG.chestCount; i++) {
+    const p = positions[n++];
+    if (p) items.push({ ...p, id: randomUUID(), source: "chest", state: "closed", kind: null, refreshAt: 0 });
+  }
+  for (let i = 0; i < LOOT_CONFIG.groundCount; i++) {
+    const p = positions[n++];
+    if (p) {
+      const weaponId = GROUND_WEAPONS[randomInt(GROUND_WEAPONS.length)];
+      items.push({ ...p, id: randomUUID(), source: "floor", state: "opened", kind: weaponId, weapon: createWeapon(weaponId, randomUUID()), refreshAt: 0 });
     }
-    return enter <= exit;
-  });
-  if (hit) return false;
-  const steps = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y, bz - az) / 4));
-  for (let i = 0; i <= steps; i++) {
-    const t = i / steps, p = { x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t }, z = az + (bz - az) * t;
-    if (map.surfaces.some((s) => s.ramp && inside2(p, s) && z >= 0 && z <= surfaceHeight(s, p))) return false;
+  }
+  for (let i = 0; i < LOOT_CONFIG.utilityCount; i++) {
+    const p = positions[n++];
+    if (p) items.push({ ...p, id: "utility-" + randomUUID(), source: "floor", state: "opened", kind: "freeze_ball", refreshAt: 0 });
+  }
+  return items;
+}
+function dropPosition(mapId, p, items) {
+  const origin = p.jumpOrigin && !isWalkable(p, MAPS[mapId]) ? p.jumpOrigin : p;
+  for (const radius of [32, 55, 80]) for (let i = 0; i < 16; i++) {
+    const q = { x: origin.x + Math.cos(i * Math.PI / 8) * radius, y: origin.y + Math.sin(i * Math.PI / 8) * radius, elevation: origin.elevation ?? 0 };
+    if (isWalkable(q, MAPS[mapId]) && clearAttackLine(origin, q, MAPS[mapId]) && !items.some((item) => item.state !== "empty" && Math.hypot((item.pickupPosition ?? item).x - q.x, (item.pickupPosition ?? item).y - q.y) < 24)) return q;
+  }
+  return null;
+}
+function spawnDrop(items, position, weapon, now) {
+  items.push({ ...position, id: randomUUID(), source: "drop", state: "opened", kind: weapon.weaponId, weapon: { ...weapon }, refreshAt: 0, expiresAt: now + LOOT_CONFIG.droppedLifetimeMs });
+}
+function dropOwned(room, p, slot, now) {
+  const slots = weaponSlots(p), weapon = slots[slot - 1];
+  if (!weapon) return false;
+  const point = dropPosition(room.mapId, p, room.mode.items);
+  if (!point) return false;
+  if (allowedWeapon(room.selectedGameMode, weapon.weaponId)) spawnDrop(room.mode.items, point, weapon, now);
+  slots[slot - 1] = null;
+  syncEquipped(p);
+  return true;
+}
+function reconcileEquipment(p, mode) {
+  const slots = weaponSlots(p);
+  for (let i = 0; i < slots.length; i++) if (slots[i] && !allowedWeapon(mode, slots[i].weaponId)) slots[i] = null;
+  syncEquipped(p);
+}
+
+// server/tag-run.ts
+var key = (r, p) => teamKey(r.mode, p.id);
+var status = (r, p) => {
+  const s = r.mode.tag.status[p.id] ??= {};
+  for (const key3 of ["utilityCooldown", "speed", "slow", "bubble", "tracker", "ghost", "magnet", "flash", "invisible", "sealed", "freezeImmune", "portalLock", "padLock", "escapeLock", "forceImmune", "phase", "impulseUntil"]) s[key3] ??= 0;
+  return s;
+};
+var active = (p, now) => !!p.socket && p.health > 0 && p.frozenUntil <= now;
+var distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, (a.elevation ?? 0) - (b.elevation ?? 0));
+var inRange = (r, a, b, range = TAG.fieldRadius) => distance(a, b) <= range && clearAttackLine(a, b, MAPS[r.mapId]);
+var hostile = (r, a, b) => a.id !== b.id && key(r, a) !== key(r, b);
+var event = (r, p, now, kind, power, targetId) => r.mode.tag.events.push({ id: randomUUID2(), kind, power, targetId, at: now, ownerId: p.id, x: p.x, y: p.y, elevation: p.elevation });
+function initTag(room, now, prior) {
+  const keys2 = [...new Set(room.players.map((p) => key(room, p)))];
+  room.mode.tag = { version: 2, startedAt: now, clock: now, spent: Object.fromEntries(keys2.map((k) => [k, 0])), tags: {}, collected: {}, used: {}, immunity: {}, status: {}, fields: [], shots: [], events: [], trails: [], pings: [], pingAt: 0, trailAt: 0, lastTransferAt: -1, serial: 0, consumed: {}, announcement: "HOT POTATO \u2014 avoid holding IT at zero", announcementAt: now, sealSpawned: false, sealUsed: prior?.sealUsed ?? {}, totalTime: prior?.totalTime ?? {}, totalTags: prior?.totalTags ?? {}, totalCollected: prior?.totalCollected ?? {}, totalUsed: prior?.totalUsed ?? {}, rankings: [], ended: false };
+  const activeKeys = keys2.filter((k) => room.players.some((p) => p.socket && key(room, p) === k));
+  room.mode.it = activeKeys[randomInt2(activeKeys.length)] ?? keys2[0];
+  room.mode.tagAfter = now;
+  room.mode.items = room.mode.items.filter((i) => i.kind !== "freeze_ball" && !i.id.startsWith("utility-"));
+  const positions = lootPositions(room.mapId).filter((p) => !room.mode.items.some((i) => distance(i, p) < 70));
+  const candidates = positions.length >= pickupCount(room.players.length) ? positions : lootPositions(room.mapId);
+  for (const p of candidates.slice(0, pickupCount(room.players.length))) room.mode.items.push({ ...p, id: "mystery-" + randomUUID2(), source: "mystery", state: "opened", kind: "mystery", refreshAt: 0 });
+}
+function tagClock(room, now) {
+  const t = room.mode.tag;
+  if (!t || t.ended) return;
+  const end = Math.min(now, room.round.endsAt);
+  if (end > t.clock && room.mode.it) t.spent[room.mode.it] = (t.spent[room.mode.it] ?? 0) + end - t.clock;
+  t.clock = Math.max(t.clock, end);
+}
+function clearEscape(room, p, now) {
+  const s = status(room, p);
+  if (s.origin) {
+    Object.assign(p, s.origin);
+    delete s.origin;
+  }
+  s.invisible = 0;
+  s.sealed = 0;
+  s.phase = 0;
+  s.impulseUntil = 0;
+  p.frozenUntil = 0;
+  s.freezeImmune = now + TAG.freezeImmunityMs;
+  p.weaponAction = null;
+  p.ads = false;
+  room.mode.tag.fields = room.mode.tag.fields.filter((f) => !(f.ownerId === p.id && f.kind === "clone_decoy"));
+}
+var token = (p) => canonicalWeapon(p.heldItem) ? "w:" + p.weaponSerial : "a:" + p.attackSeen;
+function tryTag(room, a, b, now) {
+  const t = room.mode.tag;
+  if (!t || t.ended || now >= room.round.endsAt || t.lastTransferAt === now || key(room, a) !== room.mode.it || !active(a, now) || !b.socket || b.health <= 0 || !hostile(room, a, b) || !tagVisible(room, a, void 0, now) || status(room, a).invisible > now || status(room, a).sealed > now || status(room, b).sealed > now || (t.immunity[b.id] ?? 0) > now || (b.protection ?? 0) > 0 || t.consumed[a.id] === token(a)) return false;
+  const w = canonicalWeapon(a.heldItem);
+  if (w && !allowedWeapon("tag", w)) return false;
+  const range = w ? WEAPON_BALANCE[w].range : TAG.tagRange, n = Math.hypot(b.x - a.x, b.y - a.y) || 1, aim = Math.hypot(a.attackX, a.attackY) || 1;
+  if (!inRange(room, a, b, range) || ((b.x - a.x) * a.attackX + (b.y - a.y) * a.attackY) / (n * aim) < Math.cos(COMBAT.halfAngle)) return false;
+  tagClock(room, now);
+  const old = room.mode.it;
+  t.consumed[a.id] = token(a);
+  t.tags[old] = (t.tags[old] ?? 0) + 1;
+  room.mode.it = key(room, b);
+  room.mode.tagAfter = now;
+  t.lastTransferAt = now;
+  t.serial++;
+  for (const p of room.players) {
+    if (key(room, p) === old) t.immunity[p.id] = now + TAG.immunityMs;
+    if (key(room, p) === room.mode.it) clearEscape(room, p, now);
+  }
+  t.announcement = room.players.filter((p) => key(room, p) === room.mode.it).map((p) => p.name).join(" + ") + " IS IT";
+  t.announcementAt = now;
+  event(room, b, now, "tag", void 0, a.id);
+  return true;
+}
+function choosePower(t, roll = randomInt2(1e6) / 1e6, choice = randomInt2(1e6)) {
+  let value = roll * Object.values(RARITIES).reduce((n, r) => n + r.weight, 0), rarity = "common";
+  for (const [name, r] of Object.entries(RARITIES)) {
+    value -= r.weight;
+    if (value < 0) {
+      rarity = name;
+      break;
+    }
+  }
+  if (rarity === "legendary" && t.sealSpawned) rarity = "epic";
+  const pool = POWER_IDS.filter((id) => POWERS[id].rarity === rarity);
+  return pool[choice % pool.length];
+}
+function collectMystery(room, p, item, now) {
+  const t = room.mode.tag;
+  if (!t || t.ended || now >= room.round.endsAt || !active(p, now) || status(room, p).sealed > now || p.inventory?.utility || item.kind !== "mystery" || item.source !== "mystery" || item.state !== "opened" || !inRange(room, p, item, 65)) return false;
+  const reward = choosePower(t), epic = POWER_IDS.filter((id2) => POWERS[id2].rarity === "epic"), id = reward === "seal_tug" && t.sealUsed[p.id] ? epic[randomInt2(epic.length)] : reward;
+  if (!pickup(p, id)) return false;
+  p.inventory.utilityInstanceId = randomUUID2();
+  if (id === "seal_tug") t.sealSpawned = true;
+  item.kind = null;
+  item.state = "empty";
+  item.refreshAt = now + TAG.pickupRespawnMs;
+  t.collected[p.id] = (t.collected[p.id] ?? 0) + 1;
+  event(room, p, now, "pickup", id);
+  return true;
+}
+var direction = (p) => {
+  const n = Math.hypot(p.attackX, p.attackY) || 1;
+  return { x: p.attackX / n, y: p.attackY / n };
+};
+function field(room, p, id, now, duration, position = p, other) {
+  const d = direction(p), f = { id: randomUUID2(), kind: id, ownerId: p.id, team: key(room, p), x: position.x, y: position.y, elevation: position.elevation, createdAt: now, endsAt: now + duration, dx: d.x, dy: d.y, other, characterId: p.characterId ?? "voltrix" };
+  room.mode.tag.fields.push(f);
+  return f;
+}
+function push(room, p, dx, dy, now, up = true) {
+  const s = status(room, p);
+  if (s.sealed > now || s.forceImmune > now) return;
+  const strength = s.magnet > now ? 0.3 : 1, n = Math.hypot(dx, dy) || 1;
+  s.impulseX = dx / n * 260 * strength;
+  s.impulseY = dy / n * 260 * strength;
+  s.impulseUntil = now + 450;
+  s.forceImmune = now + 1e3;
+  if (up) {
+    p.jumpOrigin = { x: p.x, y: p.y, elevation: p.elevation };
+    p.airborne = true;
+    p.verticalVelocity = 250 * strength;
+  }
+}
+var ESCAPES = /* @__PURE__ */ new Set(["speed_surge", "blink_beaker", "clone_decoy", "phase_dash", "portal_pair", "seal_tug"]);
+function activateTagPower(room, p, now, instance) {
+  const t = room.mode.tag, id = p.inventory?.utility;
+  if (!t || t.ended || now >= room.round.endsAt || !active(p, now) || !isPower(id) || instance !== void 0 && instance !== p.inventory?.utilityInstanceId) return false;
+  const s = status(room, p), d = direction(p), map = MAPS[room.mapId];
+  if (s.utilityCooldown > now || s.sealed > now || s.invisible > now || s.phase > now || ESCAPES.has(id) && s.escapeLock > now) return false;
+  const grounded = isWalkable(p, map) && !p.airborne;
+  if (["sticky_trap", "jump_pad", "trap_clone", "portal_pair", "seal_tug"].includes(id) && !grounded) return false;
+  if (id === "seal_tug" && (room.round.endsAt - now <= 6e3 || t.sealUsed[p.id])) return false;
+  let destination;
+  if (id === "blink_beaker" || id === "portal_pair") {
+    if (!grounded) return false;
+    destination = tagSweep(p, d.x * TAG.blinkRange, d.y * TAG.blinkRange, map);
+    if (distance(destination, p) < 40) return false;
+  }
+  consumeUtility(p);
+  if (p.inventory) delete p.inventory.utilityInstanceId;
+  t.used[p.id] = (t.used[p.id] ?? 0) + 1;
+  event(room, p, now, "power", id);
+  const until = now + POWERS[id].duration;
+  s.utilityCooldown = now + POWERS[id].cooldown;
+  if (ESCAPES.has(id)) s.escapeLock = until + 1e3;
+  switch (id) {
+    case "smoke_screen":
+      field(room, p, id, now, POWERS[id].duration);
+      break;
+    case "speed_surge":
+      s.speed = until;
+      break;
+    case "sticky_trap":
+    case "jump_pad":
+    case "trap_clone":
+      field(room, p, id, now, POWERS[id].duration);
+      break;
+    case "footprint_tracker":
+      s.tracker = until;
+      break;
+    case "healing_burst":
+      p.stamina = Math.min(100, (p.stamina ?? 0) + 35);
+      s.slow = 0;
+      break;
+    case "bounce_bomb":
+    case "freeze_ball":
+      t.shots.push({ id: randomUUID2(), kind: id, ownerId: p.id, team: key(room, p), x: p.x, y: p.y, elevation: p.elevation, dx: d.x, dy: d.y, endsAt: now + 1600 });
+      break;
+    case "gravity_bomb": {
+      const center = tagSweep(p, d.x * 80, d.y * 80, map);
+      field(room, p, id, now, POWERS[id].duration, center);
+      break;
+    }
+    case "ghost_step":
+      s.ghost = until;
+      t.trails = t.trails.filter((v) => v.ownerId !== p.id);
+      break;
+    case "flash_pop":
+      for (const q of room.players) if (hostile(room, p, q) && q.socket && status(room, q).sealed <= now && inRange(room, p, q)) status(room, q).flash = until;
+      break;
+    case "magnet_boots":
+      s.magnet = until;
+      break;
+    case "reverse_pulse":
+      for (const q of room.players) if (hostile(room, p, q) && q.socket && inRange(room, p, q)) push(room, q, q.x - p.x, q.y - p.y, now);
+      field(room, p, id, now, 400);
+      break;
+    case "blink_beaker":
+      Object.assign(p, destination);
+      p.jumpOrigin = { ...destination };
+      break;
+    case "clone_decoy":
+      s.invisible = until;
+      field(room, p, id, now, POWERS[id].duration);
+      break;
+    case "phase_dash":
+      s.phase = until;
+      s.phaseX = d.x;
+      s.phaseY = d.y;
+      break;
+    case "portal_pair":
+      field(room, p, id, now, POWERS[id].duration, p, destination);
+      break;
+    case "time_bubble":
+      field(room, p, id, now, POWERS[id].duration);
+      break;
+    case "seal_tug":
+      s.sealed = until;
+      s.origin = { x: p.x, y: p.y, elevation: p.elevation };
+      t.sealUsed[p.id] = true;
+      p.dashRemaining = 0;
+      p.sprinting = false;
+      p.dx = 0;
+      p.dy = 0;
+      p.weaponAction = null;
+      break;
   }
   return true;
 }
-function canHit(a, b, aimX, aimY, map = ACTIVE_MAP) {
-  const dx = b.x - a.x, dy = b.y - a.y, horizontal = Math.hypot(dx, dy), distance = Math.hypot(dx, dy, (b.elevation ?? 0) - (a.elevation ?? 0)), length = Math.hypot(aimX, aimY);
-  if (distance > COMBAT.range || length < 1e-6) return false;
-  return (horizontal < 1e-6 || (dx * aimX + dy * aimY) / (horizontal * length) >= Math.cos(COMBAT.halfAngle)) && clearAttackLine(a, b, map);
+function hitTagClone(room, p, now) {
+  const t = room.mode.tag;
+  if (!t || !active(p, now) || status(room, p).sealed > now || status(room, p).invisible > now) return false;
+  const w = canonicalWeapon(p.heldItem), range = w ? WEAPON_BALANCE[w].range : TAG.tagRange;
+  const f = t.fields.filter((f2) => ["clone_decoy", "trap_clone"].includes(f2.kind) && f2.team !== key(room, p) && f2.endsAt > now && inRange(room, p, f2, range)).sort((a, b) => distance(p, a) - distance(p, b)).find((f2) => {
+    const d = distance(p, f2) || 1;
+    return ((f2.x - p.x) * p.attackX + (f2.y - p.y) * p.attackY) / d >= 0.5;
+  });
+  if (!f) return false;
+  if (room.players.some((q) => hostile(room, p, q) && distance(p, q) < distance(p, f) && inRange(room, p, q, range))) return false;
+  f.endsAt = now;
+  t.consumed[p.id] = token(p);
+  const owner = room.players.find((q) => q.id === f.ownerId);
+  if (f.kind === "clone_decoy" && owner) status(room, owner).invisible = 0;
+  if (f.kind === "trap_clone" && owner) {
+    field(room, owner, "slow_cloud", now, 1500, f);
+    status(room, p).slow = now + 1500;
+  }
+  event(room, p, now, "burst");
+  return true;
 }
-function safeSpawn(others, map = ACTIVE_MAP) {
-  let best = map.spawns[0], score = -1;
-  for (const point of map.spawns) {
-    if (!isWalkable(point, map)) continue;
-    const clearance = others.length ? Math.min(...others.map((p) => Math.hypot(p.x - point.x, p.y - point.y))) : Infinity;
-    if (clearance > score) {
-      best = point;
-      score = clearance;
+function tagVisible(room, p, viewer, now = Date.now()) {
+  const t = room.mode.tag;
+  if (!t) return true;
+  const s = t.status[p.id];
+  if (viewer && key(room, p) === key(room, viewer)) return true;
+  if (s?.sealed > now || s?.invisible > now) return false;
+  if (viewer && hostile(room, p, viewer)) {
+    for (const f of t.fields.filter((f2) => f2.kind === "smoke_screen" && f2.endsAt > now)) {
+      const dx = p.x - viewer.x, dy = p.y - viewer.y, v = Math.max(0, Math.min(1, ((f.x - viewer.x) * dx + (f.y - viewer.y) * dy) / (dx * dx + dy * dy || 1)));
+      if (Math.hypot(viewer.x + dx * v - f.x, viewer.y + dy * v - f.y) < 95 && Math.abs((p.elevation ?? 0) - (f.elevation ?? 0)) < 70) return false;
     }
   }
-  return { ...best };
+  return true;
+}
+function tickTag(room, now, dt) {
+  const t = room.mode.tag;
+  if (!t || t.ended) return;
+  tagClock(room, now);
+  if (!room.players.some((p) => key(room, p) === room.mode.it)) {
+    const next = room.players.find((p) => p.socket && p.health > 0);
+    if (next) {
+      room.mode.it = key(room, next);
+      for (const p of room.players) if (key(room, p) === room.mode.it) clearEscape(room, p, now);
+      t.announcement = "IT reassigned after disconnect";
+      t.announcementAt = now;
+      t.serial++;
+    }
+  }
+  for (const item of room.mode.items) if (item.source === "mystery" && item.state === "empty" && now >= item.refreshAt && room.round.endsAt - now > 5e3) {
+    item.kind = "mystery";
+    item.state = "opened";
+  }
+  const targetCount = pickupCount(room.players.length), capsules = room.mode.items.filter((i) => i.source === "mystery");
+  for (const item of capsules.slice(targetCount)) {
+    item.kind = null;
+    item.state = "empty";
+    item.refreshAt = Infinity;
+  }
+  for (const p of room.players) {
+    const s = status(room, p);
+    s.bubble = 0;
+    if (s.origin && (!(s.sealed > now) || !p.socket)) {
+      Object.assign(p, isWalkable(s.origin, MAPS[room.mapId]) ? s.origin : MAPS[room.mapId].spawns[0]);
+      delete s.origin;
+      s.sealed = 0;
+    }
+    if (!p.socket) {
+      s.invisible = 0;
+      s.phase = 0;
+      continue;
+    }
+    if (s.sealed > now) {
+      Object.assign(p, s.origin);
+      continue;
+    }
+    if (s.phase > now) {
+      const q = tagSweep(p, (s.phaseX ?? 0) * 700 * dt, (s.phaseY ?? 0) * 700 * dt, MAPS[room.mapId], !!p.airborne);
+      Object.assign(p, q);
+    }
+    if (s.impulseUntil > now) {
+      const damp = Math.max(0, (s.impulseUntil - now) / 450), q = tagSweep(p, (s.impulseX ?? 0) * dt * damp, (s.impulseY ?? 0) * dt * damp, MAPS[room.mapId], !!p.airborne);
+      Object.assign(p, q);
+    }
+  }
+  t.fields = t.fields.filter((f) => f.endsAt > now && room.players.some((p) => p.id === f.ownerId && p.socket));
+  for (const f of t.fields) {
+    if (f.kind === "clone_decoy") {
+      const q = tagSweep(f, f.dx * 120 * dt, f.dy * 120 * dt, MAPS[room.mapId]);
+      if (distance(q, f) < 0.1) {
+        f.dx = -f.dx;
+        f.dy = -f.dy;
+      }
+      Object.assign(f, q);
+    }
+    for (const p of room.players) {
+      if (!p.socket || p.health <= 0 || status(room, p).sealed > now) continue;
+      const s = status(room, p), enemy = key(room, p) !== f.team;
+      if (f.kind === "sticky_trap" && enemy && inRange(room, p, f, 35)) {
+        s.slow = now + 1500;
+        f.endsAt = now;
+        break;
+      }
+      if (f.kind === "slow_cloud" && enemy && inRange(room, p, f, 65)) s.slow = now + 100;
+      if (f.kind === "time_bubble" && enemy && inRange(room, p, f)) s.bubble = now + 100;
+      if (f.kind === "gravity_bomb" && enemy && inRange(room, p, f) && s.forceImmune <= now) {
+        const n = distance(p, f) || 1, strength = s.magnet > now ? 0.3 : 1;
+        Object.assign(p, tagSweep(p, (f.x - p.x) / n * 100 * dt * strength, (f.y - p.y) / n * 100 * dt * strength, MAPS[room.mapId], !!p.airborne));
+      }
+      if (f.kind === "jump_pad" && inRange(room, p, f, 32) && s.padLock <= now) {
+        s.padLock = now + 1e3;
+        p.jumpOrigin = { x: p.x, y: p.y, elevation: p.elevation };
+        p.airborne = true;
+        p.verticalVelocity = 380;
+        s.impulseX = f.dx * 150;
+        s.impulseY = f.dy * 150;
+        s.impulseUntil = now + 450;
+      }
+      if (f.kind === "portal_pair" && f.other && s.portalLock <= now) {
+        const dest = inRange(room, p, f, 30) ? f.other : inRange(room, p, f.other, 30) ? f : null;
+        if (dest && isWalkable(dest, MAPS[room.mapId])) {
+          Object.assign(p, { x: dest.x, y: dest.y, elevation: dest.elevation ?? 0 });
+          p.jumpOrigin = { x: p.x, y: p.y, elevation: p.elevation };
+          p.airborne = false;
+          p.verticalVelocity = 0;
+          p.dashRemaining = 0;
+          s.portalLock = now + 1e3;
+        }
+      }
+    }
+  }
+  t.shots = t.shots.filter((ball) => {
+    if (now >= ball.endsAt) return false;
+    const from = { ...ball }, dx = ball.dx * 650 * dt, dy = ball.dy * 650 * dt, end = { x: ball.x + dx, y: ball.y + dy, elevation: ball.elevation };
+    if (!clearAttackLine(from, end, MAPS[room.mapId])) return false;
+    const target = room.players.filter((p) => p.socket && p.health > 0 && key(room, p) !== ball.team && status(room, p).sealed <= now).map((p) => {
+      const u = Math.max(0, Math.min(1, ((p.x - from.x) * dx + (p.y - from.y) * dy) / (dx * dx + dy * dy || 1)));
+      return { p, u, point: { x: from.x + u * dx, y: from.y + u * dy, elevation: from.elevation } };
+    }).filter((v) => inRange(room, v.p, v.point, 30)).sort((a, b) => a.u - b.u)[0];
+    if (target) {
+      const s = status(room, target.p);
+      if (ball.kind === "freeze_ball") {
+        if (s.freezeImmune <= now) {
+          target.p.frozenUntil = now + TAG.freezeMs;
+          target.p.dashRemaining = 0;
+          s.freezeImmune = now + TAG.freezeMs + TAG.freezeImmunityMs;
+          event(room, target.p, now, "freeze");
+        }
+      } else push(room, target.p, ball.dx, ball.dy, now);
+      return false;
+    }
+    Object.assign(ball, end);
+    return true;
+  });
+  if (now - t.trailAt >= 200) {
+    t.trailAt = now;
+    for (const p of room.players) {
+      const s = status(room, p);
+      if (!p.socket || s.ghost > now || s.sealed > now || s.invisible > now) continue;
+      const last = [...t.trails].reverse().find((v) => v.ownerId === p.id);
+      if (!last || distance(last, p) > 6) t.trails.push({ ownerId: p.id, at: now, x: p.x, y: p.y, elevation: p.elevation });
+    }
+  }
+  t.trails = t.trails.filter((v) => now - v.at < 5e3).slice(-180);
+  t.events = t.events.filter((e) => now - e.at < 1600).slice(-48);
+  if (room.round.endsAt - now <= 1e4 && now - t.pingAt >= 2e3) {
+    t.pingAt = now;
+    t.pings = room.players.filter((p) => p.socket && key(room, p) !== room.mode.it && tagVisible(room, p, void 0, now)).map((p) => ({ x: Math.round(p.x / 200) * 200, y: Math.round(p.y / 200) * 200, elevation: void 0 }));
+  }
+}
+function finishTag(room, now) {
+  const t = room.mode.tag;
+  if (!t || t.ended) return;
+  tagClock(room, now);
+  t.ended = true;
+  const keys2 = [...new Set(room.players.map((p) => key(room, p)))];
+  t.rankings = keys2.map((k) => ({ key: k, survived: k !== room.mode.it, itMs: t.spent[k] ?? 0, tags: t.tags[k] ?? 0, collected: room.players.filter((p) => key(room, p) === k).reduce((n, p) => n + (t.collected[p.id] ?? 0), 0), used: room.players.filter((p) => key(room, p) === k).reduce((n, p) => n + (t.used[p.id] ?? 0), 0) })).sort((a, b) => Number(b.survived) - Number(a.survived) || a.itMs - b.itMs || b.tags - a.tags || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  room.mode.winnerKeys = t.rankings.filter((r) => r.survived).map((r) => r.key);
+  room.mode.reason = "Hot Potato \u2014 the side holding IT at zero loses. Survivors: least IT time, then most tags, then stable team ID.";
+  for (const r of t.rankings) {
+    t.totalTime[r.key] = (t.totalTime[r.key] ?? 0) + r.itMs;
+    t.totalTags[r.key] = (t.totalTags[r.key] ?? 0) + r.tags;
+    t.totalCollected[r.key] = (t.totalCollected[r.key] ?? 0) + r.collected;
+    t.totalUsed[r.key] = (t.totalUsed[r.key] ?? 0) + r.used;
+  }
+  for (const p of room.players) {
+    clearEscape(room, p, now);
+    p.frozenUntil = 0;
+    consumeUtility(p);
+  }
+  t.status = {};
+  t.fields = [];
+  t.shots = [];
+  t.trails = [];
+  t.pings = [];
+}
+function tagView(room, recipient, now) {
+  const t = room.mode.tag;
+  if (!t) return;
+  const viewer = recipient, s = viewer ? t.status[viewer.id] : void 0;
+  return { ...t, status: Object.fromEntries(Object.entries(t.status).map(([id, value]) => [id, { ...value, origin: viewer?.id === id ? value.origin : void 0 }])), trails: viewer && s?.tracker > now ? t.trails.filter((v) => {
+    const p = room.players.find((p2) => p2.id === v.ownerId);
+    return p && p.id !== viewer.id && status(room, p).ghost <= now && tagVisible(room, p, viewer, now) && distance(v, viewer) < 500;
+  }) : [], pings: viewer && key(room, viewer) === room.mode.it && room.round.endsAt - now <= 1e4 ? t.pings : [], consumed: {} };
+}
+
+// shared/weapon-ray.ts
+var unit = (v) => {
+  const n = Math.hypot(v.x, v.y, v.z) || 1;
+  return { x: v.x / n, y: v.y / n, z: v.z / n };
+};
+var along = (a, d, t) => ({ x: a.x + d.x * t, y: a.y + d.y * t, z: a.z + d.z * t });
+function rayBox(a, d, min, max, limit) {
+  let enter = 0, exit = limit;
+  for (const axis of ["x", "y", "z"]) {
+    if (Math.abs(d[axis]) < 1e-9) {
+      if (a[axis] < min[axis] || a[axis] > max[axis]) return Infinity;
+    } else {
+      const u = (min[axis] - a[axis]) / d[axis], v = (max[axis] - a[axis]) / d[axis];
+      enter = Math.max(enter, Math.min(u, v));
+      exit = Math.min(exit, Math.max(u, v));
+      if (enter > exit) return Infinity;
+    }
+  }
+  return enter;
+}
+function solid(a, d, b, limit) {
+  let t = rayBox(a, d, { x: b.x, y: b.y, z: b.bottom }, { x: b.x + b.width, y: b.y + b.height, z: b.top }, limit);
+  if (!Number.isFinite(t) || b.shape !== "ellipse") return t;
+  const rx = b.width / 2, ry = b.height / 2, x = (a.x - b.x - rx) / rx, y = (a.y - b.y - ry) / ry, dx = d.x / rx, dy = d.y / ry, A = dx * dx + dy * dy, B = 2 * (x * dx + y * dy), C = x * x + y * y - 1;
+  if (A < 1e-15) return C <= 0 ? t : Infinity;
+  const disc = B * B - 4 * A * C;
+  if (disc < 0) return Infinity;
+  const lo = (-B - Math.sqrt(disc)) / (2 * A), hi = (-B + Math.sqrt(disc)) / (2 * A);
+  t = Math.max(t, lo, 0);
+  const p = along(a, d, t);
+  return t <= Math.min(limit, hi) && p.z >= b.bottom - 1e-6 && p.z <= b.top + 1e-6 ? t : Infinity;
+}
+function rayMap(map, a, d, limit) {
+  let nearest = limit;
+  for (const b of map.blocks) nearest = Math.min(nearest, solid(a, d, b, nearest));
+  const ramps = map.surfaces.filter((s) => s.ramp);
+  for (let t = 0; t < nearest; t += 4) {
+    const p = along(a, d, t);
+    if (p.z >= 0 && ramps.some((s) => inside2(p, s) && p.z <= surfaceHeight(s, p))) return t;
+  }
+  return nearest;
+}
+function clearRay(map, a, b) {
+  const n = Math.hypot(b.x - a.x, b.y - a.y, b.z - a.z);
+  return n < 1e-6 || rayMap(map, a, unit({ x: b.x - a.x, y: b.y - a.y, z: b.z - a.z }), n) >= n - 1e-5;
+}
+
+// shared/gun-combat.ts
+function hitBoxes(p) {
+  const z = (p.elevation ?? 0) - (p.traversalState === "slide" && (p.dashRemaining ?? 0) > 0 ? 25 : p.crouched ? 14 : 0);
+  return [{ region: "head", min: { x: p.x - 8, y: p.y - 8, z: z + 49 }, max: { x: p.x + 8, y: p.y + 8, z: z + 65 } }, { region: "body", min: { x: p.x - 19, y: p.y - 19, z: z + 4 }, max: { x: p.x + 19, y: p.y + 19, z: z + 49 } }];
+}
+function spreadDirection(base, cone, index, count, sequence) {
+  if (cone === 0) return base;
+  const ref = Math.abs(base.z) < 0.95 ? { x: 0, y: 0, z: 1 } : { x: 0, y: 1, z: 0 };
+  const right = unit({ x: base.y * ref.z - base.z * ref.y, y: base.z * ref.x - base.x * ref.z, z: base.x * ref.y - base.y * ref.x });
+  const up = { x: right.y * base.z - right.z * base.y, y: right.z * base.x - right.x * base.z, z: right.x * base.y - right.y * base.x };
+  const angle = index * 2.3999632297 + sequence * 1.61803398875, radius = cone * (count === 1 ? 1 : Math.sqrt((index + 0.5) / count));
+  return unit({ x: base.x + radius * (Math.cos(angle) * right.x + Math.sin(angle) * up.x), y: base.y + radius * (Math.cos(angle) * right.y + Math.sin(angle) * up.y), z: base.z + radius * (Math.cos(angle) * right.z + Math.sin(angle) * up.z) });
+}
+function plausibleCamera(origin, chest, aim) {
+  const v = { x: origin.x - chest.x, y: origin.y - chest.y, z: origin.z - chest.z }, length = Math.hypot(aim.x, aim.y) || 1, forward = (v.x * aim.x + v.y * aim.y) / length, side = (v.x * aim.y - v.y * aim.x) / length;
+  return Object.values(origin).every(Number.isFinite) && Math.hypot(v.x, v.y, v.z) <= 270 && forward >= -245 && forward <= 32 && Math.abs(side) <= 85 && Math.abs(v.z) <= 240;
 }
 
 // server/weapon-combat.ts
+import { randomUUID as randomUUID3 } from "node:crypto";
 var live = (p, now) => !!p.socket && p.health > 0 && p.frozenUntil <= now;
 function cancelWeapon(p) {
   p.weaponAction = null;
@@ -1634,24 +2229,24 @@ function reloadWeapon(p, room, now) {
   p.weaponSerial = p.weaponAction.serial;
   return true;
 }
-var hostile = (r, a, b) => a.id !== b.id && (r.mode.teams[a.id] ?? a.id) !== (r.mode.teams[b.id] ?? b.id);
+var hostile2 = (r, a, b) => a.id !== b.id && (r.mode.teams[a.id] ?? a.id) !== (r.mode.teams[b.id] ?? b.id);
 function firstPlayer(room, p, a, d, limit) {
-  let distance = limit, target, region = "body";
+  let distance2 = limit, target, region = "body";
   for (const other of room.players) {
-    if (!hostile(room, p, other) || !other.socket || other.health <= 0) continue;
+    if (!hostile2(room, p, other) || !other.socket || other.health <= 0) continue;
     for (const box of hitBoxes(other)) {
-      const t = rayBox(a, d, box.min, box.max, distance);
-      if (t < distance) {
+      const t = rayBox(a, d, box.min, box.max, distance2);
+      if (t < distance2) {
         target = other;
-        distance = t;
+        distance2 = t;
         region = box.region;
       }
     }
   }
-  return { target, distance, region };
+  return { target, distance: distance2, region };
 }
 function effect(room, p, w, now, type, a, b, target, details = {}) {
-  (room.mode.weaponEffects ??= []).push({ id: randomUUID(), ownerId: p.id, weaponId: w.weaponId, instanceId: w.instanceId, type, at: now, x: a.x, y: a.y, elevation: a.z, toX: b.x, toY: b.y, toZ: b.z, targetId: target?.id, ...details });
+  (room.mode.weaponEffects ??= []).push({ id: randomUUID3(), ownerId: p.id, weaponId: w.weaponId, instanceId: w.instanceId, type, at: now, x: a.x, y: a.y, elevation: a.z, toX: b.x, toY: b.y, toZ: b.z, targetId: target?.id, ...details });
 }
 function fire(room, p, w, action, now) {
   if (w.magazine <= 0 || !gunId(w.weaponId)) return [];
@@ -1694,12 +2289,12 @@ function tickWeapon(room, p, now) {
   }
   const config = weaponAction(w.weaponId, action.clip), hits = [];
   while (action.nextEvent < config.events.length && now >= action.startedAt + config.events[action.nextEvent].time * 1e3) {
-    const event = config.events[action.nextEvent++];
-    if (event.kind === "reload") {
+    const event2 = config.events[action.nextEvent++];
+    if (event2.kind === "reload") {
       const capacity = AMMO_CONFIG[w.weaponId]?.magazine ?? 0, amount = Math.min(capacity - w.magazine, w.reserve, w.weaponId === "shotgun" ? 1 : Infinity);
       w.magazine += amount;
       w.reserve -= amount;
-    } else if (event.kind === "shot") {
+    } else if (event2.kind === "shot") {
       const raw = { x: p.aimX ?? action.aimX, y: p.aimY ?? action.aimY, z: p.aimZ ?? action.aimZ };
       if (Math.hypot(raw.x, raw.y, raw.z) > 1e-6) {
         const current = unit(raw);
@@ -1709,9 +2304,9 @@ function tickWeapon(room, p, now) {
       }
       action.origin = p.aimOrigin ? { x: p.aimOrigin.x, y: p.aimOrigin.y, elevation: p.aimOrigin.elevation ?? 0 } : action.origin;
       hits.push(...fire(room, p, w, action, now));
-    } else if (event.kind === "contact") {
+    } else if (event2.kind === "contact") {
       const balance = WEAPON_BALANCE[w.weaponId], length = Math.hypot(action.aimX, action.aimY) || 1;
-      const target = room.players.filter((other) => hostile(room, p, other) && other.socket && other.health > 0 && other.protection <= 0 && Math.hypot(other.x - p.x, other.y - p.y, (other.elevation ?? 0) - (p.elevation ?? 0)) <= balance.range).filter((other) => {
+      const target = room.players.filter((other) => hostile2(room, p, other) && other.socket && other.health > 0 && other.protection <= 0 && Math.hypot(other.x - p.x, other.y - p.y, (other.elevation ?? 0) - (p.elevation ?? 0)) <= balance.range).filter((other) => {
         const n = Math.hypot(other.x - p.x, other.y - p.y) || 1;
         return ((other.x - p.x) * action.aimX + (other.y - p.y) * action.aimY) / (n * length) >= Math.cos(COMBAT.halfAngle) && clearAttackLine(p, other, MAPS[room.mapId]);
       }).sort((a, b) => Math.hypot(a.x - p.x, a.y - p.y) - Math.hypot(b.x - p.x, b.y - p.y))[0];
@@ -1723,125 +2318,13 @@ function tickWeapon(room, p, now) {
   return hits;
 }
 
-// server/weapon-loot.ts
-import { randomInt, randomUUID as randomUUID2 } from "node:crypto";
-
-// shared/map-anchors.ts
-var captures = { central_plaza: { x: 1620, y: 1450, elevation: 110 }, scorched_point: { x: 1400, y: 1500, elevation: 120 }, aerie_sky_port: { x: 1100, y: 1200 }, outlaws_canyon: { x: 900, y: 400 }, vikings_fjord: { x: 1470, y: 1800, elevation: 120 } };
-function mapAnchors(id) {
-  const map = MAPS[id];
-  if (!map) throw new Error(`Unknown map ${id}`);
-  const requested = captures[id];
-  let capture;
-  for (let radius = 0; radius <= 300 && !capture; radius += 25) for (let i = 0; i < 16 && !capture; i++) {
-    const point = { x: requested.x + Math.cos(i * Math.PI / 8) * radius, y: requested.y + Math.sin(i * Math.PI / 8) * radius, elevation: requested.elevation ?? 0 };
-    if (walkable(point, map)) capture = point;
-  }
-  if (!capture) throw new Error(`No valid capture zone for ${id}`);
-  const points = map.spawns.filter((p) => walkable(p, map)).map((p) => ({ ...p }));
-  return { capture, respawns: points, chests: points.filter((_, i) => i % 2 === 0), floor: points.filter((_, i) => i % 2 === 1), flags: points.filter((p) => Math.hypot(p.x - capture.x, p.y - capture.y) > 250) };
-}
-
-// server/weapon-loot.ts
-function chestReward(mode) {
-  const pool = CHEST_WEAPONS.filter((id) => allowedWeapon(mode, id)), total = pool.reduce((n, id) => n + Math.max(0, LOOT_CONFIG.weights[id] ?? 1), 0);
-  if (total <= 0) return pool[randomInt(pool.length)];
-  let roll = randomInt(1e6) / 1e6 * total;
-  for (const id of pool) {
-    roll -= Math.max(0, LOOT_CONFIG.weights[id] ?? 1);
-    if (roll < 0) return id;
-  }
-  return pool[pool.length - 1];
-}
-function lootPositions(mapId) {
-  const anchors = mapAnchors(mapId), map = MAPS[mapId], pool = [];
-  for (const base of anchors.respawns) for (const radius of [0, 80, 140, 200]) for (let i = 0; i < (radius ? 8 : 1); i++) {
-    const p = { x: base.x + Math.cos(i * Math.PI / 4) * radius, y: base.y + Math.sin(i * Math.PI / 4) * radius, elevation: base.elevation ?? 0 };
-    if (isWalkable(p, map) && clearAttackLine(base, p, map)) {
-      const steps = Math.max(1, Math.ceil(radius / 15));
-      if (Array.from({ length: steps + 1 }, (_, n) => ({ x: base.x + (p.x - base.x) * n / steps, y: base.y + (p.y - base.y) * n / steps, elevation: p.elevation })).every((q) => isWalkable(q, map))) pool.push(p);
-    }
-  }
-  for (let i = pool.length - 1; i > 0; i--) {
-    const j = randomInt(i + 1);
-    [pool[i], pool[j]] = [pool[j], pool[i]];
-  }
-  const picked = [];
-  for (const p of pool) if (!picked.some((q) => Math.hypot(p.x - q.x, p.y - q.y) < 90)) picked.push(p);
-  return picked;
-}
-function buildLoot(mapId) {
-  const positions = lootPositions(mapId), items = [];
-  let n = 0;
-  for (let i = 0; i < LOOT_CONFIG.chestCount; i++) {
-    const p = positions[n++];
-    if (p) items.push({ ...p, id: randomUUID2(), source: "chest", state: "closed", kind: null, refreshAt: 0 });
-  }
-  for (let i = 0; i < LOOT_CONFIG.groundCount; i++) {
-    const p = positions[n++];
-    if (p) {
-      const weaponId = GROUND_WEAPONS[randomInt(GROUND_WEAPONS.length)];
-      items.push({ ...p, id: randomUUID2(), source: "floor", state: "opened", kind: weaponId, weapon: createWeapon(weaponId, randomUUID2()), refreshAt: 0 });
-    }
-  }
-  for (let i = 0; i < LOOT_CONFIG.utilityCount; i++) {
-    const p = positions[n++];
-    if (p) items.push({ ...p, id: "utility-" + randomUUID2(), source: "floor", state: "opened", kind: "freeze_ball", refreshAt: 0 });
-  }
-  return items;
-}
-function dropPosition(mapId, p, items) {
-  const origin = p.jumpOrigin && !isWalkable(p, MAPS[mapId]) ? p.jumpOrigin : p;
-  for (const radius of [32, 55, 80]) for (let i = 0; i < 16; i++) {
-    const q = { x: origin.x + Math.cos(i * Math.PI / 8) * radius, y: origin.y + Math.sin(i * Math.PI / 8) * radius, elevation: origin.elevation ?? 0 };
-    if (isWalkable(q, MAPS[mapId]) && clearAttackLine(origin, q, MAPS[mapId]) && !items.some((item) => item.state !== "empty" && Math.hypot((item.pickupPosition ?? item).x - q.x, (item.pickupPosition ?? item).y - q.y) < 24)) return q;
-  }
-  return null;
-}
-function spawnDrop(items, position, weapon, now) {
-  items.push({ ...position, id: randomUUID2(), source: "drop", state: "opened", kind: weapon.weaponId, weapon: { ...weapon }, refreshAt: 0, expiresAt: now + LOOT_CONFIG.droppedLifetimeMs });
-}
-function dropOwned(room, p, slot, now) {
-  const slots = weaponSlots(p), weapon = slots[slot - 1];
-  if (!weapon) return false;
-  const point = dropPosition(room.mapId, p, room.mode.items);
-  if (!point) return false;
-  if (allowedWeapon(room.selectedGameMode, weapon.weaponId)) spawnDrop(room.mode.items, point, weapon, now);
-  slots[slot - 1] = null;
-  syncEquipped(p);
-  return true;
-}
-function reconcileEquipment(p, mode) {
-  const slots = weaponSlots(p);
-  for (let i = 0; i < slots.length; i++) if (slots[i] && !allowedWeapon(mode, slots[i].weaponId)) slots[i] = null;
-  syncEquipped(p);
-}
-
 // shared/characters.ts
 var CHARACTER_IDS = ["voltrix", "kirin", "emberjack", "mossbyte", "novaa", "gravel", "lumi", "shade"];
 var isCharacterId = (value) => typeof value === "string" && CHARACTER_IDS.includes(value);
 var SELECTION = { chooseMs: 3e4, totalMs: 39e3 };
 
-// shared/modes.ts
-var MODES = {
-  tag: { name: "TAG", icon: "\u25C9", description: "Avoid being IT at the buzzer. Find and throw freeze balls to stop other runners." },
-  flag_run: { name: "FLAG RUN", icon: "\u2691", description: "Loot and fight, then recover the flag and deliver it to the marked capture zone." },
-  kill_race: { name: "KILL RACE", icon: "\u2694", description: "Find weapons and earn eliminations. Duos race to 15; highest score wins at the buzzer." }
-};
-var RULES = { freezeMs: 3e3, retagGraceMs: 1200, flagSpawnMs: 3e4, flagWarningMs: 5e3, killTarget: 15, pickupRange: 65, ballSpeed: 650, ballLifetimeMs: 1600, itemRespawnMs: 12e3 };
-var WEAPONS = { blade: { damage: 25, cooldown: 0.38 }, hammer: { damage: 40, cooldown: 0.9 } };
-function emptyMode() {
-  return { teams: {}, scores: {}, matchPoints: {}, it: null, tagAfter: 0, items: [], projectiles: [], effects: [], flag: { state: "not_spawned", carrier: null, position: { x: 0, y: 0 }, spawnAt: 0 }, capture: { x: 0, y: 0 }, winnerKeys: [], reason: "" };
-}
-var validMode = (value) => typeof value === "string" && Object.hasOwn(MODES, value);
-var validFormat = (value) => value === "solo" || value === "duo";
-var validTeams = (format, count) => format === "solo" ? count >= 2 && count <= 6 : count === 4 || count === 6;
-function teamKey(state, id) {
-  return state.teams[id] ?? id;
-}
-
 // server/modes.ts
-import { randomInt as randomInt2, randomUUID as randomUUID3 } from "node:crypto";
+import { randomInt as randomInt3, randomUUID as randomUUID4 } from "node:crypto";
 
 // shared/loot.ts
 var CHEST_OPEN_MS = 420;
@@ -1854,7 +2337,7 @@ function interactionItem(items, mapId, p) {
 }
 
 // server/modes.ts
-var key = (r, p) => teamKey(r.mode, p.id);
+var key2 = (r, p) => teamKey(r.mode, p.id);
 var keys = (r) => [...new Set(Object.values(r.mode.teams))];
 var noOp = () => {
 };
@@ -1863,29 +2346,16 @@ function leaders(room) {
   return keys(room).filter((k) => (room.mode.scores[k] ?? 0) === max);
 }
 var MODE_RULES = {
-  tag: { loot: ["freeze_ball", ...WEAPON_IDS.filter((id) => allowedWeapon("tag", id))], combat: false, init: ({ room }) => {
-    const candidates = keys(room);
-    room.mode.it = candidates[randomInt2(candidates.length)];
-  }, tick: ({ room }) => {
-    const active = room.players.filter((p) => p.socket);
-    if (!room.players.some((p) => key(room, p) === room.mode.it) && active.length) room.mode.it = key(room, active[0]);
-    return false;
-  }, hit: ({ room, now }, a, b) => {
-    if (key(room, a) === room.mode.it && now >= room.mode.tagAfter) {
-      room.mode.it = key(room, b);
-      room.mode.tagAfter = now + RULES.retagGraceMs;
-    }
-  }, finish: ({ room }) => {
-    room.mode.winnerKeys = keys(room).filter((k) => k !== room.mode.it && room.players.some((p) => key(room, p) === k));
-    room.mode.reason = "Time expired \u2014 the IT side loses.";
-  } },
+  tag: { loot: ["freeze_ball", ...WEAPON_IDS.filter((id) => allowedWeapon("tag", id))], combat: false, init: ({ room, now }) => initTag(room, now, room.mode.tag), tick: ({ room }) => false, hit: ({ room, now }, a, b) => {
+    tryTag(room, a, b, now);
+  }, finish: ({ room, now }) => finishTag(room, now) },
   kill_race: { loot: ["freeze_ball", ...WEAPON_IDS.filter((id) => allowedWeapon("kill_race", id))], combat: true, init: noOp, tick: ({ room }) => room.selectedFormat === "duo" && Object.values(room.mode.scores).some((n) => n >= RULES.killTarget), finish: ({ room }) => {
     room.mode.winnerKeys = leaders(room);
     room.mode.reason = Object.values(room.mode.scores).some((n) => n >= RULES.killTarget) && room.selectedFormat === "duo" ? "Elimination target reached." : "Time expired \u2014 highest elimination score wins. Ties share the win.";
   } },
   flag_run: { loot: ["freeze_ball", ...WEAPON_IDS.filter((id) => allowedWeapon("flag_run", id))], combat: true, init: ({ room, now }) => {
     const anchors = mapAnchors(room.mapId);
-    room.mode.flag = { state: "not_spawned", carrier: null, position: anchors.flags[randomInt2(anchors.flags.length)], spawnAt: now + RULES.flagSpawnMs };
+    room.mode.flag = { state: "not_spawned", carrier: null, position: anchors.flags[randomInt3(anchors.flags.length)], spawnAt: now + RULES.flagSpawnMs };
   }, tick: ({ room, now }) => {
     const f = room.mode.flag;
     if (f.state === "not_spawned" && now >= f.spawnAt) f.state = "spawned";
@@ -1898,7 +2368,7 @@ var MODE_RULES = {
       f.position = { x: p.x, y: p.y, elevation: p.elevation };
       if (near(room, p, room.mode.capture)) {
         f.state = "captured";
-        room.mode.winnerKeys = [key(room, p)];
+        room.mode.winnerKeys = [key2(room, p)];
         return true;
       }
     }
@@ -1912,6 +2382,7 @@ function beginMode(room, now) {
   room.mode = emptyMode();
   room.mode.teams = prior.teams;
   room.mode.matchPoints = prior.matchPoints;
+  if (room.selectedGameMode === "tag") room.mode.tag = prior.tag;
   for (const k of keys(room)) room.mode.scores[k] = 0;
   const anchors = mapAnchors(room.mapId);
   room.mode.capture = anchors.capture;
@@ -1930,13 +2401,13 @@ function assignTeams(room) {
   });
 }
 function enemies(room, a, b) {
-  return a.id !== b.id && key(room, a) !== key(room, b);
+  return a.id !== b.id && key2(room, a) !== key2(room, b);
 }
 function near(room, a, b, range = RULES.pickupRange) {
   return Math.hypot(a.x - b.x, a.y - b.y, (a.elevation ?? 0) - (b.elevation ?? 0)) <= range && clearAttackLine(a, b, MAPS[room.mapId]);
 }
 function interact(room, p, now, itemId, replaceSlot) {
-  if (!p.socket || p.health <= 0 || p.frozenUntil > now) return;
+  if (!p.socket || p.health <= 0 || p.frozenUntil > now || room.selectedGameMode === "tag" && (room.mode.tag?.status[p.id]?.sealed ?? 0) > now) return;
   const flag = room.mode.flag;
   if (room.selectedGameMode === "flag_run" && ["spawned", "dropped"].includes(flag.state) && near(room, p, flag.position)) {
     flag.state = "carried";
@@ -1945,9 +2416,13 @@ function interact(room, p, now, itemId, replaceSlot) {
   }
   const item = itemId ? room.mode.items.find((i) => i.id === itemId && (i.state === "closed" || i.state === "opened" && !!i.kind) && near(room, p, i.state === "closed" ? i : i.pickupPosition ?? i)) : interactionItem(room.mode.items, room.mapId, p);
   if (!item) return;
+  if (room.selectedGameMode === "tag" && item.source === "mystery") {
+    collectMystery(room, p, item, now);
+    return;
+  }
   if (item.state === "closed") {
     item.kind = chestReward(room.selectedGameMode);
-    item.weapon = createWeapon(canonicalWeapon(item.kind), randomUUID3());
+    item.weapon = createWeapon(canonicalWeapon(item.kind), randomUUID4());
     item.state = "opening";
     item.openedAt = now;
     item.pickupPosition = { x: item.x, y: item.y, elevation: item.elevation };
@@ -1997,13 +2472,17 @@ function onElimination(room, killer, victim) {
   victim.frozenUntil = 0;
   killer.eliminations++;
   killer.matchEliminations++;
-  room.mode.scores[key(room, killer)] = (room.mode.scores[key(room, killer)] ?? 0) + 1;
+  room.mode.scores[key2(room, killer)] = (room.mode.scores[key2(room, killer)] ?? 0) + 1;
 }
 function throwBall(room, p, now) {
+  if (room.selectedGameMode === "tag" && isPower(p.heldItem)) {
+    activateTagPower(room, p, now);
+    return true;
+  }
   if (p.heldItem !== "freeze_ball" || !MODE_EQUIPMENT[room.selectedGameMode].powerUps) return false;
   consumeUtility(p);
-  room.mode.projectiles.push({ id: randomUUID3(), ownerId: p.id, teamId: key(room, p), x: p.x, y: p.y, elevation: p.elevation, dx: p.attackX, dy: p.attackY, expiresAt: now + RULES.ballLifetimeMs, bornAt: now });
-  room.mode.effects.push({ id: randomUUID3(), type: "throw", at: now, ownerId: p.id, x: p.x, y: p.y, elevation: p.elevation, dx: p.attackX, dy: p.attackY });
+  room.mode.projectiles.push({ id: randomUUID4(), ownerId: p.id, teamId: key2(room, p), x: p.x, y: p.y, elevation: p.elevation, dx: p.attackX, dy: p.attackY, expiresAt: now + RULES.ballLifetimeMs, bornAt: now });
+  room.mode.effects.push({ id: randomUUID4(), type: "throw", at: now, ownerId: p.id, x: p.x, y: p.y, elevation: p.elevation, dx: p.attackX, dy: p.attackY });
   return true;
 }
 function tickMode(room, now, dt) {
@@ -2011,8 +2490,8 @@ function tickMode(room, now, dt) {
   room.mode.effects = room.mode.effects.filter((e) => now - e.at < 1e3).slice(-48);
   for (const item of room.mode.items) if (item.state === "opening" && now >= (item.openedAt ?? now) + CHEST_OPEN_MS) item.state = "opened";
   for (const item of room.mode.items) if (item.source === "floor" && item.state === "empty" && now >= item.refreshAt) {
-    item.kind = item.id.startsWith("utility-") ? "freeze_ball" : GROUND_WEAPONS[randomInt2(GROUND_WEAPONS.length)];
-    if (item.kind !== "freeze_ball") item.weapon = createWeapon(canonicalWeapon(item.kind), randomUUID3());
+    item.kind = item.id.startsWith("utility-") ? "freeze_ball" : GROUND_WEAPONS[randomInt3(GROUND_WEAPONS.length)];
+    if (item.kind !== "freeze_ball") item.weapon = createWeapon(canonicalWeapon(item.kind), randomUUID4());
     item.state = "opened";
   }
   room.mode.projectiles = room.mode.projectiles.filter((ball) => {
@@ -2020,22 +2499,23 @@ function tickMode(room, now, dt) {
     const start = { x: ball.x, y: ball.y, elevation: ball.elevation };
     const end = { x: ball.x + ball.dx * RULES.ballSpeed * dt, y: ball.y + ball.dy * RULES.ballSpeed * dt, elevation: ball.elevation };
     if (!clearAttackLine(start, end, MAPS[room.mapId])) {
-      room.mode.effects.push({ id: randomUUID3(), type: "ice_wall", at: now, ownerId: ball.ownerId, ...start, dx: ball.dx, dy: ball.dy });
+      room.mode.effects.push({ id: randomUUID4(), type: "ice_wall", at: now, ownerId: ball.ownerId, ...start, dx: ball.dx, dy: ball.dy });
       return false;
     }
-    const targets = room.players.filter((p) => p.socket && p.health > 0 && p.id !== ball.ownerId && key(room, p) !== ball.teamId).map((p) => {
+    const targets = room.players.filter((p) => p.socket && p.health > 0 && p.id !== ball.ownerId && key2(room, p) !== ball.teamId).map((p) => {
       const vx = end.x - start.x, vy = end.y - start.y, t = Math.max(0, Math.min(1, ((p.x - start.x) * vx + (p.y - start.y) * vy) / (vx * vx + vy * vy || 1)));
       return { p, t, point: { x: start.x + vx * t, y: start.y + vy * t, elevation: ball.elevation } };
     }).filter(({ p, point }) => near(room, p, point, 30)).sort((a, b) => a.t - b.t);
     if (targets[0]) {
       targets[0].p.frozenUntil = now + RULES.freezeMs;
       targets[0].p.dashRemaining = 0;
-      room.mode.effects.push({ id: randomUUID3(), type: "ice_hit", at: now, ownerId: ball.ownerId, targetId: targets[0].p.id, ...targets[0].point, dx: ball.dx, dy: ball.dy });
+      room.mode.effects.push({ id: randomUUID4(), type: "ice_hit", at: now, ownerId: ball.ownerId, targetId: targets[0].p.id, ...targets[0].point, dx: ball.dx, dy: ball.dy });
       return false;
     }
     Object.assign(ball, end);
     return true;
   });
+  if (room.selectedGameMode === "tag") tickTag(room, now, dt);
   return MODE_RULES[room.selectedGameMode].tick({ room, now });
 }
 function finishMode(room, now) {
@@ -2045,7 +2525,7 @@ function finishMode(room, now) {
 }
 
 // server/rooms.ts
-import { randomBytes, randomUUID as randomUUID4, randomInt as randomInt3 } from "node:crypto";
+import { randomBytes, randomUUID as randomUUID5, randomInt as randomInt4 } from "node:crypto";
 
 // shared/rounds.ts
 var ROUND = { durationMs: 9e4, resultsMs: 5e3 };
@@ -2088,7 +2568,7 @@ var RoomServer = class {
   }
   view(room, recipient) {
     const target = room.players.find((p) => p.id === recipient?.targetId);
-    return { selection: room.selection, selectedGameMode: room.selectedGameMode, selectedFormat: room.selectedFormat, mode: room.mode, mapId: room.mapId, mapVariant: room.mapVariant, nextMapId: room.nextMapId, nextMapVariant: room.nextMapVariant, match: room.match, round: room.round, objective: { target: target ? { id: target.id, name: target.name } : null, eliminations: recipient?.eliminations ?? 0, matchEliminations: recipient?.matchEliminations ?? 0 }, code: room.code, hostId: room.hostId, phase: room.phase, tick: room.tick, notice: room.notice, serverTime: Date.now(), players: room.players.map((p) => ({ ads: !!p.ads, adsSince: p.adsSince ?? 0, aimX: p.aimX, aimY: p.aimY, aimZ: p.aimZ ?? 0, weaponAction: p.weaponAction, characterId: p.characterId, characterAutoAssigned: p.characterAutoAssigned, jumpSeen: p.jumpSeen, airborne: p.airborne, verticalVelocity: p.verticalVelocity, jumpOrigin: p.jumpOrigin, crouched: p.crouched, inventory: p.inventory, selectedSlot: p.selectedSlot, traversalState: p.traversalState, frozenUntil: p.frozenUntil, heldItem: p.heldItem, id: p.id, name: p.name, color: p.color, ready: p.ready, connected: !!p.socket, x: p.x, y: p.y, elevation: p.elevation, ack: p.ack, stamina: p.stamina, regenWait: p.regenWait, exhausted: p.exhausted, dashCooldown: p.dashCooldown, dashRemaining: p.dashRemaining, dashX: p.dashX, dashY: p.dashY, facingX: p.facingX, facingY: p.facingY, dashSeen: p.dashSeen, sprinting: p.sprinting, health: p.health, koRemaining: p.koRemaining, protection: p.protection, attackCooldown: p.attackCooldown, attackSeen: p.attackSeen, attackFlash: p.attackFlash, hitFlash: p.hitFlash, attackX: p.attackX, attackY: p.attackY, spawnVersion: p.spawnVersion })) };
+    return { selection: room.selection, selectedGameMode: room.selectedGameMode, selectedFormat: room.selectedFormat, mode: room.selectedGameMode === "tag" ? { ...room.mode, tag: tagView(room, recipient, Date.now()) } : room.mode, mapId: room.mapId, mapVariant: room.mapVariant, nextMapId: room.nextMapId, nextMapVariant: room.nextMapVariant, match: room.match, round: room.round, objective: { target: target ? { id: target.id, name: target.name } : null, eliminations: recipient?.eliminations ?? 0, matchEliminations: recipient?.matchEliminations ?? 0 }, code: room.code, hostId: room.hostId, phase: room.phase, tick: room.tick, notice: room.notice, serverTime: Date.now(), players: room.players.map((p) => ({ ...room.mode.tag ? { concealed: recipient ? !tagVisible(room, p, recipient) : false } : {}, ads: !!p.ads, adsSince: p.adsSince ?? 0, aimX: p.aimX, aimY: p.aimY, aimZ: p.aimZ ?? 0, weaponAction: p.weaponAction, characterId: p.characterId, characterAutoAssigned: p.characterAutoAssigned, jumpSeen: p.jumpSeen, airborne: p.airborne, verticalVelocity: p.verticalVelocity, jumpOrigin: p.jumpOrigin, crouched: p.crouched, inventory: p.inventory, selectedSlot: p.selectedSlot, traversalState: p.traversalState, frozenUntil: p.frozenUntil, heldItem: p.heldItem, id: p.id, name: p.name, color: p.color, ready: p.ready, connected: !!p.socket, x: room.mode.tag && recipient && !tagVisible(room, p, recipient) ? 0 : p.x, y: room.mode.tag && recipient && !tagVisible(room, p, recipient) ? 0 : p.y, elevation: room.mode.tag && recipient && !tagVisible(room, p, recipient) ? 0 : p.elevation, ack: p.ack, stamina: p.stamina, regenWait: p.regenWait, exhausted: p.exhausted, dashCooldown: p.dashCooldown, dashRemaining: p.dashRemaining, dashX: p.dashX, dashY: p.dashY, facingX: p.facingX, facingY: p.facingY, dashSeen: p.dashSeen, sprinting: p.sprinting, health: p.health, koRemaining: p.koRemaining, protection: p.protection, attackCooldown: p.attackCooldown, attackSeen: p.attackSeen, attackFlash: p.attackFlash, hitFlash: p.hitFlash, attackX: p.attackX, attackY: p.attackY, spawnVersion: p.spawnVersion })) };
   }
   broadcast(room) {
     for (const p of room.players) if (p.socket) this.send(p.socket, { type: "state", room: this.view(room, p) });
@@ -2189,7 +2669,7 @@ var RoomServer = class {
         }
       }
       const color = COLORS.find((c) => !room2.players.some((p3) => p3.color === c)) || COLORS[0];
-      const p2 = { characterId: null, characterAutoAssigned: false, jumpId: 0, crouch: false, inventory: { weapon: null, utility: null }, selectedSlot: 1, dashStyle: "dash", frozenUntil: 0, heldItem: null, targetId: null, eliminations: 0, matchEliminations: 0, ...freshMotion(mapFor(room2).spawns[0]), ...freshCombat(), sprint: false, dashId: 0, attackId: 0, aimX: 0, aimY: 0, id: randomUUID4(), token: randomBytes(24).toString("hex"), name, color, ready: false, ack: 0, seq: 0, dx: 0, dy: 0, lastInput: 0, disconnectedAt: 0, socket: ws };
+      const p2 = { characterId: null, characterAutoAssigned: false, jumpId: 0, crouch: false, inventory: { weapon: null, utility: null }, selectedSlot: 1, dashStyle: "dash", frozenUntil: 0, heldItem: null, targetId: null, eliminations: 0, matchEliminations: 0, ...freshMotion(mapFor(room2).spawns[0]), ...freshCombat(), sprint: false, dashId: 0, attackId: 0, aimX: 0, aimY: 0, id: randomUUID5(), token: randomBytes(24).toString("hex"), name, color, ready: false, ack: 0, seq: 0, dx: 0, dy: 0, lastInput: 0, disconnectedAt: 0, socket: ws };
       room2.players.push(p2);
       if (!room2.hostId) room2.hostId = p2.id;
       room2.notice = "";
@@ -2269,6 +2749,16 @@ var RoomServer = class {
       this.broadcast(room);
       return;
     }
+    if (m.type === "use_utility") {
+      if (room.selectedGameMode === "tag" && room.phase === "arena" && m.matchId === room.match.id && m.roundNumber === room.match.roundNumber && typeof m.instanceId === "string" && m.instanceId === p.inventory?.utilityInstanceId) {
+        const n = Math.hypot(p.aimX, p.aimY);
+        p.attackX = n > 1e-6 ? p.aimX / n : p.facingX;
+        p.attackY = n > 1e-6 ? p.aimY / n : p.facingY;
+        activateTagPower(room, p, Date.now(), m.instanceId);
+        this.broadcast(room);
+      }
+      return;
+    }
     if (m.type === "reload" || m.type === "drop_weapon") {
       if (room.phase === "arena" && m.matchId === room.match.id && m.roundNumber === room.match.roundNumber && Date.now() < room.round.endsAt && p.socket && p.health > 0 && p.frozenUntil <= Date.now()) {
         const instance = p.inventory?.weapons?.[(m.slot ?? p.selectedSlot) === 2 ? 1 : 0];
@@ -2318,7 +2808,7 @@ var RoomServer = class {
         return;
       }
       assignTeams(room);
-      room.match = { ...emptyMatch(), id: randomUUID4() };
+      room.match = { ...emptyMatch(), id: randomUUID5() };
       room.roster = [...room.players];
       for (const p2 of room.players) p2.matchEliminations = 0;
       const now = Date.now();
@@ -2475,7 +2965,7 @@ var RoomServer = class {
     const pool = different.length ? different : others;
     const living = pool.filter((o) => o.health > 0);
     const choices = living.length ? living : pool;
-    p.targetId = choices.length ? choices[randomInt3(choices.length)].id : null;
+    p.targetId = choices.length ? choices[randomInt4(choices.length)].id : null;
   }
   resolveCharacters(room, now) {
     if (!room.selection || this.rooms.get(room.code) !== room) return;
@@ -2486,7 +2976,7 @@ var RoomServer = class {
     if (room.phase === "character_selection") {
       if (now >= room.selection.deadline) {
         for (const p of room.players) if (!p.characterId) {
-          p.characterId = CHARACTER_IDS[randomInt3(CHARACTER_IDS.length)];
+          p.characterId = CHARACTER_IDS[randomInt4(CHARACTER_IDS.length)];
           p.characterAutoAssigned = true;
         }
       }
@@ -2519,8 +3009,8 @@ var RoomServer = class {
       p.combo = 0;
       p.comboUntil = 0;
     }
-    room.mapId = room.match.roundNumber === 0 ? OPENING_MAP_ID : room.nextMapId ?? selectRoundMap(room.match.roundNumber + 1, room.mapId, randomInt3);
-    room.mapVariant = room.nextMapId ? room.nextMapVariant : selectMapVariant(room.mapId, randomInt3);
+    room.mapId = room.match.roundNumber === 0 ? OPENING_MAP_ID : room.nextMapId ?? selectRoundMap(room.match.roundNumber + 1, room.mapId, randomInt4);
+    room.mapVariant = room.nextMapId ? room.nextMapVariant : selectMapVariant(room.mapId, randomInt4);
     room.nextMapId = null;
     room.nextMapVariant = null;
     room.phase = "arena";
@@ -2528,7 +3018,8 @@ var RoomServer = class {
     room.match.roundNumber++;
     room.match.nextRoundSeconds = 0;
     room.match.mapHistory.push(room.mapId);
-    room.round = { endsAt: now + ROUND.durationMs, remainingSeconds: ROUND.durationMs / 1e3, returnAt: 0, results: [] };
+    const duration = !this.legacyBounty && room.selectedGameMode === "tag" ? TAG.roundMs : ROUND.durationMs;
+    room.round = { endsAt: now + duration, remainingSeconds: duration / 1e3, returnAt: 0, results: [] };
     room.players.forEach((p, i) => {
       const version = p.spawnVersion + 1;
       Object.assign(p, freshMotion(mapFor(room).spawns[i]), freshCombat());
@@ -2553,7 +3044,7 @@ var RoomServer = class {
     if (this.legacyBounty) {
       const order = [...room.players];
       for (let i = order.length - 1; i > 0; i--) {
-        const j = randomInt3(i + 1);
+        const j = randomInt4(i + 1);
         [order[i], order[j]] = [order[j], order[i]];
       }
       order.forEach((p, i) => p.targetId = order[(i + 1) % order.length].id);
@@ -2567,6 +3058,14 @@ var RoomServer = class {
     return sorted.map((p) => ({ id: p.id, name: p.name, eliminations: score(p), rank: sorted.findIndex((o) => score(o) === score(p)) + 1 }));
   }
   modeRanking(room, match) {
+    if (room.selectedGameMode === "tag" && room.mode.tag) {
+      const t = room.mode.tag, keys2 = match ? [...new Set(Object.values(room.mode.teams))].filter((k) => room.roster.some((p) => teamKey(room.mode, p.id) === k)) : t.rankings.map((r) => r.key);
+      if (match) keys2.sort((a, b) => (room.mode.matchPoints[b] ?? 0) - (room.mode.matchPoints[a] ?? 0) || (t.totalTime[a] ?? 0) - (t.totalTime[b] ?? 0) || (t.totalTags[b] ?? 0) - (t.totalTags[a] ?? 0) || (a < b ? -1 : a > b ? 1 : 0));
+      return keys2.map((k, i) => {
+        const r = t.rankings.find((r2) => r2.key === k);
+        return { id: k, name: room.roster.filter((p) => teamKey(room.mode, p.id) === k).map((p) => p.name).join(" + "), eliminations: match ? room.mode.matchPoints[k] ?? 0 : Number(r?.survived), rank: i + 1, survived: match ? void 0 : r?.survived, itMs: match ? t.totalTime[k] ?? 0 : r?.itMs, tags: match ? t.totalTags[k] ?? 0 : r?.tags, collected: match ? t.totalCollected[k] ?? 0 : r?.collected, used: match ? t.totalUsed[k] ?? 0 : r?.used };
+      });
+    }
     const teams = [...new Set(Object.values(room.mode.teams))];
     const score = (k) => match ? room.mode.matchPoints[k] ?? 0 : room.selectedGameMode === "kill_race" ? room.mode.scores[k] ?? 0 : Number(room.mode.winnerKeys.includes(k));
     teams.sort((a, b) => score(b) - score(a) || a.localeCompare(b));
@@ -2587,8 +3086,8 @@ var RoomServer = class {
       room.match.results = this.legacyBounty ? this.ranking(room.roster, true) : this.modeRanking(room, true);
       room.match.winners = room.match.results.filter((p) => p.rank === 1).map((p) => ({ id: p.id, name: p.name }));
     } else {
-      room.nextMapId = selectRoundMap(room.match.roundNumber + 1, room.mapId, randomInt3);
-      room.nextMapVariant = selectMapVariant(room.nextMapId, randomInt3);
+      room.nextMapId = selectRoundMap(room.match.roundNumber + 1, room.mapId, randomInt4);
+      room.nextMapVariant = selectMapVariant(room.nextMapId, randomInt4);
       room.phase = "intermission";
       room.round.returnAt = now + ROUND.resultsMs;
       room.match.nextRoundSeconds = ROUND.resultsMs / 1e3;
@@ -2671,8 +3170,8 @@ var RoomServer = class {
             p.dashSeen = p.dashId;
             continue;
           }
-          const active = now - p.lastInput < NETWORK.inputTimeoutMs;
-          const motion = advanceMotion(p, { dx: active ? p.dx : 0, dy: active ? p.dy : 0, sprint: active && p.sprint, dashId: active ? p.dashId : p.dashSeen, dashStyle: p.dashStyle, jumpId: active ? p.jumpId : p.jumpSeen, crouch: active && p.crouch }, STEP, mapFor(room));
+          const active2 = now - p.lastInput < NETWORK.inputTimeoutMs;
+          const motion = (room.selectedGameMode === "tag" && !this.legacyBounty ? (p2, input, dt, map) => advanceTagMotion(p2, input, room.mode.tag?.status[p2.id], now, dt, map) : advanceMotion)(p, { dx: active2 ? p.dx : 0, dy: active2 ? p.dy : 0, sprint: active2 && p.sprint, dashId: active2 ? p.dashId : p.dashSeen, dashStyle: p.dashStyle, jumpId: active2 ? p.jumpId : p.jumpSeen, crouch: active2 && p.crouch }, STEP, mapFor(room));
           Object.assign(p, motion);
           p.ack = p.seq;
         }
@@ -2680,7 +3179,9 @@ var RoomServer = class {
         const weaponHits = [];
         if (!this.legacyBounty) for (const p of room.players) {
           reconcileEquipment(p, room.selectedGameMode);
+          const action = p.weaponAction, cursor = action?.nextEvent ?? 0;
           weaponHits.push(...tickWeapon(room, p, now));
+          if (room.mode.tag && action && action.nextEvent > cursor) hitTagClone(room, p, now);
         }
         for (const p of room.players) {
           if (p.attackId <= p.attackSeen) continue;
@@ -2710,6 +3211,7 @@ var RoomServer = class {
           damage.set(target, [...damage.get(target) || [], { attacker, damage: hit.damage }]);
         }
         for (const attacker of attacks) {
+          if (room.mode.tag && hitTagClone(room, attacker, now)) continue;
           const targets = room.players.filter((p) => p !== attacker && (this.legacyBounty || enemies(room, attacker, p)) && p.health > 0 && p.protection <= 0 && canHit(attacker, p, attacker.attackX, attacker.attackY, mapFor(room)));
           targets.sort((a, b) => Math.hypot(a.x - attacker.x, a.y - attacker.y) - Math.hypot(b.x - attacker.x, b.y - attacker.y) || a.id.localeCompare(b.id));
           const target = targets[0];
@@ -2731,7 +3233,7 @@ var RoomServer = class {
           if (killer && !this.legacyBounty) {
             onElimination(room, killer, p);
             const w = activeWeapon(killer);
-            if (w && isGun(w.weaponId)) (room.mode.weaponEffects ??= []).push({ id: randomUUID4(), type: "elimination", ownerId: killer.id, weaponId: w.weaponId, at: now, targetId: p.id, x: killer.x, y: killer.y, elevation: killer.elevation, toX: p.x, toY: p.y, toZ: p.elevation + 50 });
+            if (w && isGun(w.weaponId)) (room.mode.weaponEffects ??= []).push({ id: randomUUID5(), type: "elimination", ownerId: killer.id, weaponId: w.weaponId, at: now, targetId: p.id, x: killer.x, y: killer.y, elevation: killer.elevation, toX: p.x, toY: p.y, toZ: p.elevation + 50 });
           }
           if (this.legacyBounty && killer && killer.targetId === p.id) completions.push(killer);
           p.health = Math.max(0, p.health - total);
