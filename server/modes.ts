@@ -1,3 +1,5 @@
+import {initTag,tryTag,collectMystery,activateTagPower,tickTag,finishTag} from './tag-run.js';
+import {isPower} from '../shared/tag-run.js';
 import {buildLoot,chestReward,dropOwned,dropPosition,spawnDrop} from './weapon-loot.js';
 import {canonicalWeapon,allowedWeapon,createWeapon,GROUND_WEAPONS,LOOT_CONFIG,MODE_EQUIPMENT,WEAPON_IDS} from '../shared/weapons.js';
 import {weaponSlots} from '../shared/inventory.js';
@@ -19,7 +21,7 @@ const keys=(r:ModeRoom)=>[...new Set(Object.values(r.mode.teams))];
 const noOp=()=>{};
 function leaders(room:ModeRoom){const max=Math.max(...keys(room).map(k=>room.mode.scores[k]??0));return keys(room).filter(k=>(room.mode.scores[k]??0)===max);}
 export const MODE_RULES:Record<GameMode,Ruleset>={
- tag:{loot:['freeze_ball',...WEAPON_IDS.filter(id=>allowedWeapon('tag',id))],combat:false,init:({room})=>{const candidates=keys(room);room.mode.it=candidates[randomInt(candidates.length)];},tick:({room})=>{const active=room.players.filter(p=>p.socket);if(!room.players.some(p=>key(room,p)===room.mode.it)&&active.length)room.mode.it=key(room,active[0]);return false;},hit:({room,now},a,b)=>{if(key(room,a)===room.mode.it&&now>=room.mode.tagAfter){room.mode.it=key(room,b);room.mode.tagAfter=now+RULES.retagGraceMs;}},finish:({room})=>{room.mode.winnerKeys=keys(room).filter(k=>k!==room.mode.it&&room.players.some(p=>key(room,p)===k));room.mode.reason='Time expired — the IT side loses.';}},
+ tag:{loot:['freeze_ball',...WEAPON_IDS.filter(id=>allowedWeapon('tag',id))],combat:false,init:({room,now})=>initTag(room,now,room.mode.tag),tick:({room})=>false,hit:({room,now},a,b)=>{tryTag(room,a,b,now);},finish:({room,now})=>finishTag(room,now)},
  kill_race:{loot:['freeze_ball',...WEAPON_IDS.filter(id=>allowedWeapon('kill_race',id))],combat:true,init:noOp,tick:({room})=>room.selectedFormat==='duo'&&Object.values(room.mode.scores).some(n=>n>=RULES.killTarget),finish:({room})=>{room.mode.winnerKeys=leaders(room);room.mode.reason=Object.values(room.mode.scores).some(n=>n>=RULES.killTarget)&&room.selectedFormat==='duo'?'Elimination target reached.':'Time expired — highest elimination score wins. Ties share the win.';}},
  flag_run:{loot:['freeze_ball',...WEAPON_IDS.filter(id=>allowedWeapon('flag_run',id))],combat:true,init:({room,now})=>{const anchors=mapAnchors(room.mapId);room.mode.flag={state:'not_spawned',carrier:null,position:anchors.flags[randomInt(anchors.flags.length)],spawnAt:now+RULES.flagSpawnMs};},tick:({room,now})=>{
   const f=room.mode.flag;if(f.state==='not_spawned'&&now>=f.spawnAt)f.state='spawned';
@@ -28,7 +30,7 @@ export const MODE_RULES:Record<GameMode,Ruleset>={
  },finish:({room})=>{room.mode.reason=room.mode.flag.state==='captured'?'Flag delivered — capture wins.':'Time expired without a capture — no round winner.';}}
 };
 export function beginMode(room:ModeRoom,now:number){
- const prior=room.mode;room.mode=emptyMode();room.mode.teams=prior.teams;room.mode.matchPoints=prior.matchPoints;
+ const prior=room.mode;room.mode=emptyMode();room.mode.teams=prior.teams;room.mode.matchPoints=prior.matchPoints;if(room.selectedGameMode==='tag')room.mode.tag=prior.tag;
  for(const k of keys(room))room.mode.scores[k]=0;
  const anchors=mapAnchors(room.mapId);room.mode.capture=anchors.capture;
  const loot=MODE_RULES[room.selectedGameMode].loot;
@@ -40,11 +42,11 @@ export function assignTeams(room:ModeRoom){room.mode=emptyMode();room.players.fo
 export function enemies(room:ModeRoom,a:ModePlayer,b:ModePlayer){return a.id!==b.id&&key(room,a)!==key(room,b);}
 export function near(room:ModeRoom,a:Position,b:Position,range=RULES.pickupRange){return Math.hypot(a.x-b.x,a.y-b.y,(a.elevation??0)-(b.elevation??0))<=range&&clearAttackLine(a,b,MAPS[room.mapId]);}
 export function interact(room:ModeRoom,p:ModePlayer,now:number,itemId?:string,replaceSlot?:1|2){
- if(!p.socket||p.health<=0||p.frozenUntil>now)return;
+ if(!p.socket||p.health<=0||p.frozenUntil>now||room.selectedGameMode==='tag'&&(room.mode.tag?.status[p.id]?.sealed??0)>now)return;
  const flag=room.mode.flag;
  if(room.selectedGameMode==='flag_run'&&['spawned','dropped'].includes(flag.state)&&near(room,p,flag.position)){flag.state='carried';flag.carrier=p.id;return;}
  const item=itemId?room.mode.items.find(i=>i.id===itemId&&(i.state==='closed'||i.state==='opened'&&!!i.kind)&&near(room,p,i.state==='closed'?i:(i.pickupPosition??i))):interactionItem(room.mode.items,room.mapId,p);
- if(!item)return;
+ if(!item)return;if(room.selectedGameMode==='tag'&&item.source==='mystery'){collectMystery(room,p,item,now);return;}
  if(item.state==='closed'){item.kind=chestReward(room.selectedGameMode);item.weapon=createWeapon(canonicalWeapon(item.kind)!,randomUUID());item.state='opening';item.openedAt=now;
   // A short supported drop beside this authored chest; never inside scenery or below a deck.
   item.pickupPosition={x:item.x,y:item.y,elevation:item.elevation};
@@ -57,7 +59,7 @@ export function interact(room:ModeRoom,p:ModePlayer,now:number,itemId?:string,re
 }
 export function dropFlag(room:ModeRoom,p?:ModePlayer){const f=room.mode.flag;if(f.state!=='carried'||p&&f.carrier!==p.id)return;if(p)f.position={x:p.x,y:p.y,elevation:p.elevation};f.carrier=null;f.state='dropped';}
 export function onElimination(room:ModeRoom,killer:ModePlayer,victim:ModePlayer){dropFlag(room,victim);clearInventory(victim);victim.frozenUntil=0;killer.eliminations++;killer.matchEliminations++;room.mode.scores[key(room,killer)]=(room.mode.scores[key(room,killer)]??0)+1;}
-export function throwBall(room:ModeRoom,p:ModePlayer,now:number){if(p.heldItem!=='freeze_ball'||!MODE_EQUIPMENT[room.selectedGameMode].powerUps)return false;consumeUtility(p);room.mode.projectiles.push({id:randomUUID(),ownerId:p.id,teamId:key(room,p),x:p.x,y:p.y,elevation:p.elevation,dx:p.attackX,dy:p.attackY,expiresAt:now+RULES.ballLifetimeMs,bornAt:now});room.mode.effects.push({id:randomUUID(),type:'throw',at:now,ownerId:p.id,x:p.x,y:p.y,elevation:p.elevation,dx:p.attackX,dy:p.attackY});return true;}
+export function throwBall(room:ModeRoom,p:ModePlayer,now:number){if(room.selectedGameMode==='tag'&&isPower(p.heldItem)){activateTagPower(room,p,now);return true;}if(p.heldItem!=='freeze_ball'||!MODE_EQUIPMENT[room.selectedGameMode].powerUps)return false;consumeUtility(p);room.mode.projectiles.push({id:randomUUID(),ownerId:p.id,teamId:key(room,p),x:p.x,y:p.y,elevation:p.elevation,dx:p.attackX,dy:p.attackY,expiresAt:now+RULES.ballLifetimeMs,bornAt:now});room.mode.effects.push({id:randomUUID(),type:'throw',at:now,ownerId:p.id,x:p.x,y:p.y,elevation:p.elevation,dx:p.attackX,dy:p.attackY});return true;}
 export function tickMode(room:ModeRoom,now:number,dt:number){
  room.mode.items=room.mode.items.filter(i=>i.source!=='drop'||i.state!=='empty'&&now<(i.expiresAt??Infinity));
  room.mode.effects=room.mode.effects.filter(e=>now-e.at<1000).slice(-48);
@@ -70,7 +72,7 @@ export function tickMode(room:ModeRoom,now:number,dt:number){
   const targets=room.players.filter(p=>p.socket&&p.health>0&&p.id!==ball.ownerId&&key(room,p)!==ball.teamId).map(p=>{const vx=end.x-start.x,vy=end.y-start.y,t=Math.max(0,Math.min(1,((p.x-start.x)*vx+(p.y-start.y)*vy)/(vx*vx+vy*vy||1)));return {p,t,point:{x:start.x+vx*t,y:start.y+vy*t,elevation:ball.elevation}};}).filter(({p,point})=>near(room,p,point,30)).sort((a,b)=>a.t-b.t);
   if(targets[0]){targets[0].p.frozenUntil=now+RULES.freezeMs;targets[0].p.dashRemaining=0;room.mode.effects.push({id:randomUUID(),type:'ice_hit',at:now,ownerId:ball.ownerId,targetId:targets[0].p.id,...targets[0].point,dx:ball.dx,dy:ball.dy});return false;}Object.assign(ball,end);return true;
  });
- return MODE_RULES[room.selectedGameMode].tick({room,now});
+ if(room.selectedGameMode==='tag')tickTag(room,now,dt);return MODE_RULES[room.selectedGameMode].tick({room,now});
 }
 export function finishMode(room:ModeRoom,now:number){MODE_RULES[room.selectedGameMode].finish({room,now});for(const k of room.mode.winnerKeys)room.mode.matchPoints[k]=(room.mode.matchPoints[k]??0)+1;room.mode.projectiles=[];}
 

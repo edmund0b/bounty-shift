@@ -1,3 +1,4 @@
+import {POWERS,isPower} from './tag-run.js';
 import {GUNS,gunId} from './gun-config.js';
 import {WORKSHOP_WEAPONS,AMMO_CONFIG} from './workshop-weapons.js';
 import type {GameMode} from './modes.js';
@@ -7,7 +8,7 @@ export const WEAPON_IDS=Object.keys(WORKSHOP_WEAPONS) as WeaponId[];
 export const isWeapon=(id:unknown):id is WeaponId=>typeof id==='string'&&Object.hasOwn(WORKSHOP_WEAPONS,id);
 export const canonicalWeapon=(id:unknown):WeaponId|null=>id==='blade'?'heavy-blade':id==='hammer'?'impact-hammer':isWeapon(id)?id:null;
 export const isGun=(id:unknown)=>!!canonicalWeapon(id)&&WORKSHOP_WEAPONS[canonicalWeapon(id)!].category==='firearms';
-export const weaponName=(id:unknown)=>id==='freeze_ball'?'FREEZE BALL':canonicalWeapon(id)?WORKSHOP_WEAPONS[canonicalWeapon(id)!].name.toUpperCase():'UNARMED';
+export const weaponName=(id:unknown)=>id==='mystery'?'MYSTERY POWER-UP':isPower(id)?POWERS[id].name.toUpperCase():id==='freeze_ball'?'FREEZE BALL':canonicalWeapon(id)?WORKSHOP_WEAPONS[canonicalWeapon(id)!].name.toUpperCase():'UNARMED';
 export const MODE_EQUIPMENT:Record<GameMode,{melee:boolean;firearms:boolean;powerUps:boolean}>={tag:{melee:true,firearms:false,powerUps:true},flag_run:{melee:true,firearms:true,powerUps:true},kill_race:{melee:true,firearms:true,powerUps:true}};
 export const allowedWeapon=(mode:GameMode,id:unknown)=>!!canonicalWeapon(id)&&MODE_EQUIPMENT[mode][isGun(id)?'firearms':'melee'];
 export const GROUND_WEAPONS:WeaponId[]=['heavy-blade','impact-hammer'];
