@@ -27,4 +27,11 @@ test('gameplay adapter keeps actual feet/root during moving, airborne, low stanc
 });
 test('three minute dagger finisher sampling has zero cumulative actor root drift',()=>{const r=createRig(characters[0]),w=new EquippedWeapon(r,'twin-daggers'),duration=w.durations.get('attack3')!,start=r.root.position.clone();for(let frame=0;frame<180*30;frame++){w.sample('attack3',(frame/30)%duration,true);assert(r.root.position.distanceTo(start)<1e-12);assert(Math.abs(r.hips.position.z)<1e-12);}w.dispose();disposeTree(r.root);});
 
-test('server action durations and hit/shot/reload events equal the exact V5 visual source',()=>{for(const id of WEAPON_IDS)for(const clip of isGun(id)?['equip','fire','reload']:['equip','attack1','attack2','attack3']){const server=weaponAction(id,clip),source=weaponActions(id).find(a=>a.id===clip)!;assert(source);assert.equal(server.duration,source.duration);assert.deepEqual(server.events,weaponEvents(id,clip));}});
+test('retained equip/reload/melee timings equal V5 source; live gun fire has dedicated balance',()=>{for(const id of WEAPON_IDS)for(const clip of isGun(id)?['equip','reload']:['equip','attack1','attack2','attack3']){const server=weaponAction(id,clip),source=weaponActions(id).find(a=>a.id===clip)!;assert(source);assert.equal(server.duration,source.duration);assert.deepEqual(server.events,weaponEvents(id,clip));}});
+
+for(const c of characters)test(`${c.displayName}: all four guns blend ADS/recoil/low stance without grip or root drift`,()=>{
+ const r=createRig(c);r.root.scale.multiplyScalar(.55);const animator=new GameplayAnimator(r),visual=new GameplayWeapon(r);let now=10000;
+ for(const id of ['pistol','assault-rifle','shotgun','sniper-rifle'] as const){const w=createWeapon(id,'aim-'+id),p:any={...freshMotion({x:500,y:500}),...freshCombat(),id:'p',heldItem:id,ads:true,aimX:.5,aimY:.8,aimZ:.3,inventory:{weapons:[w,null],weapon:id,utility:null},selectedSlot:1};
+ for(const state of [{},{crouched:true},{airborne:true,verticalVelocity:100},{traversalState:'slide',dashRemaining:.2}]){Object.assign(p,freshMotion({x:500,y:500}),state);for(let n=0;n<10;n++){now+=33;animator.update(p,100,1/30,0);const root=r.root.position.clone(),hips=r.hips.position.clone();visual.update(p,animator.timeline,'kill_race',now,100);assert(r.root.position.distanceTo(root)<1e-12);assert(r.hips.position.distanceTo(hips)<1e-8);assert(visual.weapon!.primaryError<.035);assert(visual.weapon!.secondaryError<.035);assert(r.joints.every(j=>j.quaternion.toArray().every(Number.isFinite)));}}}
+ visual.dispose();disposeTree(r.root);
+});

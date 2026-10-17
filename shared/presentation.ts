@@ -29,3 +29,5 @@ export function joystickInput(x:number,y:number){
  const magnitude=Math.min(1,(length/radius-CONTROLLER.joystickDeadzone)/(1-CONTROLLER.joystickDeadzone));
  return {x:x/length*magnitude,y:-y/length*magnitude};
 }
+
+export type AimControl={active:boolean;shoulder:1|-1};
