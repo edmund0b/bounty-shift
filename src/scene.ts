@@ -1,3 +1,5 @@
+import {PairCharacter,createPairEffects} from './pair/presentation';
+import {isPair} from '../shared/pair-powerups';
 import {createTagVisuals} from './TagVisuals';
 import {tagReach} from './tag-animation';
 import {canonicalWeapon} from '../shared/weapons';
@@ -20,7 +22,7 @@ import { VIEW, cameraAim, CONTROLLER, smoothAngle } from '../shared/presentation
 import { constrainOrbit } from './camera';
 
 const S=VIEW.scale;
-type Avatar={tagSeen?:number;tagAt?:number;weapon:GameplayWeapon;animationTime:number|null;sample:PlayerView;animation:GameplayAnimator;rig:Rig;characterId:string;bases:THREE.Color[];transparent:boolean[];heldBall:THREE.Group;frost:THREE.Group;frostMat:THREE.MeshBasicMaterial;frostMix:number;group:THREE.Group;limbs:THREE.Group[];materials:THREE.MeshStandardMaterial[];label:THREE.Sprite;labelCanvas:HTMLCanvasElement;labelTexture:THREE.CanvasTexture;ring:THREE.Mesh;arc:THREE.Mesh;lastLabel:string;version:number;x:number;z:number;elevation:number};
+type Avatar={pair:PairCharacter;tagSeen?:number;tagAt?:number;weapon:GameplayWeapon;animationTime:number|null;sample:PlayerView;animation:GameplayAnimator;rig:Rig;characterId:string;bases:THREE.Color[];transparent:boolean[];heldBall:THREE.Group;frost:THREE.Group;frostMat:THREE.MeshBasicMaterial;frostMix:number;group:THREE.Group;limbs:THREE.Group[];materials:THREE.MeshStandardMaterial[];label:THREE.Sprite;labelCanvas:HTMLCanvasElement;labelTexture:THREE.CanvasTexture;ring:THREE.Mesh;arc:THREE.Mesh;lastLabel:string;version:number;x:number;z:number;elevation:number};
 export function createArenaScene(canvas:HTMLCanvasElement,map:MapDefinition=ACTIVE_MAP,variant:string|null=null){
  const env=mapEnvironment(map,variant);
  const renderer=new THREE.WebGLRenderer({canvas,antialias:true,powerPreference:'high-performance'});
@@ -37,7 +39,7 @@ export function createArenaScene(canvas:HTMLCanvasElement,map:MapDefinition=ACTI
  const cube=track(new THREE.BoxGeometry(1,1,1));
  const box=(parent:THREE.Object3D,x:number,y:number,z:number,w:number,h:number,d:number,mat:THREE.Material)=>{const mesh=new THREE.Mesh(cube,mat);mesh.position.set(x,y,z);mesh.scale.set(w,h,d);parent.add(mesh);return mesh;};
  const environment=buildEnvironment(scene,map,variant);solids.push(...environment.solids as THREE.Mesh[]);
- const lootEffects=createLootEffects(scene,track),tagVisuals=createTagVisuals(scene,track);
+ const lootEffects=createLootEffects(scene,track),tagVisuals=createTagVisuals(scene,track),pairEffects=createPairEffects(scene);
  const frostGeometry=track(new THREE.OctahedronGeometry(.035,0));
  const limbGeometry=track(new THREE.BoxGeometry(1,1,1));
  const makeAvatar=(id:string,color:string,characterId:string,player:PlayerView):Avatar=>{
@@ -52,7 +54,7 @@ export function createArenaScene(canvas:HTMLCanvasElement,map:MapDefinition=ACTI
   const label=new THREE.Sprite(track(new THREE.SpriteMaterial({map:t,depthTest:true,transparent:true})));label.position.y=2.5;label.scale.set(2.4,.6,1);group.add(label);
   const heldBall=lootEffects.art.freezeBall();heldBall.position.set(0,-.12,.1);heldBall.scale.setScalar(1/.55);rig.arms[1].wrist.add(heldBall);heldBall.visible=false;
   const frost=new THREE.Group(),frostMat=track(new THREE.MeshBasicMaterial({color:'#bcefff',transparent:true,opacity:0,depthWrite:false}));for(let j=0;j<6;j++)frost.add(new THREE.Mesh(frostGeometry,frostMat));group.add(frost);
-  const a={weapon:new GameplayWeapon(rig),animationTime:null,sample:{...player},animation:new GameplayAnimator(rig),rig,characterId,bases,transparent,heldBall,frost,frostMat,frostMix:0,group,limbs,materials:mats,label,labelCanvas:c,labelTexture:t,ring,arc,lastLabel:'',version:-1,x:0,z:0,elevation:0};avatars.set(id,a);return a;
+  const a={pair:new PairCharacter(rig),weapon:new GameplayWeapon(rig),animationTime:null,sample:{...player},animation:new GameplayAnimator(rig),rig,characterId,bases,transparent,heldBall,frost,frostMat,frostMix:0,group,limbs,materials:mats,label,labelCanvas:c,labelTexture:t,ring,arc,lastLabel:'',version:-1,x:0,z:0,elevation:0};avatars.set(id,a);return a;
  };
  // Reuse a bounded pool: these meshes only present server state and never decide hits.
  const ice=material('#65eaff',true),gold=material('#ffc951',true),steel=material('#cadce7');
@@ -85,15 +87,15 @@ export function createArenaScene(canvas:HTMLCanvasElement,map:MapDefinition=ACTI
   if(first){camera.position.copy(desired);first=false;}else camera.position.lerp(desired,1-Math.exp(-dt*CONTROLLER.cameraSmoothing));constrainCamera(camera.position);
   for(const other of room.players)if(other.id!==id&&other.health>0){const center=new THREE.Vector3(other.x*S,(other.elevation??0)*S+.9,other.y*S),delta=camera.position.clone().sub(center);if(delta.length()<.65)camera.position.copy(center.add(delta.lengthSq()>1e-8?delta.setLength(.65):new THREE.Vector3(0,0,.65)));}constrainCamera(camera.position);
   look.set(target.x+aim.x*4.2*Math.cos(viewPitch),target.y+Math.sin(viewPitch)*4.2,target.z+aim.y*4.2*Math.cos(viewPitch));camera.lookAt(look);
-  const ids=new Set(room.players.map(p=>p.id));for(const [key,a] of avatars)if(!ids.has(key)){scene.remove(a.group);a.weapon.dispose();disposeTree(a.rig.root);avatars.delete(key);}
+  const ids=new Set(room.players.map(p=>p.id));for(const [key,a] of avatars)if(!ids.has(key)){scene.remove(a.group);a.pair.dispose();a.weapon.dispose();disposeTree(a.rig.root);avatars.delete(key);}
   for(const p of room.players){
    const isIt=room.selectedGameMode==='tag'&&teamKey(room.mode,p.id)===room.mode.it;const frozen=p.frozenUntil>visualNow&&p.health>0;const color=frozen?'#b2f6ff':isIt?'#ff4a69':room.selectedFormat==='duo'?['#46e7ff','#ffaa55','#b89cff'][Number(teamKey(room.mode,p.id).split('-')[1])-1]??p.color:p.id===id?'#46e7ff':p.color;
    const characterId=p.characterId??'voltrix';let a=avatars.get(p.id);
-   if(a&&a.characterId!==characterId){scene.remove(a.group);a.weapon.dispose();disposeTree(a.rig.root);avatars.delete(p.id);a=undefined;}
+   if(a&&a.characterId!==characterId){scene.remove(a.group);a.pair.dispose();a.weapon.dispose();disposeTree(a.rig.root);avatars.delete(p.id);a=undefined;}
    a=a||makeAvatar(p.id,color,characterId,p);const pos=p.id===id?local:p;
    const oldX=a.x,oldZ=a.z,resetPosition=a.version!==p.spawnVersion;if(a.version!==p.spawnVersion||p.id===id){a.x=pos.x*S;a.z=pos.y*S;a.elevation=pos.elevation??0;a.version=p.spawnVersion;}else{const f=1-Math.exp(-dt*18);const candidate={x:a.x/S+(p.x-a.x/S)*f,y:a.z/S+(p.y-a.z/S)*f,elevation:0};const height=p.airborne?a.elevation+(p.elevation-a.elevation)*f:displayElevation(candidate,a.elevation+(p.elevation-a.elevation)*f,map);candidate.elevation=height??p.elevation;if(Math.hypot(a.x-p.x*S,a.z-p.y*S)<=180*S&&height!==null&&(p.airborne||isWalkable(candidate,map))){a.x=candidate.x*S;a.z=candidate.y*S;a.elevation=candidate.elevation;}else{a.x=p.x*S;a.z=p.y*S;a.elevation=p.elevation;}}
    a.group.visible=!p.concealed;a.group.getObjectByName('tagger-aura')!.visible=isIt;(a.group.getObjectByName('tagger-aura') as THREE.Mesh).scale.setScalar(room.round.remainingSeconds<=20?1.08:1);a.group.scale.y=1;a.rig.root.visible=!(p.id===id&&self.heldItem==='sniper-rifle'&&aimBlend>.65);
-   a.group.position.set(a.x,a.elevation*S,a.z);const armedAim=p.weaponAction;const facing=p.ads?{x:p.aimX??pos.facingX,y:p.aimY??pos.facingY}:armedAim?{x:armedAim.aimX,y:armedAim.aimY}:p.attackFlash>0?{x:p.attackX,y:p.attackY}:{x:pos.facingX,y:pos.facingY};a.group.rotation.y=smoothAngle(a.group.rotation.y,Math.atan2(facing.x,facing.y),CONTROLLER.avatarTurnSpeed,dt);a.arc.rotation.z=-Math.PI/2+(p.attackFlash>0?Math.atan2(p.attackX,p.attackY)-a.group.rotation.y:0);
+   a.group.position.set(a.x,a.elevation*S,a.z);const armedAim=p.weaponAction,pairAim=room.mode.pair?.actions.find(a=>a.ownerId===p.id&&visualNow>=a.startedAt&&visualNow<a.releaseAt);const facing=pairAim?{x:pairAim.dx,y:pairAim.dy}:p.ads?{x:p.aimX??pos.facingX,y:p.aimY??pos.facingY}:armedAim?{x:armedAim.aimX,y:armedAim.aimY}:p.attackFlash>0?{x:p.attackX,y:p.attackY}:{x:pos.facingX,y:pos.facingY};a.group.rotation.y=smoothAngle(a.group.rotation.y,Math.atan2(facing.x,facing.y),CONTROLLER.avatarTurnSpeed,dt);a.arc.rotation.z=-Math.PI/2+(p.attackFlash>0?Math.atan2(p.attackX,p.attackY)-a.group.rotation.y:0);
    for(let i=0;i<a.materials.length;i++){const mat=a.materials[i];mat.color.copy(a.bases[i]);if(p.hitFlash>0)mat.color.lerp(new THREE.Color('#ffffff'),.65);if(p.health===0)mat.color.multiplyScalar(.3);if(frozen)mat.color.lerp(new THREE.Color('#91cddd'),.35);mat.opacity=p.id===id&&camera.position.distanceTo(target)<CONTROLLER.avatarFadeDistance?.18:1;mat.transparent=mat.opacity<1||a.transparent[i];}
    a.frostMix+=(Number(frozen)-a.frostMix)*(1-Math.exp(-dt*(frozen?20:8)));if(p.health===0||!frozen&&a.frostMix<.015)a.frostMix=0;a.frost.visible=a.frostMix>.015;a.frostMat.opacity=a.frostMix*.6;a.frost.children.forEach((mesh,j)=>{const angle=time*.8+j*Math.PI/3;mesh.position.set(Math.sin(angle)*.45,.35+(j%3)*.45+Math.sin(time*2+j)*.06,Math.cos(angle)*.32);});
    (a.ring.material as THREE.MeshBasicMaterial).color.set(p.protection>0?'#f8d94a':color);a.ring.visible=isIt||frozen||room.selectedFormat==='duo'||p.id===id||p.id===room.objective.target?.id||p.protection>0;a.arc.visible=p.attackFlash>0&&!room.mode.effects.some(e=>e.type==='throw'&&e.ownerId===p.id&&visualNow-e.at<350);
@@ -104,7 +106,8 @@ export function createArenaScene(canvas:HTMLCanvasElement,map:MapDefinition=ACTI
    if(room.mode.tag&&!canonicalWeapon(p.heldItem))a.sample.attackFlash=0;
    a.animation.update(a.sample,speed,animationDt,a.elevation*S,frozen);
    a.weapon.update(a.sample,a.animation.timeline,room.selectedGameMode,visualNow,speed);
-   if(room.mode.tag&&!canonicalWeapon(p.heldItem)){if(a.tagSeen!==undefined&&a.tagSeen!==p.attackSeen)a.tagAt=visualNow;a.tagSeen=p.attackSeen;tagReach(a.rig,(visualNow-(a.tagAt??-10000))/1000);}else a.tagSeen=p.attackSeen;
+   if(room.mode.tag&&!canonicalWeapon(p.heldItem)&&!isPair(p.heldItem)&&!room.mode.pair?.actions.some(v=>v.ownerId===p.id&&visualNow<v.endsAt)){if(a.tagSeen!==undefined&&a.tagSeen!==p.attackSeen)a.tagAt=visualNow;a.tagSeen=p.attackSeen;tagReach(a.rig,(visualNow-(a.tagAt??-10000))/1000);}else a.tagSeen=p.attackSeen;
+   a.pair.update(a.sample,room,visualNow);
    a.rig.head.getWorldPosition(labelAnchor);a.label.position.y=labelAnchor.y-a.group.position.y+.8;a.label.visible=p.id!==id;
    const labelWorld=2*camera.position.distanceTo(labelAnchor)*Math.tan(camera.fov*Math.PI/360)/height*(width<700?120:160);a.label.scale.set(labelWorld,labelWorld/4,1);
    const throwing=room.mode.effects.filter(e=>e.type==='throw'&&e.ownerId===p.id).at(-1),throwAge=throwing?visualNow-throwing.at:Infinity;
@@ -117,8 +120,8 @@ export function createArenaScene(canvas:HTMLCanvasElement,map:MapDefinition=ACTI
   const animationVersions=room.players.map(p=>`${p.id}:${avatars.get(p.id)?.version}`).join(',');if(canvas.dataset.animationVersions!==animationVersions)canvas.dataset.animationVersions=animationVersions;
   canvas.dataset.weapons=room.players.map(p=>`${p.id}:${avatars.get(p.id)?.weapon.weapon?.id??'unarmed'}:${avatars.get(p.id)?.weapon.lastClip}`).join(',');
   canvas.dataset.aimPoses=room.players.map(p=>`${p.id}:${Number(avatars.get(p.id)?.rig.root.userData.aimBlend??0).toFixed(2)}`).join(',');
-  tagVisuals.update(room,id,visualNow);
+  tagVisuals.update(room,id,visualNow);pairEffects.update(room,visualNow);canvas.dataset.pairEffects=pairEffects.visibleIds().join(',');
   canvas.dataset.characters=room.players.map(p=>`${p.id}:${p.characterId}`).join(',');renderer.render(scene,camera);
  }
- const shotDirection=new THREE.Vector3();return {update,aimRay(){camera.getWorldDirection(shotDirection);return {x:shotDirection.x,y:shotDirection.z,z:shotDirection.y,origin:{x:camera.position.x/S,y:camera.position.z/S,elevation:camera.position.y/S}};},dispose(){for(const a of avatars.values()){a.weapon.dispose();disposeTree(a.rig.root);}for(const r of resources)r.dispose();resources.clear();avatars.clear();lootEffects.dispose();tagVisuals.dispose();environment.dispose();renderer.dispose();}};
+ const shotDirection=new THREE.Vector3();return {update,aimRay(){camera.getWorldDirection(shotDirection);return {x:shotDirection.x,y:shotDirection.z,z:shotDirection.y,origin:{x:camera.position.x/S,y:camera.position.z/S,elevation:camera.position.y/S}};},dispose(){for(const a of avatars.values()){a.pair.dispose();a.weapon.dispose();disposeTree(a.rig.root);}for(const r of resources)r.dispose();resources.clear();avatars.clear();lootEffects.dispose();tagVisuals.dispose();pairEffects.dispose();environment.dispose();renderer.dispose();}};
 }

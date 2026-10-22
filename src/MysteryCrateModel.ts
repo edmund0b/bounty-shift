@@ -22,7 +22,8 @@ export class MysteryCrateModel{
   const pts=[[-.10,.14],[-.09,.23],[.05,.26],[.14,.17],[.10,.08],[0,.02],[0,-.08]];for(const side of [1]){for(let i=1;i<pts.length;i++)k.beam(this.symbol,[pts[i-1][0]*side,pts[i-1][1],0],[pts[i][0]*side,pts[i][1],0],.035,k.energy);k.box(this.symbol,0,-.19,0,.045,.045,.03,k.energy);}k.batch(this.symbol);
   for(let i=0;i<2;i++){const g=k.part('energy-orbit-'+i,this.rings);g.rotation.x=.4+i*.8;k.ring(g,0,0,0,.48+i*.09,.018,i?purple:k.energy,'y');k.ring(g,0,0,0,.50+i*.09,.009,k.edge,'y');k.batch(g);}
   this.beam=k.mesh(this.root,k.track(new T.CylinderGeometry(.22,.34,.4,24,1,true)),glass.clone(),[0,1.15,0],[1,1,1]);k.track(this.beam.material as T.Material);
-  for(let i=0;i<20;i++)k.box(this.sparks,Math.sin(i*2.4)*.55,1.1+i%7*.14,Math.cos(i*2.4)*.55,.018,.025,.018,i%3? k.energy:purple);
+  for(let i=0;i<8;i++)k.box(this.sparks,Math.sin(i*2.4)*.55,1.1+i%7*.14,Math.cos(i*2.4)*.55,.018,.025,.018,i%3? k.energy:purple);
+  k.batch(this.sparks);
   this.reward={root:new T.Group()};this.root.add(this.reward.root);this.reward.root.scale.setScalar(.45);this.reward.root.position.y=1.7;this.reward.root.visible=false;this.sample(0,false);
  }
  sample(t:number,collect:boolean){const state=this.state=collectionState(t,collect&&this.receipt.eligible),phase=t*Math.PI/2,open=state.opening;this.root.visible=state.fade>0;
@@ -33,6 +34,12 @@ export class MysteryCrateModel{
   this.panels.forEach((p,i)=>{p.rotation.z=(i?1:-1)*open*.32;});this.beam.scale.set(1+open*.2,1+Math.sin(phase)*.04+open*.3,1+open*.2);(this.beam.material as T.Material).opacity=.15+open*.25;
   for(const part of this.root.children)if(part.name.startsWith('travel-light-'))part.position.x=Math.sin(phase)*.43;
   this.kit.energy.emissiveIntensity=.85+Math.sin(phase)*.15+open*.7;this.sparks.rotation.y=phase*.25;this.sparks.scale.setScalar(1+open*.35);this.reward.root.visible=state.reveal;this.reward.root.rotation.y=state.reveal?(t-2.55)*1.2:0;
+ }
+ fork(){
+  const clone=Object.create(MysteryCrateModel.prototype) as MysteryCrateModel,root=this.root.clone(true),a:T.Object3D[]=[],b:T.Object3D[]=[];this.root.traverse(o=>a.push(o));root.traverse(o=>b.push(o));const nodes=new Map(a.map((o,i)=>[o,b[i]]));
+  const energy=this.kit.energy.clone(),beamMaterial=(this.beam.material as T.Material).clone();root.traverse(o=>{if(o instanceof T.Mesh&&o.material===this.kit.energy)o.material=energy;});
+  const kit=Object.create(WeaponKit.prototype) as WeaponKit;Object.assign(kit,this.kit,{root,energy,resources:new Set([energy,beamMaterial])});
+  Object.assign(clone,{kit,root,receipt:{collectionId:'',eligible:false,rewardId:''},capsule:nodes.get(this.capsule),caps:nodes.get(this.caps),rings:nodes.get(this.rings),symbol:nodes.get(this.symbol),panels:this.panels.map(p=>nodes.get(p)),sparks:nodes.get(this.sparks),beam:nodes.get(this.beam),glass:nodes.get(this.glass),reward:{root:nodes.get(this.reward.root)},state:collectionState(0,false)});clone.beam.material=beamMaterial;clone.sample(0,false);return clone;
  }
  dispose(){this.kit.dispose();}
 }
