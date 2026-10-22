@@ -1,0 +1,15 @@
+{
+  "label": "controlled-after-final",
+  "players": 6,
+  "crates": 3,
+  "crateMeshes": 84,
+  "crateTriangles": 17964,
+  "uniqueGeometries": 28,
+  "uniqueMaterials": 11,
+  "uniqueTextures": 0,
+  "crateBuildMs": 19.788,
+  "crateUpdateMs": 0.003,
+  "serverTickMs": 0.632,
+  "snapshotBytes": 12429,
+  "sceneObjectsAfterDispose": 0
+}

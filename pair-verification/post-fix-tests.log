@@ -1,0 +1,39 @@
+MEASURED RATIOS [{"mode":"tag","map":"central_plaza","initialCrates":3,"weaponOpportunities":52,"crateOpportunities":12,"collected":12,"legacyUtilityOpportunities":0,"totalPowerOpportunities":12,"totalPowerToWeaponRatio":0.231,"ratio":0.231,"target":2},{"mode":"tag","map":"scorched_point","initialCrates":3,"weaponOpportunities":52,"crateOpportunities":12,"collected":12,"legacyUtilityOpportunities":0,"totalPowerOpportunities":12,"totalPowerToWeaponRatio":0.231,"ratio":0.231,"target":2},{"mode":"tag","map":"aerie_sky_port","initialCrates":3,"weaponOpportunities":52,"crateOpportunities":12,"collected":12,"legacyUtilityOpportunities":0,"totalPowerOpportunities":12,"totalPowerToWeaponRatio":0.231,"ratio":0.231,"target":2},{"mode":"tag","map":"outlaws_canyon","initialCrates":3,"weaponOpportunities":52,"crateOpportunities":12,"collected":12,"legacyUtilityOpportunities":0,"totalPowerOpportunities":12,"totalPowerToWeaponRatio":0.231,"ratio":0.231,"target":2},{"mode":"tag","map":"vikings_fjord","initialCrates":3,"weaponOpportunities":52,"crateOpportunities":12,"collected":12,"legacyUtilityOpportunities":0,"totalPowerOpportunities":12,"totalPowerToWeaponRatio":0.231,"ratio":0.231,"target":2},{"mode":"flag_run","map":"central_plaza","initialCrates":2,"weaponOpportunities":36,"crateOpportunities":4,"collected":4,"legacyUtilityOpportunities":16,"totalPowerOpportunities":20,"totalPowerToWeaponRatio":0.556,"ratio":0.111,"target":1},{"mode":"flag_run","map":"scorched_point","initialCrates":2,"weaponOpportunities":36,"crateOpportunities":4,"collected":4,"legacyUtilityOpportunities":16,"totalPowerOpportunities":20,"totalPowerToWeaponRatio":0.556,"ratio":0.111,"target":1},{"mode":"flag_run","map":"aerie_sky_port","initialCrates":2,"weaponOpportunities":36,"crateOpportunities":4,"collected":4,"legacyUtilityOpportunities":16,"totalPowerOpportunities":20,"totalPowerToWeaponRatio":0.556,"ratio":0.111,"target":1},{"mode":"flag_run","map":"outlaws_canyon","initialCrates":2,"weaponOpportunities":36,"crateOpportunities":4,"collected":4,"legacyUtilityOpportunities":16,"totalPowerOpportunities":20,"totalPowerToWeaponRatio":0.556,"ratio":0.111,"target":1},{"mode":"flag_run","map":"vikings_fjord","initialCrates":2,"weaponOpportunities":36,"crateOpportunities":4,"collected":4,"legacyUtilityOpportunities":16,"totalPowerOpportunities":20,"totalPowerToWeaponRatio":0.556,"ratio":0.111,"target":1},{"mode":"kill_race","map":"central_plaza","initialCrates":2,"weaponOpportunities":36,"crateOpportunities":4,"collected":4,"legacyUtilityOpportunities":16,"totalPowerOpportunities":20,"totalPowerToWeaponRatio":0.556,"ratio":0.111,"target":1},{"mode":"kill_race","map":"scorched_point","initialCrates":2,"weaponOpportunities":36,"crateOpportunities":4,"collected":4,"legacyUtilityOpportunities":16,"totalPowerOpportunities":20,"totalPowerToWeaponRatio":0.556,"ratio":0.111,"target":1},{"mode":"kill_race","map":"aerie_sky_port","initialCrates":2,"weaponOpportunities":36,"crateOpportunities":4,"collected":4,"legacyUtilityOpportunities":16,"totalPowerOpportunities":20,"totalPowerToWeaponRatio":0.556,"ratio":0.111,"target":1},{"mode":"kill_race","map":"outlaws_canyon","initialCrates":2,"weaponOpportunities":36,"crateOpportunities":4,"collected":4,"legacyUtilityOpportunities":16,"totalPowerOpportunities":20,"totalPowerToWeaponRatio":0.556,"ratio":0.111,"target":1},{"mode":"kill_race","map":"vikings_fjord","initialCrates":2,"weaponOpportunities":36,"crateOpportunities":4,"collected":4,"legacyUtilityOpportunities":16,"totalPowerOpportunities":20,"totalPowerToWeaponRatio":0.556,"ratio":0.111,"target":1}]
+✔ tag: safe randomized crates on five maps preserve every weapon spawn (962.479122ms)
+✔ flag_run: safe randomized crates on five maps preserve every weapon spawn (900.652341ms)
+✔ kill_race: safe randomized crates on five maps preserve every weapon spawn (639.184694ms)
+✔ tag: atomic collection, actual inventory and private reward receipt (188.59082ms)
+✔ flag_run: atomic collection, actual inventory and private reward receipt (205.249515ms)
+✔ kill_race: atomic collection, actual inventory and private reward receipt (217.821648ms)
+✔ invalid state, range, LOS, forged items, KO, freeze, full utility and sealed restrictions reject collection (236.154933ms)
+✔ network interactions require current epoch and crate generation, ignoring client reward/position fields (303.308207ms)
+✔ cooldown, cap, randomized reset, blocked-player spawn, final-five cutoff and lifecycle cleanup (216.178742ms)
+✔ round transitions replace crate identities and cancel old budgets without changing mode timers (1232.073915ms)
+✔ Workshop chest layers and absolute animation reset do not accumulate meshes or materials (21.220151ms)
+✔ all eight character locomotion rigs remain usable across crate inventory collection (1981.355142ms)
+✔ measured crate/weapon opportunities over complete mode-length simulations on all five maps (6550.392337ms)
+✔ collection line-of-sight blocks wall exploits and rejected actors cannot reserve crates (234.996715ms)
+✔ effects adapter reuses bounded slots through collection/reset and frees all crate scene objects (255.226839ms)
+✔ reinitializing the same room replaces cached opportunity accounting without losing weapon generations (584.138585ms)
+✔ tag: Bounce Bomb delayed one-time release, radial self/opponent force, no HP/score/IT changes (240.675236ms)
+✔ tag: Sticky valid ground, arming, stationary single trigger, actual 35% slow, expiry and respawn cleanup (267.472727ms)
+✔ flag_run: Bounce Bomb delayed one-time release, radial self/opponent force, no HP/score/IT changes (232.960786ms)
+✔ flag_run: Sticky valid ground, arming, stationary single trigger, actual 35% slow, expiry and respawn cleanup (199.693648ms)
+✔ kill_race: Bounce Bomb delayed one-time release, radial self/opponent force, no HP/score/IT changes (231.510807ms)
+✔ kill_race: Sticky valid ground, arming, stationary single trigger, actual 35% slow, expiry and respawn cleanup (245.318126ms)
+✔ invalid trap attempts retain item; release revalidates ground; owner, teammate and expiration rules (252.017776ms)
+✔ projectile swept wall collision; blast occlusion; bounded movement and recovery use original collision (217.283503ms)
+✔ real input epoch/owned nonce rejects replay/forgery; changing slot, KO and disconnect cancel pending actions (247.004111ms)
+✔ all eight V7 skins: held models, two-hand trap grip, throws/placement/recovery preserve root and legs; effects dispose (1286.996947ms)
+✔ six-player simultaneous deployment respects ownership/limits and cleans owner respawn/disconnect (310.019782ms)
+✔ flag carrier stays authoritative under force and slow, with no possession or score rewrite (256.021323ms)
+✔ camera pitch changes projectile direction while preserving configured launch speed and loft (242.553049ms)
+✔ Bounce preserves existing Tag force immunity and Magnet Boots reduce its real force by 70% (239.909959ms)
+ℹ tests 30
+ℹ suites 0
+ℹ pass 30
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 15372.7237

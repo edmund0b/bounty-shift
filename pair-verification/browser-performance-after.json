@@ -1,0 +1,12 @@
+{
+  "label": "pair1",
+  "clients": 6,
+  "renderedClients": 1,
+  "softwareGPU": true,
+  "resolution": "1280x720 at DPR .5",
+  "frames": 20,
+  "meanFrameMs": 239.54,
+  "p95FrameMs": 785.4,
+  "meanDrawCalls": 676,
+  "crates": 3
+}

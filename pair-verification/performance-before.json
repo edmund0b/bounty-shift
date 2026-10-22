@@ -1,0 +1,15 @@
+{
+  "label": "phase1",
+  "players": 6,
+  "crates": 16,
+  "crateMeshes": 736,
+  "crateTriangles": 98112,
+  "uniqueGeometries": 432,
+  "uniqueMaterials": 112,
+  "uniqueTextures": 0,
+  "crateBuildMs": 124.064,
+  "crateUpdateMs": 0.037,
+  "serverTickMs": 0.751,
+  "snapshotBytes": 14966,
+  "sceneObjectsAfterDispose": 0
+}

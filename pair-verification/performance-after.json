@@ -1,0 +1,15 @@
+{
+  "label": "pair1",
+  "players": 6,
+  "crates": 3,
+  "crateMeshes": 84,
+  "crateTriangles": 17964,
+  "uniqueGeometries": 28,
+  "uniqueMaterials": 11,
+  "uniqueTextures": 0,
+  "crateBuildMs": 19.373,
+  "crateUpdateMs": 0.004,
+  "serverTickMs": 0.875,
+  "snapshotBytes": 12315,
+  "sceneObjectsAfterDispose": 0
+}

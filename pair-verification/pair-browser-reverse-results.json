@@ -1,0 +1,11 @@
+{
+  "results": [
+    "kill_race: mobile right-side camera swipe changes authoritative throw aim",
+    "kill_race: mobile touch USE, authoritative projectile and identical detonation/targets on two browser clients",
+    "kill_race: desktop F, grounded stationary trap, synchronized single trigger/web/slow and cleanup"
+  ],
+  "errors": [],
+  "fixtureAssisted": true,
+  "softwareGPU": true,
+  "physicalDevicesTested": false
+}

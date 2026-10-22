@@ -1,0 +1,12 @@
+{
+  "label": "controlled-after",
+  "clients": 6,
+  "renderedClients": 1,
+  "softwareGPU": true,
+  "resolution": "1280x720 at DPR .5",
+  "frames": 20,
+  "meanFrameMs": 226.24,
+  "p95FrameMs": 543.2,
+  "meanDrawCalls": 701.7,
+  "crates": 3
+}

@@ -1,0 +1,14 @@
+{
+  "results": [
+    "tag: desktop F, authoritative projectile and identical detonation/targets on two browser clients",
+    "tag: mobile touch USE, grounded stationary trap, synchronized single trigger/web/slow and cleanup",
+    "flag_run: desktop F, authoritative projectile and identical detonation/targets on two browser clients",
+    "flag_run: mobile touch USE, grounded stationary trap, synchronized single trigger/web/slow and cleanup",
+    "kill_race: desktop F, authoritative projectile and identical detonation/targets on two browser clients",
+    "kill_race: mobile touch USE, grounded stationary trap, synchronized single trigger/web/slow and cleanup"
+  ],
+  "errors": [],
+  "fixtureAssisted": true,
+  "softwareGPU": true,
+  "physicalDevicesTested": false
+}

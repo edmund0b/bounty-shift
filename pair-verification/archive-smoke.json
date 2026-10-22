@@ -1,0 +1,14 @@
+{
+  "extractedProduction": true,
+  "httpHealth": "pass",
+  "clientAssets": [
+    "/assets/index-B61g6aLa.js",
+    "/assets/three-BDjYR71Q.js",
+    "/assets/index-DEmzPvQk.css"
+  ],
+  "webSocketClients": 2,
+  "createJoinReadySelectionStart": "pass",
+  "map": "central_plaza",
+  "pairState": true,
+  "crateCap": "pass"
+}

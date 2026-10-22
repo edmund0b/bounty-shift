@@ -1,0 +1,15 @@
+{
+  "label": "controlled-before",
+  "players": 6,
+  "crates": 16,
+  "crateMeshes": 736,
+  "crateTriangles": 98112,
+  "uniqueGeometries": 432,
+  "uniqueMaterials": 112,
+  "uniqueTextures": 0,
+  "crateBuildMs": 95.762,
+  "crateUpdateMs": 0.021,
+  "serverTickMs": 0.674,
+  "snapshotBytes": 14911,
+  "sceneObjectsAfterDispose": 0
+}

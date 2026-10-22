@@ -1,0 +1,12 @@
+{
+  "label": "phase1",
+  "clients": 6,
+  "renderedClients": 1,
+  "softwareGPU": true,
+  "resolution": "1280x720 at DPR .5",
+  "frames": 25,
+  "meanFrameMs": 203.36,
+  "p95FrameMs": 564.4,
+  "meanDrawCalls": 1126.9,
+  "crates": 16
+}

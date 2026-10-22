@@ -1,0 +1,12 @@
+{
+  "label": "controlled-before",
+  "clients": 6,
+  "renderedClients": 1,
+  "softwareGPU": true,
+  "resolution": "1280x720 at DPR .5",
+  "frames": 27,
+  "meanFrameMs": 185.96,
+  "p95FrameMs": 619.7,
+  "meanDrawCalls": 1308.4,
+  "crates": 16
+}
