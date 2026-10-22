@@ -12,7 +12,7 @@ export const POWERS={
  jump_pad:ability('Jump Pad','common',8000,'Launch upward and forward.','⇡'),
  footprint_tracker:ability('Footprint Tracker','common',5000,'Reveal nearby recent movement trails.','⋯'),
  healing_burst:ability('Healing Burst','common',0,'Restore 35 stamina and clear ordinary slows.','✚'),
- bounce_bomb:ability('Bounce Bomb','common',1600,'Throw a directional knockback bomb.','↗'),
+ bounce_bomb:ability('Bounce Bomb','common',1600,'Throw a radial shockwave. Launch opponents or yourself.','↗'),
  freeze_ball:ability('Freeze Ball','rare',2000,'Freeze for 2s, followed by 3s freeze immunity.','❄'),
  gravity_bomb:ability('Gravity Bomb','rare',2500,'A 4m field pulls opponents without crossing walls.','◎'),
  ghost_step:ability('Ghost Step','rare',5000,'Silent footsteps; no movement trails. Still taggable.','◇'),

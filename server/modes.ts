@@ -1,3 +1,5 @@
+import {initPair,tickPair,activatePair,finishPair} from './pair-powerups.js';
+import {isPair} from '../shared/pair-powerups.js';
 import {initCrates,tickCrates,collectCrate,finishCrates} from './mystery-crates.js';
 import {initTag,tryTag,collectMystery,activateTagPower,tickTag,finishTag} from './tag-run.js';
 import {isPower} from '../shared/tag-run.js';
@@ -38,7 +40,7 @@ export function beginMode(room:ModeRoom,now:number){
  room.mode.items=buildLoot(room.mapId);
  for(const p of room.players){p.frozenUntil=0;clearInventory(p);}
  MODE_RULES[room.selectedGameMode].init({room,now});
- initCrates(room,now);
+ initPair(room);initCrates(room,now);
 }
 export function assignTeams(room:ModeRoom){room.mode=emptyMode();room.players.forEach((p,i)=>{room.mode.teams[p.id]=room.selectedFormat==='duo'?`team-${Math.floor(i/2)+1}`:p.id;});}
 export function enemies(room:ModeRoom,a:ModePlayer,b:ModePlayer){return a.id!==b.id&&key(room,a)!==key(room,b);}
@@ -61,7 +63,7 @@ export function interact(room:ModeRoom,p:ModePlayer,now:number,itemId?:string,re
 }
 export function dropFlag(room:ModeRoom,p?:ModePlayer){const f=room.mode.flag;if(f.state!=='carried'||p&&f.carrier!==p.id)return;if(p)f.position={x:p.x,y:p.y,elevation:p.elevation};f.carrier=null;f.state='dropped';}
 export function onElimination(room:ModeRoom,killer:ModePlayer,victim:ModePlayer){dropFlag(room,victim);clearInventory(victim);victim.frozenUntil=0;killer.eliminations++;killer.matchEliminations++;room.mode.scores[key(room,killer)]=(room.mode.scores[key(room,killer)]??0)+1;}
-export function throwBall(room:ModeRoom,p:ModePlayer,now:number){if(room.selectedGameMode==='tag'&&isPower(p.heldItem)){activateTagPower(room,p,now);return true;}if(p.heldItem!=='freeze_ball'||!MODE_EQUIPMENT[room.selectedGameMode].powerUps)return false;consumeUtility(p);room.mode.projectiles.push({id:randomUUID(),ownerId:p.id,teamId:key(room,p),x:p.x,y:p.y,elevation:p.elevation,dx:p.attackX,dy:p.attackY,expiresAt:now+RULES.ballLifetimeMs,bornAt:now});room.mode.effects.push({id:randomUUID(),type:'throw',at:now,ownerId:p.id,x:p.x,y:p.y,elevation:p.elevation,dx:p.attackX,dy:p.attackY});return true;}
+export function throwBall(room:ModeRoom,p:ModePlayer,now:number){if(isPair(p.heldItem)){activatePair(room,p,now);return true;}if(room.selectedGameMode==='tag'&&isPower(p.heldItem)){activateTagPower(room,p,now);return true;}if(p.heldItem!=='freeze_ball'||!MODE_EQUIPMENT[room.selectedGameMode].powerUps)return false;consumeUtility(p);room.mode.projectiles.push({id:randomUUID(),ownerId:p.id,teamId:key(room,p),x:p.x,y:p.y,elevation:p.elevation,dx:p.attackX,dy:p.attackY,expiresAt:now+RULES.ballLifetimeMs,bornAt:now});room.mode.effects.push({id:randomUUID(),type:'throw',at:now,ownerId:p.id,x:p.x,y:p.y,elevation:p.elevation,dx:p.attackX,dy:p.attackY});return true;}
 export function tickMode(room:ModeRoom,now:number,dt:number){
  room.mode.items=room.mode.items.filter(i=>i.source!=='drop'||i.state!=='empty'&&now<(i.expiresAt??Infinity));
  room.mode.effects=room.mode.effects.filter(e=>now-e.at<1000).slice(-48);
@@ -74,7 +76,7 @@ export function tickMode(room:ModeRoom,now:number,dt:number){
   const targets=room.players.filter(p=>p.socket&&p.health>0&&p.id!==ball.ownerId&&key(room,p)!==ball.teamId).map(p=>{const vx=end.x-start.x,vy=end.y-start.y,t=Math.max(0,Math.min(1,((p.x-start.x)*vx+(p.y-start.y)*vy)/(vx*vx+vy*vy||1)));return {p,t,point:{x:start.x+vx*t,y:start.y+vy*t,elevation:ball.elevation}};}).filter(({p,point})=>near(room,p,point,30)).sort((a,b)=>a.t-b.t);
   if(targets[0]){targets[0].p.frozenUntil=now+RULES.freezeMs;targets[0].p.dashRemaining=0;room.mode.effects.push({id:randomUUID(),type:'ice_hit',at:now,ownerId:ball.ownerId,targetId:targets[0].p.id,...targets[0].point,dx:ball.dx,dy:ball.dy});return false;}Object.assign(ball,end);return true;
  });
- tickCrates(room,now);if(room.selectedGameMode==='tag')tickTag(room,now,dt);return MODE_RULES[room.selectedGameMode].tick({room,now});
+ tickPair(room,now,dt);tickCrates(room,now);if(room.selectedGameMode==='tag')tickTag(room,now,dt);return MODE_RULES[room.selectedGameMode].tick({room,now});
 }
-export function finishMode(room:ModeRoom,now:number){MODE_RULES[room.selectedGameMode].finish({room,now});for(const k of room.mode.winnerKeys)room.mode.matchPoints[k]=(room.mode.matchPoints[k]??0)+1;room.mode.projectiles=[];finishCrates(room);}
+export function finishMode(room:ModeRoom,now:number){MODE_RULES[room.selectedGameMode].finish({room,now});for(const k of room.mode.winnerKeys)room.mode.matchPoints[k]=(room.mode.matchPoints[k]??0)+1;room.mode.projectiles=[];finishCrates(room);finishPair(room);}
 

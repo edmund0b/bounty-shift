@@ -1,3 +1,6 @@
+import {CRATE_CONFIG} from '../shared/mystery-crates.js';
+import {activatePair} from './pair-powerups.js';
+import {isPair} from '../shared/pair-powerups.js';
 import {randomInt,randomUUID} from 'node:crypto';
 import {TAG,POWERS,POWER_IDS,RARITIES,isPower,pickupCount,tagSweep,type PowerId,type TagState,type TagStatus,type TagField} from '../shared/tag-run.js';
 import {MAPS} from '../shared/map.js';
@@ -8,7 +11,7 @@ import {weaponSlots,pickup,consumeUtility} from '../shared/inventory.js';
 import {canonicalWeapon,WEAPON_BALANCE,allowedWeapon} from '../shared/weapons.js';
 import {lootPositions} from './weapon-loot.js';
 import type {ModeRoom,ModePlayer} from './modes.js';
-type P=ModePlayer&Partial<Motion>&{characterId?:string|null;attackSeen?:number;weaponSerial?:number;ads?:boolean;dx?:number;dy?:number;protection?:number;weaponAction?:unknown};
+type P=ModePlayer&Partial<Motion>&{characterId?:string|null;attackSeen?:number;weaponSerial?:number;ads?:boolean;dx?:number;dy?:number;protection?:number;weaponAction?:{endsAt:number}|null};
 const key=(r:ModeRoom,p:ModePlayer)=>teamKey(r.mode,p.id);
 const status=(r:ModeRoom,p:ModePlayer)=>{const s=r.mode.tag!.status[p.id]??={};for(const key of ['utilityCooldown','speed','slow','bubble','tracker','ghost','magnet','flash','invisible','sealed','freezeImmune','portalLock','padLock','escapeLock','forceImmune','phase','impulseUntil'] as const)s[key]??=0;return s;};
 const active=(p:ModePlayer,now:number)=>!!p.socket&&p.health>0&&p.frozenUntil<=now;
@@ -40,13 +43,14 @@ export function choosePower(t:TagState,roll=randomInt(1000000)/1000000,choice=ra
 }
 export function collectMystery(room:ModeRoom,p:P,item:WorldItem,now:number){
  const t=room.mode.tag;if(!t||t.ended||now>=room.round.endsAt||!active(p,now)||status(room,p).sealed!>now||p.inventory?.utility||item.kind!=='mystery'||item.source!=='mystery'||item.state!=='opened'||!inRange(room,p,item,65))return false;
- const reward=choosePower(t),epic=POWER_IDS.filter(id=>POWERS[id].rarity==='epic'),id=reward==='seal_tug'&&t.sealUsed[p.id]?epic[randomInt(epic.length)]:reward;if(!pickup(p,id))return false;p.inventory!.utilityInstanceId=randomUUID();if(id==='seal_tug')t.sealSpawned=true;item.kind=null;item.state='empty';item.refreshAt=now+TAG.pickupRespawnMs;t.collected[p.id]=(t.collected[p.id]??0)+1;event(room,p,now,'pickup',id);return true;
+ const reward=choosePower(t),epic=POWER_IDS.filter(id=>POWERS[id].rarity==='epic'),id=reward==='seal_tug'&&t.sealUsed[p.id]?epic[randomInt(epic.length)]:reward;if(!pickup(p,id))return false;p.inventory!.utilityInstanceId=randomUUID();if(id==='seal_tug')t.sealSpawned=true;item.kind=null;item.state='empty';item.refreshAt=now+CRATE_CONFIG.tag.respawnMs;t.collected[p.id]=(t.collected[p.id]??0)+1;event(room,p,now,'pickup',id);return true;
 }
 const direction=(p:P)=>{const n=Math.hypot(p.attackX,p.attackY)||1;return{x:p.attackX/n,y:p.attackY/n};};
 function field(room:ModeRoom,p:P,id:TagField['kind'],now:number,duration:number,position:Position=p,other?:Position){const d=direction(p),f:TagField={id:randomUUID(),kind:id,ownerId:p.id,team:key(room,p),x:position.x,y:position.y,elevation:position.elevation,createdAt:now,endsAt:now+duration,dx:d.x,dy:d.y,other,characterId:p.characterId??'voltrix'};room.mode.tag!.fields.push(f);return f;}
 function push(room:ModeRoom,p:P,dx:number,dy:number,now:number,up=true){const s=status(room,p);if(s.sealed!>now||s.forceImmune!>now)return;const strength=s.magnet!>now?.3:1,n=Math.hypot(dx,dy)||1;s.impulseX=dx/n*260*strength;s.impulseY=dy/n*260*strength;s.impulseUntil=now+450;s.forceImmune=now+1000;if(up){p.jumpOrigin={x:p.x,y:p.y,elevation:p.elevation};p.airborne=true;p.verticalVelocity=250*strength;}}
 const ESCAPES=new Set<PowerId>(['speed_surge','blink_beaker','clone_decoy','phase_dash','portal_pair','seal_tug']);
 export function activateTagPower(room:ModeRoom,p:P,now:number,instance?:string){
+ if(isPair(p.inventory?.utility))return activatePair(room,p,now,instance);
  const t=room.mode.tag,id=p.inventory?.utility;if(!t||t.ended||now>=room.round.endsAt||!active(p,now)||!isPower(id)||instance!==undefined&&instance!==p.inventory?.utilityInstanceId)return false;const s=status(room,p),d=direction(p),map=MAPS[room.mapId];
  if(s.utilityCooldown!>now||s.sealed!>now||s.invisible!>now||s.phase!>now||ESCAPES.has(id)&&s.escapeLock!>now)return false;
  const grounded=isWalkable(p,map)&&!p.airborne;
@@ -59,10 +63,10 @@ export function activateTagPower(room:ModeRoom,p:P,now:number,instance?:string){
  switch(id){
   case 'smoke_screen':field(room,p,id,now,POWERS[id].duration);break;
   case 'speed_surge':s.speed=until;break;
-  case 'sticky_trap':case 'jump_pad':case 'trap_clone':field(room,p,id,now,POWERS[id].duration);break;
+  case 'jump_pad':case 'trap_clone':field(room,p,id,now,POWERS[id].duration);break;
   case 'footprint_tracker':s.tracker=until;break;
-  case 'healing_burst':p.stamina=Math.min(100,(p.stamina??0)+35);s.slow=0;break;
-  case 'bounce_bomb':case 'freeze_ball':t.shots.push({id:randomUUID(),kind:id,ownerId:p.id,team:key(room,p),x:p.x,y:p.y,elevation:p.elevation,dx:d.x,dy:d.y,endsAt:now+1600});break;
+  case 'healing_burst':p.stamina=Math.min(100,(p.stamina??0)+35);s.slow=0;if(room.mode.pair?.status[p.id])room.mode.pair.status[p.id].slowUntil=0;break;
+  case 'freeze_ball':t.shots.push({id:randomUUID(),kind:id,ownerId:p.id,team:key(room,p),x:p.x,y:p.y,elevation:p.elevation,dx:d.x,dy:d.y,endsAt:now+1600});break;
   case 'gravity_bomb':{const center=tagSweep(p,d.x*80,d.y*80,map);field(room,p,id,now,POWERS[id].duration,center);break;}
   case 'ghost_step':s.ghost=until;t.trails=t.trails.filter(v=>v.ownerId!==p.id);break;
   case 'flash_pop':for(const q of room.players as P[])if(hostile(room,p,q)&&q.socket&&status(room,q).sealed!<=now&&inRange(room,p,q))status(room,q).flash=until;break;
