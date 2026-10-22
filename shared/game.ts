@@ -24,7 +24,7 @@ export type ClientMessage =
  | {type:'use_utility';matchId:string;roundNumber:number;instanceId:string}
  | { type:'settings';mode:GameMode;format:Format }
  | {type:'equip';slot:import('./inventory.js').Slot;matchId:string;roundNumber:number}
- | {type:'interact';matchId:string;roundNumber:number;itemId?:string;replaceSlot?:1|2}
+ | {type:'interact';itemGeneration?:number;matchId:string;roundNumber:number;itemId?:string;replaceSlot?:1|2}
  | {type:'reload'|'drop_weapon';matchId:string;roundNumber:number;slot?:1|2;instanceId:string}
  | { type:'choose_character';matchId:string;characterId:CharacterId }
  | { type:'character_prepared';matchId:string }

@@ -1,3 +1,4 @@
+import {initCrates,tickCrates,collectCrate,finishCrates} from './mystery-crates.js';
 import {initTag,tryTag,collectMystery,activateTagPower,tickTag,finishTag} from './tag-run.js';
 import {isPower} from '../shared/tag-run.js';
 import {buildLoot,chestReward,dropOwned,dropPosition,spawnDrop} from './weapon-loot.js';
@@ -37,6 +38,7 @@ export function beginMode(room:ModeRoom,now:number){
  room.mode.items=buildLoot(room.mapId);
  for(const p of room.players){p.frozenUntil=0;clearInventory(p);}
  MODE_RULES[room.selectedGameMode].init({room,now});
+ initCrates(room,now);
 }
 export function assignTeams(room:ModeRoom){room.mode=emptyMode();room.players.forEach((p,i)=>{room.mode.teams[p.id]=room.selectedFormat==='duo'?`team-${Math.floor(i/2)+1}`:p.id;});}
 export function enemies(room:ModeRoom,a:ModePlayer,b:ModePlayer){return a.id!==b.id&&key(room,a)!==key(room,b);}
@@ -46,7 +48,7 @@ export function interact(room:ModeRoom,p:ModePlayer,now:number,itemId?:string,re
  const flag=room.mode.flag;
  if(room.selectedGameMode==='flag_run'&&['spawned','dropped'].includes(flag.state)&&near(room,p,flag.position)){flag.state='carried';flag.carrier=p.id;return;}
  const item=itemId?room.mode.items.find(i=>i.id===itemId&&(i.state==='closed'||i.state==='opened'&&!!i.kind)&&near(room,p,i.state==='closed'?i:(i.pickupPosition??i))):interactionItem(room.mode.items,room.mapId,p);
- if(!item)return;if(room.selectedGameMode==='tag'&&item.source==='mystery'){collectMystery(room,p,item,now);return;}
+ if(!item)return;if(item.source==='mystery'){collectCrate(room,p,item,now);return;}
  if(item.state==='closed'){item.kind=chestReward(room.selectedGameMode);item.weapon=createWeapon(canonicalWeapon(item.kind)!,randomUUID());item.state='opening';item.openedAt=now;
   // A short supported drop beside this authored chest; never inside scenery or below a deck.
   item.pickupPosition={x:item.x,y:item.y,elevation:item.elevation};
@@ -72,7 +74,7 @@ export function tickMode(room:ModeRoom,now:number,dt:number){
   const targets=room.players.filter(p=>p.socket&&p.health>0&&p.id!==ball.ownerId&&key(room,p)!==ball.teamId).map(p=>{const vx=end.x-start.x,vy=end.y-start.y,t=Math.max(0,Math.min(1,((p.x-start.x)*vx+(p.y-start.y)*vy)/(vx*vx+vy*vy||1)));return {p,t,point:{x:start.x+vx*t,y:start.y+vy*t,elevation:ball.elevation}};}).filter(({p,point})=>near(room,p,point,30)).sort((a,b)=>a.t-b.t);
   if(targets[0]){targets[0].p.frozenUntil=now+RULES.freezeMs;targets[0].p.dashRemaining=0;room.mode.effects.push({id:randomUUID(),type:'ice_hit',at:now,ownerId:ball.ownerId,targetId:targets[0].p.id,...targets[0].point,dx:ball.dx,dy:ball.dy});return false;}Object.assign(ball,end);return true;
  });
- if(room.selectedGameMode==='tag')tickTag(room,now,dt);return MODE_RULES[room.selectedGameMode].tick({room,now});
+ tickCrates(room,now);if(room.selectedGameMode==='tag')tickTag(room,now,dt);return MODE_RULES[room.selectedGameMode].tick({room,now});
 }
-export function finishMode(room:ModeRoom,now:number){MODE_RULES[room.selectedGameMode].finish({room,now});for(const k of room.mode.winnerKeys)room.mode.matchPoints[k]=(room.mode.matchPoints[k]??0)+1;room.mode.projectiles=[];}
+export function finishMode(room:ModeRoom,now:number){MODE_RULES[room.selectedGameMode].finish({room,now});for(const k of room.mode.winnerKeys)room.mode.matchPoints[k]=(room.mode.matchPoints[k]??0)+1;room.mode.projectiles=[];finishCrates(room);}
 

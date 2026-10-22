@@ -21,10 +21,7 @@ export function initTag(room:ModeRoom,now:number,prior?:TagState){
  room.mode.tag={version:2,startedAt:now,clock:now,spent:Object.fromEntries(keys.map(k=>[k,0])),tags:{},collected:{},used:{},immunity:{},status:{},fields:[],shots:[],events:[],trails:[],pings:[],pingAt:0,trailAt:0,lastTransferAt:-1,serial:0,consumed:{},announcement:'HOT POTATO — avoid holding IT at zero',announcementAt:now,sealSpawned:false,sealUsed:prior?.sealUsed??{},totalTime:prior?.totalTime??{},totalTags:prior?.totalTags??{},totalCollected:prior?.totalCollected??{},totalUsed:prior?.totalUsed??{},rankings:[],ended:false};
  const activeKeys=keys.filter(k=>room.players.some(p=>p.socket&&key(room,p)===k));room.mode.it=activeKeys[randomInt(activeKeys.length)]??keys[0];room.mode.tagAfter=now;
  room.mode.items=room.mode.items.filter(i=>i.kind!=='freeze_ball'&&!i.id.startsWith('utility-'));
- const positions=lootPositions(room.mapId).filter(p=>!room.mode.items.some(i=>distance(i,p)<70));
- // Reuse the same validated route positions as existing loot; overlap with a chest is avoided where possible.
- const candidates=positions.length>=pickupCount(room.players.length)?positions:lootPositions(room.mapId);
- for(const p of candidates.slice(0,pickupCount(room.players.length)))room.mode.items.push({...p,id:'mystery-'+randomUUID(),source:'mystery',state:'opened',kind:'mystery',refreshAt:0});
+
 }
 export function tagClock(room:ModeRoom,now:number){const t=room.mode.tag;if(!t||t.ended)return;const end=Math.min(now,room.round.endsAt);if(end>t.clock&&room.mode.it)t.spent[room.mode.it]=(t.spent[room.mode.it]??0)+end-t.clock;t.clock=Math.max(t.clock,end);}
 function clearEscape(room:ModeRoom,p:P,now:number){const s=status(room,p);if(s.origin){Object.assign(p,s.origin);delete s.origin;}s.invisible=0;s.sealed=0;s.phase=0;s.impulseUntil=0;p.frozenUntil=0;s.freezeImmune=now+TAG.freezeImmunityMs;p.weaponAction=null;p.ads=false;room.mode.tag!.fields=room.mode.tag!.fields.filter(f=>!(f.ownerId===p.id&&f.kind==='clone_decoy'));}
@@ -93,8 +90,7 @@ export function tagVisible(room:ModeRoom,p:ModePlayer,viewer?:ModePlayer,now=Dat
 export function tickTag(room:ModeRoom,now:number,dt:number){
  const t=room.mode.tag;if(!t||t.ended)return;tagClock(room,now);
  if(!room.players.some(p=>key(room,p)===room.mode.it)){const next=room.players.find(p=>p.socket&&p.health>0);if(next){room.mode.it=key(room,next);for(const p of room.players as P[])if(key(room,p)===room.mode.it)clearEscape(room,p,now);t.announcement='IT reassigned after disconnect';t.announcementAt=now;t.serial++;}}
- for(const item of room.mode.items)if(item.source==='mystery'&&item.state==='empty'&&now>=item.refreshAt&&room.round.endsAt-now>5000){item.kind='mystery';item.state='opened';}
- const targetCount=pickupCount(room.players.length),capsules=room.mode.items.filter(i=>i.source==='mystery');for(const item of capsules.slice(targetCount)){item.kind=null;item.state='empty';item.refreshAt=Infinity;}
+
  for(const p of room.players as P[]){const s=status(room,p);s.bubble=0;if(s.origin&&(!(s.sealed!>now)||!p.socket)){Object.assign(p,isWalkable(s.origin,MAPS[room.mapId])?s.origin:MAPS[room.mapId].spawns[0]);delete s.origin;s.sealed=0;}if(!p.socket){s.invisible=0;s.phase=0;continue;}if(s.sealed!>now){Object.assign(p,s.origin);continue;}
   if(s.phase!>now){const q=tagSweep(p,(s.phaseX??0)*700*dt,(s.phaseY??0)*700*dt,MAPS[room.mapId],!!p.airborne);Object.assign(p,q);}
   if(s.impulseUntil!>now){const damp=Math.max(0,(s.impulseUntil!-now)/450),q=tagSweep(p,(s.impulseX??0)*dt*damp,(s.impulseY??0)*dt*damp,MAPS[room.mapId],!!p.airborne);Object.assign(p,q);}
