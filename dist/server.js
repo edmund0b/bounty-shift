@@ -5,18 +5,8 @@ import { WebSocketServer } from "ws";
 import { fileURLToPath } from "node:url";
 import { resolve, dirname } from "node:path";
 
-// server/mystery-crates.ts
-import { randomUUID as randomUUID3, randomInt as randomInt3 } from "node:crypto";
-
-// shared/mystery-crates.ts
-var common = { enabled: true, initialDelayMs: 0, respawnMs: 14e3, collectionCooldownMs: 250, minSpacing: 110, playerClearance: 100, pickupClearance: 85, objectiveClearance: 130 };
-var CRATE_CONFIG = {
-  tag: { ...common, ratio: 2, maxActive: 16, spawnIntervalMs: 500, stopBeforeEndMs: 5e3 },
-  flag_run: { ...common, ratio: 1, maxActive: 8, spawnIntervalMs: 1e3, stopBeforeEndMs: 0 },
-  kill_race: { ...common, ratio: 1, maxActive: 8, spawnIntervalMs: 1e3, stopBeforeEndMs: 0 }
-};
-var CRATE_PRESENTATION = { scale: 0.8, openingMs: 1200, revealMs: 2e3, fadeMs: 600, receiptMs: 2e4 };
-var crateRewardPool = (mode) => mode === "tag" ? "existing_tag_roster" : ["freeze_ball"];
+// server/pair-powerups.ts
+import { randomUUID } from "node:crypto";
 
 // shared/maps/fjord-layout.ts
 var FJORD_TERRACES = [
@@ -835,6 +825,11 @@ function nextPosition(previous, x, y, map = ACTIVE_MAP) {
   }
   return null;
 }
+function displayElevation(point, hint, map = ACTIVE_MAP) {
+  const heights = [0, ...map.surfaces.filter((s) => inside2(point, s)).map((s) => surfaceHeight(s, point))];
+  for (const elevation of heights.sort((a, b) => Math.abs(a - hint) - Math.abs(b - hint))) if (walkable({ ...point, elevation }, map)) return elevation;
+  return null;
+}
 
 // shared/game.ts
 var ARENA = { ...WORLD, radius: TRAVERSAL.radius, speed: 220 };
@@ -966,6 +961,91 @@ function advanceMotion(previous, input, dt = STEP, map = ACTIVE_MAP) {
   return { ...s, ...pos, elevation: pos.elevation ?? 0 };
 }
 
+// shared/tag-run.ts
+var TAG = { roundMs: 135e3, immunityMs: 2e3, freezeMs: 2e3, freezeImmunityMs: 3e3, pickupRespawnMs: 14e3, unitsPerMeter: 1 / 0.03, fieldRadius: 4 / 0.03, blinkRange: 7 / 0.03, tagRange: 80 };
+var RARITIES = { common: { weight: 55, color: "#9bccd9" }, rare: { weight: 30, color: "#4bafff" }, epic: { weight: 13, color: "#be84ff" }, legendary: { weight: 2, color: "#ffcf65" } };
+var ability = (name, rarity, duration, description, icon) => ({ name, rarity, duration, description, icon, range: TAG.fieldRadius, cooldown: 1e3 });
+var POWERS = {
+  smoke_screen: ability("Smoke Screen", "common", 4e3, "Smoke hides players and nameplates.", "\u224B"),
+  speed_surge: ability("Speed Surge", "common", 3e3, "20% faster movement; normal stamina costs.", "\u219F"),
+  sticky_trap: ability("Sticky Trap", "common", 5e3, "First opponent is slowed 35% for 1.5s.", "\u25A7"),
+  jump_pad: ability("Jump Pad", "common", 8e3, "Launch upward and forward.", "\u21E1"),
+  footprint_tracker: ability("Footprint Tracker", "common", 5e3, "Reveal nearby recent movement trails.", "\u22EF"),
+  healing_burst: ability("Healing Burst", "common", 0, "Restore 35 stamina and clear ordinary slows.", "\u271A"),
+  bounce_bomb: ability("Bounce Bomb", "common", 1600, "Throw a radial shockwave. Launch opponents or yourself.", "\u2197"),
+  freeze_ball: ability("Freeze Ball", "rare", 2e3, "Freeze for 2s, followed by 3s freeze immunity.", "\u2744"),
+  gravity_bomb: ability("Gravity Bomb", "rare", 2500, "A 4m field pulls opponents without crossing walls.", "\u25CE"),
+  ghost_step: ability("Ghost Step", "rare", 5e3, "Silent footsteps; no movement trails. Still taggable.", "\u25C7"),
+  flash_pop: ability("Flash Pop", "rare", 1250, "Briefly disrupt nearby opponents\u2019 vision.", "\u2726"),
+  magnet_boots: ability("Magnet Boots", "rare", 5e3, "70% knockback resistance and stable traction.", "\u2293"),
+  reverse_pulse: ability("Reverse Pulse", "rare", 0, "Push nearby opponents away in a 4m wave.", "\u2299"),
+  trap_clone: ability("Trap Clone", "rare", 5e3, "An attacked decoy bursts into a slowing cloud.", "\u265F"),
+  blink_beaker: ability("Blink Beaker", "rare", 0, "Blink up to 7m along a safe, clear route.", "\u21A6"),
+  clone_decoy: ability("Clone Decoy", "epic", 4e3, "Moving clone; you are invisible and cannot tag.", "\u2659"),
+  phase_dash: ability("Phase Dash", "epic", 400, "Fast directional dash; never crosses walls.", "\xBB"),
+  portal_pair: ability("Portal Pair", "epic", 8e3, "Two linked safe portals; 1s reentry lockout.", "\u25C9"),
+  time_bubble: ability("Time Bubble", "epic", 3e3, "Opponents inside move 25% slower.", "\u25F7"),
+  seal_tug: ability("Seal Tug", "legendary", 6e3, "Protected and stationary for 6s. Unusable in final 6s.", "\u2B21")
+};
+var POWER_IDS = Object.keys(POWERS);
+var isPower = (v) => typeof v === "string" && Object.hasOwn(POWERS, v);
+function tagSweep(p, dx, dy, map, air = false) {
+  let point = { ...p, elevation: p.elevation ?? 0 };
+  const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 4));
+  for (let n = 0; n < steps; n++) {
+    const q = { ...point, x: point.x + dx / steps, y: point.y + dy / steps };
+    if (q.x < 20 || q.y < 20 || q.x > map.bounds.width - 20 || q.y > map.bounds.height - 20) break;
+    const next = air ? !blockedAt(q, map) ? q : null : nextPosition(point, q.x, q.y, map);
+    if (!next || !air && !walkable(next, map)) break;
+    point = { ...next, elevation: next.elevation ?? 0 };
+  }
+  return point;
+}
+function tagMultiplier(s, now) {
+  return (s?.speed && s.speed > now ? 1.2 : 1) * Math.min(s?.slow && s.slow > now ? 0.65 : 1, s?.bubble && s.bubble > now ? 0.75 : 1);
+}
+function advanceTagMotion(p, input, s, now, dt, map) {
+  if (s?.sealed && s.sealed > now) return { ...p, ...s.origin ?? p, sprinting: false, dashRemaining: 0 };
+  const result = advanceMotion(p, input, dt, map), factor = tagMultiplier(s, now);
+  if (factor !== 1) {
+    const next = tagSweep(p, (result.x - p.x) * factor, (result.y - p.y) * factor, map, !!result.airborne);
+    result.x = next.x;
+    result.y = next.y;
+    if (!result.airborne) result.elevation = next.elevation ?? result.elevation;
+  }
+  return result;
+}
+
+// shared/pair-powerups.ts
+var PAIR = {
+  enabledRewards: true,
+  releaseMs: 640,
+  actionMs: 1350,
+  cooldownMs: 1e3,
+  bounce: { throwSpeed: 300, gravity: 650, lift: 140, originHeight: 32, projectileRadius: 6, fuseMs: 900, impact: true, radius: 4 / 0.03, horizontal: 400, vertical: 300, maxImpulse: 450, impulseMs: 600, selfMultiplier: 1, friendlyFire: false, forceImmunityMs: 200, falloffFloor: 0.25 },
+  sticky: { placeDistance: 36, footprint: 12, maxSlope: 0.4, armMs: 350, radius: 35, slow: 0.65, effectMs: 1500, lifetimeMs: 5e3, maxPerPlayer: 1, maxPerRound: 6, friendlyFire: false, triggerVisualMs: 1500 }
+};
+var isPair = (id) => id === "bounce_bomb" || id === "sticky_trap";
+var emptyPair = () => ({ version: 1, ended: false, actions: [], shots: [], traps: [], events: [], status: {} });
+function advancePairMotion(p, input, s, now, dt, map, tag) {
+  const result = tag ? advanceTagMotion(p, input, tag, now, dt, map) : advanceMotion(p, input, dt, map);
+  if (!s || s.spawnVersion !== (p.spawnVersion ?? 0)) return result;
+  if (s.slowUntil > now) {
+    const existing = Math.min(tag?.slow > now ? 0.65 : 1, tag?.bubble > now ? 0.75 : 1), factor = Math.min(existing, PAIR.sticky.slow) / existing;
+    const point = tagSweep(p, (result.x - p.x) * factor, (result.y - p.y) * factor, map, !!result.airborne);
+    result.x = point.x;
+    result.y = point.y;
+    if (!result.airborne) result.elevation = point.elevation ?? result.elevation;
+  }
+  if (s.knockUntil > now) {
+    const fade = Math.max(0, (s.knockUntil - now) / PAIR.bounce.impulseMs), point = tagSweep(result, s.vx * dt * fade, s.vy * dt * fade, map, !!result.airborne);
+    result.x = point.x;
+    result.y = point.y;
+    if (!result.airborne) result.elevation = point.elevation ?? result.elevation;
+  }
+  return result;
+}
+
 // shared/combat.ts
 var COMBAT = { chestHeight: 30, maxHealth: 100, damage: 25, range: 80, halfAngle: Math.PI / 3, cooldown: 0.6, respawnDelay: 5, protection: 1.5, attackFlash: 0.15, hitFlash: 0.2 };
 function freshCombat() {
@@ -1019,61 +1099,6 @@ function safeSpawn(others, map = ACTIVE_MAP) {
     }
   }
   return { ...best };
-}
-
-// shared/tag-run.ts
-var TAG = { roundMs: 135e3, immunityMs: 2e3, freezeMs: 2e3, freezeImmunityMs: 3e3, pickupRespawnMs: 14e3, unitsPerMeter: 1 / 0.03, fieldRadius: 4 / 0.03, blinkRange: 7 / 0.03, tagRange: 80 };
-var RARITIES = { common: { weight: 55, color: "#9bccd9" }, rare: { weight: 30, color: "#4bafff" }, epic: { weight: 13, color: "#be84ff" }, legendary: { weight: 2, color: "#ffcf65" } };
-var ability = (name, rarity, duration, description, icon) => ({ name, rarity, duration, description, icon, range: TAG.fieldRadius, cooldown: 1e3 });
-var POWERS = {
-  smoke_screen: ability("Smoke Screen", "common", 4e3, "Smoke hides players and nameplates.", "\u224B"),
-  speed_surge: ability("Speed Surge", "common", 3e3, "20% faster movement; normal stamina costs.", "\u219F"),
-  sticky_trap: ability("Sticky Trap", "common", 5e3, "First opponent is slowed 35% for 1.5s.", "\u25A7"),
-  jump_pad: ability("Jump Pad", "common", 8e3, "Launch upward and forward.", "\u21E1"),
-  footprint_tracker: ability("Footprint Tracker", "common", 5e3, "Reveal nearby recent movement trails.", "\u22EF"),
-  healing_burst: ability("Healing Burst", "common", 0, "Restore 35 stamina and clear ordinary slows.", "\u271A"),
-  bounce_bomb: ability("Bounce Bomb", "common", 1600, "Throw a directional knockback bomb.", "\u2197"),
-  freeze_ball: ability("Freeze Ball", "rare", 2e3, "Freeze for 2s, followed by 3s freeze immunity.", "\u2744"),
-  gravity_bomb: ability("Gravity Bomb", "rare", 2500, "A 4m field pulls opponents without crossing walls.", "\u25CE"),
-  ghost_step: ability("Ghost Step", "rare", 5e3, "Silent footsteps; no movement trails. Still taggable.", "\u25C7"),
-  flash_pop: ability("Flash Pop", "rare", 1250, "Briefly disrupt nearby opponents\u2019 vision.", "\u2726"),
-  magnet_boots: ability("Magnet Boots", "rare", 5e3, "70% knockback resistance and stable traction.", "\u2293"),
-  reverse_pulse: ability("Reverse Pulse", "rare", 0, "Push nearby opponents away in a 4m wave.", "\u2299"),
-  trap_clone: ability("Trap Clone", "rare", 5e3, "An attacked decoy bursts into a slowing cloud.", "\u265F"),
-  blink_beaker: ability("Blink Beaker", "rare", 0, "Blink up to 7m along a safe, clear route.", "\u21A6"),
-  clone_decoy: ability("Clone Decoy", "epic", 4e3, "Moving clone; you are invisible and cannot tag.", "\u2659"),
-  phase_dash: ability("Phase Dash", "epic", 400, "Fast directional dash; never crosses walls.", "\xBB"),
-  portal_pair: ability("Portal Pair", "epic", 8e3, "Two linked safe portals; 1s reentry lockout.", "\u25C9"),
-  time_bubble: ability("Time Bubble", "epic", 3e3, "Opponents inside move 25% slower.", "\u25F7"),
-  seal_tug: ability("Seal Tug", "legendary", 6e3, "Protected and stationary for 6s. Unusable in final 6s.", "\u2B21")
-};
-var POWER_IDS = Object.keys(POWERS);
-var isPower = (v) => typeof v === "string" && Object.hasOwn(POWERS, v);
-function tagSweep(p, dx, dy, map, air = false) {
-  let point = { ...p, elevation: p.elevation ?? 0 };
-  const steps = Math.max(1, Math.ceil(Math.hypot(dx, dy) / 4));
-  for (let n = 0; n < steps; n++) {
-    const q = { ...point, x: point.x + dx / steps, y: point.y + dy / steps };
-    if (q.x < 20 || q.y < 20 || q.x > map.bounds.width - 20 || q.y > map.bounds.height - 20) break;
-    const next = air ? !blockedAt(q, map) ? q : null : nextPosition(point, q.x, q.y, map);
-    if (!next || !air && !walkable(next, map)) break;
-    point = { ...next, elevation: next.elevation ?? 0 };
-  }
-  return point;
-}
-function tagMultiplier(s, now) {
-  return (s?.speed && s.speed > now ? 1.2 : 1) * Math.min(s?.slow && s.slow > now ? 0.65 : 1, s?.bubble && s.bubble > now ? 0.75 : 1);
-}
-function advanceTagMotion(p, input, s, now, dt, map) {
-  if (s?.sealed && s.sealed > now) return { ...p, ...s.origin ?? p, sprinting: false, dashRemaining: 0 };
-  const result = advanceMotion(p, input, dt, map), factor = tagMultiplier(s, now);
-  if (factor !== 1) {
-    const next = tagSweep(p, (result.x - p.x) * factor, (result.y - p.y) * factor, map, !!result.airborne);
-    result.x = next.x;
-    result.y = next.y;
-    if (!result.airborne) result.elevation = next.elevation ?? result.elevation;
-  }
-  return result;
 }
 
 // shared/gun-config.ts
@@ -1584,8 +1609,205 @@ function consumeUtility(p) {
   syncEquipped(p);
 }
 
+// shared/modes.ts
+var MODES = {
+  tag: { name: "TAG RUN", icon: "\u25C9", description: "Hot Potato: survive 2:15 without holding IT at zero. Mystery power-ups change the chase." },
+  flag_run: { name: "FLAG RUN", icon: "\u2691", description: "Loot and fight, then recover the flag and deliver it to the marked capture zone." },
+  kill_race: { name: "KILL RACE", icon: "\u2694", description: "Find weapons and earn eliminations. Duos race to 15; highest score wins at the buzzer." }
+};
+var RULES = { freezeMs: 3e3, retagGraceMs: 1200, flagSpawnMs: 3e4, flagWarningMs: 5e3, killTarget: 15, pickupRange: 65, ballSpeed: 650, ballLifetimeMs: 1600, itemRespawnMs: 12e3 };
+var WEAPONS = { blade: { damage: 25, cooldown: 0.38 }, hammer: { damage: 40, cooldown: 0.9 } };
+function emptyMode() {
+  return { teams: {}, scores: {}, matchPoints: {}, it: null, tagAfter: 0, items: [], projectiles: [], effects: [], flag: { state: "not_spawned", carrier: null, position: { x: 0, y: 0 }, spawnAt: 0 }, capture: { x: 0, y: 0 }, winnerKeys: [], reason: "" };
+}
+var validMode = (value) => typeof value === "string" && Object.hasOwn(MODES, value);
+var validFormat = (value) => value === "solo" || value === "duo";
+var validTeams = (format, count) => format === "solo" ? count >= 2 && count <= 6 : count === 4 || count === 6;
+function teamKey(state, id) {
+  return state.teams[id] ?? id;
+}
+
+// server/pair-powerups.ts
+var dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, (a.elevation ?? 0) - (b.elevation ?? 0));
+var pairStatus = (room, p) => room.mode.pair.status[p.id] ??= { spawnVersion: p.spawnVersion ?? 0, slowUntil: 0, slowAt: 0, knockUntil: 0, knockAt: 0, vx: 0, vy: 0, immuneUntil: 0, cooldownUntil: 0 };
+var alive = (p, now) => !!p.socket && p.health > 0 && p.frozenUntil <= now;
+var restricted = (room, p, now) => {
+  const s = room.mode.tag?.status[p.id];
+  return s?.sealed > now || s?.invisible > now || s?.phase > now;
+};
+function pairPlacement(room, p) {
+  const map = MAPS[room.mapId];
+  if (p.airborne || !isWalkable(p, map)) return null;
+  const n = Math.hypot(p.attackX, p.attackY) || 1, point = tagSweep(p, p.attackX / n * PAIR.sticky.placeDistance, p.attackY / n * PAIR.sticky.placeDistance, map);
+  if (dist(point, p) < PAIR.sticky.placeDistance - 2) return null;
+  let sx = 0, sy = 0;
+  for (const dx of [-PAIR.sticky.footprint, 0, PAIR.sticky.footprint]) for (const dy of [-PAIR.sticky.footprint, 0, PAIR.sticky.footprint]) {
+    const q = { x: point.x + dx, y: point.y + dy }, z = displayElevation(q, point.elevation ?? 0, map);
+    if (z === null || Math.abs(z - (point.elevation ?? 0)) > Math.hypot(dx, dy) * PAIR.sticky.maxSlope + 0.02 || !clearAttackLine(point, { ...q, elevation: z }, map)) return null;
+    if (dx && dy === 0) sx += (z - (point.elevation ?? 0)) / dx / 2;
+    if (dy && dx === 0) sy += (z - (point.elevation ?? 0)) / dy / 2;
+  }
+  if (room.players.some((q) => q.id !== p.id && q.socket && q.health > 0 && dist(q, point) < PAIR.sticky.footprint + 14)) return null;
+  return { ...point, normal: { x: -sx, y: 1, z: -sy } };
+}
+function activatePair(room, p, now, instance) {
+  const id = p.inventory?.utility, t = room.mode.pair;
+  if (!t || t.ended || now >= room.round.endsAt || !isPair(id) || !room.players.includes(p) || !alive(p, now) || restricted(room, p, now) || instance !== void 0 && instance !== p.inventory?.utilityInstanceId || !p.inventory?.utilityInstanceId || t.actions.some((a) => a.ownerId === p.id && a.endsAt > now)) return false;
+  const s = pairStatus(room, p), ts = room.mode.tag?.status[p.id];
+  if (s.cooldownUntil > now || ts?.utilityCooldown > now || p.weaponAction && p.weaponAction.endsAt > now) return false;
+  if (id === "sticky_trap" && (!pairPlacement(room, p) || t.traps.filter((v) => !v.triggeredAt && v.ownerId === p.id).length >= PAIR.sticky.maxPerPlayer || t.traps.filter((v) => !v.triggeredAt).length >= PAIR.sticky.maxPerRound)) return false;
+  if (!equip(p, 3, false)) return false;
+  p.ads = false;
+  const n = Math.hypot(p.attackX, p.attackY) || 1, z = Number.isFinite(p.aimZ) ? Math.max(-1, Math.min(1, p.aimZ)) : 0;
+  const start = now + Math.max(0, p.dashRemaining) * 1e3;
+  t.actions.push({ id: randomUUID(), kind: id, ownerId: p.id, instanceId: p.inventory.utilityInstanceId, startedAt: start, releaseAt: start + PAIR.releaseMs, endsAt: start + PAIR.actionMs, released: false, dx: p.attackX / n, dy: p.attackY / n, dz: z });
+  return true;
+}
+function blast(room, ball, now) {
+  const t = room.mode.pair, cfg = PAIR.bounce, targets = [];
+  for (const q of room.players) {
+    const self = q.id === ball.ownerId, s = pairStatus(room, q);
+    if (!q.socket || q.health <= 0 || restricted(room, q, now) || !self && !cfg.friendlyFire && teamKey(room.mode, q.id) === ball.team || !self && (q.protection ?? 0) > 0 || s.immuneUntil > now || room.mode.tag?.status[q.id]?.forceImmune > now) continue;
+    const d = dist(q, ball);
+    if (d > cfg.radius || !clearAttackLine(ball, q, MAPS[room.mapId])) continue;
+    const dx = q.x - ball.x, dy = q.y - ball.y, n = Math.hypot(dx, dy) || 1, strength = Math.max(cfg.falloffFloor, 1 - d / cfg.radius) * (self ? cfg.selfMultiplier : 1) * (room.mode.tag?.status[q.id]?.magnet > now ? 0.3 : 1);
+    let vx = (n === 1 && dx === 0 && dy === 0 ? -ball.vx / (Math.hypot(ball.vx, ball.vy) || 1) : dx / n) * cfg.horizontal * strength, vy = (n === 1 && dx === 0 && dy === 0 ? -ball.vy / (Math.hypot(ball.vx, ball.vy) || 1) : dy / n) * cfg.horizontal * strength, vz = cfg.vertical * strength;
+    const cap = Math.min(1, cfg.maxImpulse / (Math.hypot(vx, vy, vz) || 1));
+    vx *= cap;
+    vy *= cap;
+    vz *= cap;
+    s.knockAt = now;
+    s.knockUntil = now + cfg.impulseMs;
+    s.vx = vx;
+    s.vy = vy;
+    s.immuneUntil = now + cfg.forceImmunityMs;
+    if (room.mode.tag) {
+      const ts = room.mode.tag.status[q.id] ??= {};
+      ts.forceImmune = Math.max(ts.forceImmune ?? 0, s.immuneUntil);
+    }
+    if (!q.airborne) q.jumpOrigin = { x: q.x, y: q.y, elevation: q.elevation };
+    q.airborne = true;
+    q.verticalVelocity = Math.max(q.verticalVelocity ?? 0, vz);
+    q.dashRemaining = 0;
+    targets.push(q.id);
+  }
+  t.events.push({ id: ball.id, kind: "shockwave", at: now, ownerId: ball.ownerId, x: ball.x, y: ball.y, elevation: ball.elevation, radius: cfg.radius, targetIds: targets });
+}
+function blockedProjectile(room, p) {
+  const map = MAPS[room.mapId], r = PAIR.bounce.projectileRadius, z = p.elevation ?? 0;
+  return p.x < r || p.y < r || p.x > map.bounds.width - r || p.y > map.bounds.height - r || map.blocks.some((b) => inside2(p, b, r) && z + r > b.bottom && z - r < b.top) || map.surfaces.some((v) => v.ramp && inside2(p, v) && z < surfaceHeight(v, p));
+}
+function tickPair(room, now, dt) {
+  const t = room.mode.pair;
+  if (!t || t.ended || now >= room.round.endsAt) return;
+  if (!t.actions.length && !t.shots.length && !t.traps.length && !t.events.length && !Object.keys(t.status).length) return;
+  for (const p of room.players) {
+    const s = t.status[p.id];
+    if (s && (!p.socket || p.health <= 0 || s.spawnVersion !== (p.spawnVersion ?? 0))) delete t.status[p.id];
+  }
+  t.actions = t.actions.filter((a) => {
+    const p = room.players.find((p2) => p2.id === a.ownerId);
+    if (!p || !alive(p, now) || restricted(room, p, now) || now >= a.endsAt) return false;
+    if (a.released) return true;
+    if (p.selectedSlot !== 3 || p.inventory?.utilityInstanceId !== a.instanceId || p.inventory.utility !== a.kind) return false;
+    if (now < a.releaseAt) return true;
+    const place = a.kind === "sticky_trap" ? pairPlacement(room, p) : null;
+    if (a.kind === "sticky_trap" && (!place || t.traps.filter((v) => !v.triggeredAt && v.ownerId === p.id).length >= PAIR.sticky.maxPerPlayer || t.traps.filter((v) => !v.triggeredAt).length >= PAIR.sticky.maxPerRound)) return false;
+    if (a.kind === "bounce_bomb") {
+      const horizontal = Math.sqrt(Math.max(0, 1 - a.dz * a.dz));
+      const shot = { id: a.id, ownerId: p.id, team: teamKey(room.mode, p.id), x: p.x + a.dx * 18 * horizontal, y: p.y + a.dy * 18 * horizontal, elevation: (p.elevation ?? 0) + PAIR.bounce.originHeight, vx: a.dx * PAIR.bounce.throwSpeed * horizontal, vy: a.dy * PAIR.bounce.throwSpeed * horizontal, vz: a.dz * PAIR.bounce.throwSpeed + PAIR.bounce.lift, bornAt: now, lastAt: now, endsAt: now + PAIR.bounce.fuseMs };
+      if (blockedProjectile(room, shot)) {
+        shot.x = p.x;
+        shot.y = p.y;
+        shot.elevation = (p.elevation ?? 0) + PAIR.bounce.originHeight;
+      }
+      t.shots.push(shot);
+    } else t.traps.push({ ...place, id: a.id, ownerId: p.id, ownerSpawnVersion: p.spawnVersion ?? 0, team: teamKey(room.mode, p.id), bornAt: now, armedAt: now + PAIR.sticky.armMs, endsAt: now + PAIR.sticky.lifetimeMs });
+    consumeUtility(p);
+    a.released = true;
+    const s = pairStatus(room, p);
+    s.cooldownUntil = now + PAIR.cooldownMs;
+    if (room.mode.tag) {
+      room.mode.tag.used[p.id] = (room.mode.tag.used[p.id] ?? 0) + 1;
+      room.mode.tag.status[p.id] ??= {};
+      room.mode.tag.status[p.id].utilityCooldown = s.cooldownUntil;
+    }
+    return true;
+  });
+  t.shots = t.shots.filter((ball) => {
+    if (!room.players.some((p) => p.id === ball.ownerId && p.socket)) return false;
+    const seconds = Math.min(0.1, Math.max(0, (now - ball.lastAt) / 1e3));
+    ball.lastAt = now;
+    let impact = false;
+    const steps = Math.max(1, Math.ceil(Math.hypot(ball.vx, ball.vy, ball.vz) * seconds / 4));
+    for (let n = 0; n < steps; n++) {
+      const h = seconds / steps, q = { x: ball.x + ball.vx * h, y: ball.y + ball.vy * h, elevation: (ball.elevation ?? 0) + ball.vz * h };
+      ball.vz -= PAIR.bounce.gravity * h;
+      if (blockedProjectile(room, q)) {
+        impact = true;
+        break;
+      }
+      if (room.players.some((p) => p.socket && p.health > 0 && (p.id !== ball.ownerId || now - ball.bornAt > 150) && Math.hypot(p.x - q.x, p.y - q.y) < 20 && q.elevation >= (p.elevation ?? 0) - 6 && q.elevation <= (p.elevation ?? 0) + 60)) {
+        Object.assign(ball, q);
+        impact = true;
+        break;
+      }
+      const map = MAPS[room.mapId], levels = [0, ...map.surfaces.filter((v) => inside2(q, v)).map((v) => surfaceHeight(v, q))].sort((a, b) => b - a), floor4 = levels.find((z) => (ball.elevation ?? 0) >= z && q.elevation <= z);
+      if (floor4 !== void 0) {
+        q.elevation = floor4;
+        Object.assign(ball, q);
+        impact = true;
+        break;
+      }
+      Object.assign(ball, q);
+    }
+    if (impact && PAIR.bounce.impact || now >= ball.endsAt) {
+      blast(room, ball, now);
+      return false;
+    }
+    return true;
+  });
+  t.traps = t.traps.filter((v) => {
+    if (!room.players.some((p) => p.id === v.ownerId && p.socket && p.health > 0 && (p.spawnVersion ?? 0) === v.ownerSpawnVersion)) return false;
+    if (v.triggeredAt) return now - v.triggeredAt < PAIR.sticky.triggerVisualMs;
+    if (now >= v.endsAt) return false;
+    if (now < v.armedAt) return true;
+    const target = room.players.filter((p) => p.id !== v.ownerId && p.socket && p.health > 0 && !restricted(room, p, now) && (PAIR.sticky.friendlyFire || teamKey(room.mode, p.id) !== v.team) && dist(v, p) <= PAIR.sticky.radius && clearAttackLine(v, p, MAPS[room.mapId])).sort((a, b) => dist(a, v) - dist(b, v) || a.id.localeCompare(b.id))[0];
+    if (target) {
+      v.triggeredAt = now;
+      v.targetId = target.id;
+      const s = pairStatus(room, target);
+      s.slowAt = now;
+      s.slowUntil = now + PAIR.sticky.effectMs;
+      t.events.push({ ...v, id: v.id, kind: "sticky", at: now, radius: PAIR.sticky.radius, targetIds: [target.id] });
+    }
+    return true;
+  });
+  t.events = t.events.filter((e) => now - e.at < Math.max(900, PAIR.sticky.triggerVisualMs)).slice(-24);
+  for (const id of Object.keys(t.status)) if (!room.players.some((p) => p.id === id)) delete t.status[id];
+}
+function initPair(room) {
+  room.mode.pair = emptyPair();
+}
+function finishPair(room) {
+  if (room.mode.pair) room.mode.pair = { ...emptyPair(), ended: true };
+}
+
+// server/mystery-crates.ts
+import { randomUUID as randomUUID4, randomInt as randomInt3 } from "node:crypto";
+
+// shared/mystery-crates.ts
+var common = { enabled: true, initialDelayMs: 0, respawnMs: 4e4, collectionCooldownMs: 250, minSpacing: 550, playerClearance: 100, pickupClearance: 85, objectiveClearance: 130 };
+var CRATE_CONFIG = {
+  tag: { ...common, ratio: 2, maxActive: 3, spawnIntervalMs: 2e3, stopBeforeEndMs: 5e3 },
+  flag_run: { ...common, ratio: 1, maxActive: 2, respawnMs: 5e4, spawnIntervalMs: 2500, stopBeforeEndMs: 0 },
+  kill_race: { ...common, ratio: 1, maxActive: 2, respawnMs: 5e4, spawnIntervalMs: 2500, stopBeforeEndMs: 0 }
+};
+var CRATE_PRESENTATION = { scale: 0.8, openingMs: 1200, revealMs: 2e3, fadeMs: 600, receiptMs: 2e4 };
+var crateRewardPool = (mode) => mode === "tag" ? "existing_tag_roster" : PAIR.enabledRewards ? ["freeze_ball", "bounce_bomb", "sticky_trap"] : ["freeze_ball"];
+
 // server/weapon-loot.ts
-import { randomInt, randomUUID } from "node:crypto";
+import { randomInt, randomUUID as randomUUID2 } from "node:crypto";
 
 // shared/map-anchors.ts
 var captures = { central_plaza: { x: 1620, y: 1450, elevation: 110 }, scorched_point: { x: 1400, y: 1500, elevation: 120 }, aerie_sky_port: { x: 1100, y: 1200 }, outlaws_canyon: { x: 900, y: 400 }, vikings_fjord: { x: 1470, y: 1800, elevation: 120 } };
@@ -1636,18 +1858,18 @@ function buildLoot(mapId) {
   let n = 0;
   for (let i = 0; i < LOOT_CONFIG.chestCount; i++) {
     const p = positions[n++];
-    if (p) items.push({ ...p, id: randomUUID(), source: "chest", state: "closed", kind: null, refreshAt: 0 });
+    if (p) items.push({ ...p, id: randomUUID2(), source: "chest", state: "closed", kind: null, refreshAt: 0 });
   }
   for (let i = 0; i < LOOT_CONFIG.groundCount; i++) {
     const p = positions[n++];
     if (p) {
       const weaponId = GROUND_WEAPONS[randomInt(GROUND_WEAPONS.length)];
-      items.push({ ...p, id: randomUUID(), source: "floor", state: "opened", kind: weaponId, weapon: createWeapon(weaponId, randomUUID()), refreshAt: 0 });
+      items.push({ ...p, id: randomUUID2(), source: "floor", state: "opened", kind: weaponId, weapon: createWeapon(weaponId, randomUUID2()), refreshAt: 0 });
     }
   }
   for (let i = 0; i < LOOT_CONFIG.utilityCount; i++) {
     const p = positions[n++];
-    if (p) items.push({ ...p, id: "utility-" + randomUUID(), source: "floor", state: "opened", kind: "freeze_ball", refreshAt: 0 });
+    if (p) items.push({ ...p, id: "utility-" + randomUUID2(), source: "floor", state: "opened", kind: "freeze_ball", refreshAt: 0 });
   }
   return items;
 }
@@ -1660,7 +1882,7 @@ function dropPosition(mapId, p, items) {
   return null;
 }
 function spawnDrop(items, position, weapon, now) {
-  items.push({ ...position, id: randomUUID(), source: "drop", state: "opened", kind: weapon.weaponId, weapon: { ...weapon }, refreshAt: 0, expiresAt: now + LOOT_CONFIG.droppedLifetimeMs });
+  items.push({ ...position, id: randomUUID2(), source: "drop", state: "opened", kind: weapon.weaponId, weapon: { ...weapon }, refreshAt: 0, expiresAt: now + LOOT_CONFIG.droppedLifetimeMs });
 }
 function dropOwned(room, p, slot, now) {
   const slots = weaponSlots(p), weapon = slots[slot - 1];
@@ -1679,27 +1901,7 @@ function reconcileEquipment(p, mode) {
 }
 
 // server/tag-run.ts
-import { randomInt as randomInt2, randomUUID as randomUUID2 } from "node:crypto";
-
-// shared/modes.ts
-var MODES = {
-  tag: { name: "TAG RUN", icon: "\u25C9", description: "Hot Potato: survive 2:15 without holding IT at zero. Mystery power-ups change the chase." },
-  flag_run: { name: "FLAG RUN", icon: "\u2691", description: "Loot and fight, then recover the flag and deliver it to the marked capture zone." },
-  kill_race: { name: "KILL RACE", icon: "\u2694", description: "Find weapons and earn eliminations. Duos race to 15; highest score wins at the buzzer." }
-};
-var RULES = { freezeMs: 3e3, retagGraceMs: 1200, flagSpawnMs: 3e4, flagWarningMs: 5e3, killTarget: 15, pickupRange: 65, ballSpeed: 650, ballLifetimeMs: 1600, itemRespawnMs: 12e3 };
-var WEAPONS = { blade: { damage: 25, cooldown: 0.38 }, hammer: { damage: 40, cooldown: 0.9 } };
-function emptyMode() {
-  return { teams: {}, scores: {}, matchPoints: {}, it: null, tagAfter: 0, items: [], projectiles: [], effects: [], flag: { state: "not_spawned", carrier: null, position: { x: 0, y: 0 }, spawnAt: 0 }, capture: { x: 0, y: 0 }, winnerKeys: [], reason: "" };
-}
-var validMode = (value) => typeof value === "string" && Object.hasOwn(MODES, value);
-var validFormat = (value) => value === "solo" || value === "duo";
-var validTeams = (format, count) => format === "solo" ? count >= 2 && count <= 6 : count === 4 || count === 6;
-function teamKey(state, id) {
-  return state.teams[id] ?? id;
-}
-
-// server/tag-run.ts
+import { randomInt as randomInt2, randomUUID as randomUUID3 } from "node:crypto";
 var key = (r, p) => teamKey(r.mode, p.id);
 var status = (r, p) => {
   const s = r.mode.tag.status[p.id] ??= {};
@@ -1710,7 +1912,7 @@ var active = (p, now) => !!p.socket && p.health > 0 && p.frozenUntil <= now;
 var distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, (a.elevation ?? 0) - (b.elevation ?? 0));
 var inRange = (r, a, b, range = TAG.fieldRadius) => distance(a, b) <= range && clearAttackLine(a, b, MAPS[r.mapId]);
 var hostile = (r, a, b) => a.id !== b.id && key(r, a) !== key(r, b);
-var event = (r, p, now, kind, power, targetId) => r.mode.tag.events.push({ id: randomUUID2(), kind, power, targetId, at: now, ownerId: p.id, x: p.x, y: p.y, elevation: p.elevation });
+var event = (r, p, now, kind, power, targetId) => r.mode.tag.events.push({ id: randomUUID3(), kind, power, targetId, at: now, ownerId: p.id, x: p.x, y: p.y, elevation: p.elevation });
 function initTag(room, now, prior) {
   const keys2 = [...new Set(room.players.map((p) => key(room, p)))];
   room.mode.tag = { version: 2, startedAt: now, clock: now, spent: Object.fromEntries(keys2.map((k) => [k, 0])), tags: {}, collected: {}, used: {}, immunity: {}, status: {}, fields: [], shots: [], events: [], trails: [], pings: [], pingAt: 0, trailAt: 0, lastTransferAt: -1, serial: 0, consumed: {}, announcement: "HOT POTATO \u2014 avoid holding IT at zero", announcementAt: now, sealSpawned: false, sealUsed: prior?.sealUsed ?? {}, totalTime: prior?.totalTime ?? {}, totalTags: prior?.totalTags ?? {}, totalCollected: prior?.totalCollected ?? {}, totalUsed: prior?.totalUsed ?? {}, rankings: [], ended: false };
@@ -1785,11 +1987,11 @@ function collectMystery(room, p, item, now) {
   if (!t || t.ended || now >= room.round.endsAt || !active(p, now) || status(room, p).sealed > now || p.inventory?.utility || item.kind !== "mystery" || item.source !== "mystery" || item.state !== "opened" || !inRange(room, p, item, 65)) return false;
   const reward = choosePower(t), epic = POWER_IDS.filter((id2) => POWERS[id2].rarity === "epic"), id = reward === "seal_tug" && t.sealUsed[p.id] ? epic[randomInt2(epic.length)] : reward;
   if (!pickup(p, id)) return false;
-  p.inventory.utilityInstanceId = randomUUID2();
+  p.inventory.utilityInstanceId = randomUUID3();
   if (id === "seal_tug") t.sealSpawned = true;
   item.kind = null;
   item.state = "empty";
-  item.refreshAt = now + TAG.pickupRespawnMs;
+  item.refreshAt = now + CRATE_CONFIG.tag.respawnMs;
   t.collected[p.id] = (t.collected[p.id] ?? 0) + 1;
   event(room, p, now, "pickup", id);
   return true;
@@ -1799,7 +2001,7 @@ var direction = (p) => {
   return { x: p.attackX / n, y: p.attackY / n };
 };
 function field(room, p, id, now, duration, position = p, other) {
-  const d = direction(p), f = { id: randomUUID2(), kind: id, ownerId: p.id, team: key(room, p), x: position.x, y: position.y, elevation: position.elevation, createdAt: now, endsAt: now + duration, dx: d.x, dy: d.y, other, characterId: p.characterId ?? "voltrix" };
+  const d = direction(p), f = { id: randomUUID3(), kind: id, ownerId: p.id, team: key(room, p), x: position.x, y: position.y, elevation: position.elevation, createdAt: now, endsAt: now + duration, dx: d.x, dy: d.y, other, characterId: p.characterId ?? "voltrix" };
   room.mode.tag.fields.push(f);
   return f;
 }
@@ -1819,6 +2021,7 @@ function push(room, p, dx, dy, now, up = true) {
 }
 var ESCAPES = /* @__PURE__ */ new Set(["speed_surge", "blink_beaker", "clone_decoy", "phase_dash", "portal_pair", "seal_tug"]);
 function activateTagPower(room, p, now, instance) {
+  if (isPair(p.inventory?.utility)) return activatePair(room, p, now, instance);
   const t = room.mode.tag, id = p.inventory?.utility;
   if (!t || t.ended || now >= room.round.endsAt || !active(p, now) || !isPower(id) || instance !== void 0 && instance !== p.inventory?.utilityInstanceId) return false;
   const s = status(room, p), d = direction(p), map = MAPS[room.mapId];
@@ -1846,7 +2049,6 @@ function activateTagPower(room, p, now, instance) {
     case "speed_surge":
       s.speed = until;
       break;
-    case "sticky_trap":
     case "jump_pad":
     case "trap_clone":
       field(room, p, id, now, POWERS[id].duration);
@@ -1857,10 +2059,10 @@ function activateTagPower(room, p, now, instance) {
     case "healing_burst":
       p.stamina = Math.min(100, (p.stamina ?? 0) + 35);
       s.slow = 0;
+      if (room.mode.pair?.status[p.id]) room.mode.pair.status[p.id].slowUntil = 0;
       break;
-    case "bounce_bomb":
     case "freeze_ball":
-      t.shots.push({ id: randomUUID2(), kind: id, ownerId: p.id, team: key(room, p), x: p.x, y: p.y, elevation: p.elevation, dx: d.x, dy: d.y, endsAt: now + 1600 });
+      t.shots.push({ id: randomUUID3(), kind: id, ownerId: p.id, team: key(room, p), x: p.x, y: p.y, elevation: p.elevation, dx: d.x, dy: d.y, endsAt: now + 1600 });
       break;
     case "gravity_bomb": {
       const center = tagSweep(p, d.x * 80, d.y * 80, map);
@@ -2110,9 +2312,18 @@ function tagView(room, recipient, now) {
 }
 
 // server/mystery-crates.ts
+var cache = /* @__PURE__ */ new WeakMap();
+function candidates(room) {
+  let c = cache.get(room);
+  if (!c || c.mode !== room.mode || c.state !== room.mode.crates || c.mapId !== room.mapId) {
+    c = { state: room.mode.crates, mode: room.mode, mapId: room.mapId, points: lootPositions(room.mapId), anchors: mapAnchors(room.mapId) };
+    cache.set(room, c);
+  }
+  return c;
+}
 var distance2 = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, (a.elevation ?? 0) - (b.elevation ?? 0));
 function cratePointValid(room, p) {
-  const map = MAPS[room.mapId], c = CRATE_CONFIG[room.selectedGameMode], anchors = mapAnchors(room.mapId);
+  const map = MAPS[room.mapId], c = CRATE_CONFIG[room.selectedGameMode], anchors = candidates(room).anchors;
   if (!Number.isFinite(p.x) || !Number.isFinite(p.y) || p.x < 26 || p.y < 26 || p.x > map.bounds.width - 26 || p.y > map.bounds.height - 26) return false;
   for (const dx of [-20, 0, 20]) for (const dy of [-16, 0, 16]) {
     const q = { x: p.x + dx, y: p.y + dy, elevation: p.elevation ?? 0 };
@@ -2123,9 +2334,14 @@ function cratePointValid(room, p) {
   if (room.selectedGameMode === "flag_run" && [anchors.capture, ...anchors.flags, room.mode.flag.position].some((q) => distance2(p, q) < c.objectiveClearance)) return false;
   return true;
 }
+var weaponKeys = /* @__PURE__ */ new WeakMap();
 function recordWeapons(room) {
   const t = room.mode.crates;
-  const seen = new Set(t.weaponKeys);
+  let seen = weaponKeys.get(t);
+  if (!seen) {
+    seen = new Set(t.weaponKeys);
+    weaponKeys.set(t, seen);
+  }
   for (const item of room.mode.items) {
     const key3 = item.source === "chest" ? "chest:" + item.id : item.source === "floor" && canonicalWeapon(item.kind) && item.weapon ? "floor:" + item.id + ":" + item.weapon.instanceId : null;
     if (key3 && !seen.has(key3)) {
@@ -2146,22 +2362,28 @@ function tickCrates(room, now, initial = false) {
   const t = room.mode.crates, c = CRATE_CONFIG[room.selectedGameMode];
   if (!t || t.ended || !c.enabled || now >= room.round.endsAt) return;
   recordWeapons(room);
+  if (now < t.nextSpawnAt) return;
+  t.nextSpawnAt = now + c.spawnIntervalMs;
   t.referenceWeaponOpportunities = Math.max(t.weaponOpportunities, t.baseWeaponOpportunities + Math.floor(Math.max(0, now - t.startedAt) / LOOT_CONFIG.respawnMs) * t.repeatingWeapons);
   t.receipts = t.receipts.filter((r) => now - r.at < CRATE_PRESENTATION.receiptMs).slice(-64);
-  if (now < t.nextSpawnAt || room.round.endsAt - now <= c.stopBeforeEndMs) return;
-  let budget = Math.max(0, Math.floor(t.referenceWeaponOpportunities * c.ratio) - t.crateOpportunities);
+  if (room.round.endsAt - now <= c.stopBeforeEndMs) return;
+  let budget = Math.max(0, c.maxActive - room.mode.items.filter((i) => i.source === "mystery" && i.state !== "empty").length);
   const available = room.mode.items.filter((i) => i.source === "mystery" && i.state !== "empty").length;
   const capacity = c.maxActive - available;
   if (!budget || capacity <= 0) return;
-  const candidates = lootPositions(room.mapId);
+  const pool = [...candidates(room).points];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = randomInt3(i + 1);
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
   let spawned = 0;
-  for (const point of candidates) {
+  for (const point of pool) {
     if (spawned >= Math.min(budget, capacity, initial ? c.maxActive : 1)) break;
     if (!cratePointValid(room, point)) continue;
     let slot = room.mode.items.find((i) => i.source === "mystery" && i.state === "empty" && now >= i.refreshAt);
     if (!slot) {
       if (room.mode.items.filter((i) => i.source === "mystery").length >= c.maxActive) break;
-      slot = { ...point, id: "crate-" + randomUUID3(), source: "mystery", state: "empty", kind: null, refreshAt: 0, generation: 0 };
+      slot = { ...point, id: "crate-" + randomUUID4(), source: "mystery", state: "empty", kind: null, refreshAt: 0, generation: 0 };
       room.mode.items.push(slot);
     }
     Object.assign(slot, point, { state: "opened", kind: "mystery", spawnedAt: now, generation: (slot.generation ?? 0) + 1, collectedAt: void 0, collectorId: void 0, collectionId: void 0 });
@@ -2177,12 +2399,17 @@ function collectCrate(room, p, item, now) {
     if (!collectMystery(room, p, item, now)) return false;
   } else {
     const pool = crateRewardPool(room.selectedGameMode);
-    if (typeof pool === "string" || !pool.length || !pickup(p, pool[randomInt3(pool.length)])) return false;
-    p.inventory.utilityInstanceId = randomUUID3();
+    if (typeof pool === "string" || !pool.length) return false;
+    const tiers = [...new Set(pool.map((id2) => POWERS[id2].rarity))];
+    let roll = randomInt3(1e6) / 1e6 * tiers.reduce((n, t2) => n + RARITIES[t2].weight, 0);
+    const tier = tiers.find((t2) => (roll -= RARITIES[t2].weight) < 0) ?? tiers.at(-1);
+    const eligible = pool.filter((id2) => POWERS[id2].rarity === tier);
+    if (!pickup(p, eligible[randomInt3(eligible.length)])) return false;
+    p.inventory.utilityInstanceId = randomUUID4();
     item.state = "empty";
     item.kind = null;
   }
-  const id = randomUUID3();
+  const id = randomUUID4();
   item.collectedAt = now;
   item.collectorId = p.id;
   item.collectionId = id;
@@ -2283,7 +2510,7 @@ function plausibleCamera(origin, chest, aim) {
 }
 
 // server/weapon-combat.ts
-import { randomUUID as randomUUID4 } from "node:crypto";
+import { randomUUID as randomUUID5 } from "node:crypto";
 var live = (p, now) => !!p.socket && p.health > 0 && p.frozenUntil <= now;
 function cancelWeapon(p) {
   p.weaponAction = null;
@@ -2353,7 +2580,7 @@ function firstPlayer(room, p, a, d, limit) {
   return { target, distance: distance3, region };
 }
 function effect(room, p, w, now, type, a, b, target, details = {}) {
-  (room.mode.weaponEffects ??= []).push({ id: randomUUID4(), ownerId: p.id, weaponId: w.weaponId, instanceId: w.instanceId, type, at: now, x: a.x, y: a.y, elevation: a.z, toX: b.x, toY: b.y, toZ: b.z, targetId: target?.id, ...details });
+  (room.mode.weaponEffects ??= []).push({ id: randomUUID5(), ownerId: p.id, weaponId: w.weaponId, instanceId: w.instanceId, type, at: now, x: a.x, y: a.y, elevation: a.z, toX: b.x, toY: b.y, toZ: b.z, targetId: target?.id, ...details });
 }
 function fire(room, p, w, action, now) {
   if (w.magazine <= 0 || !gunId(w.weaponId)) return [];
@@ -2431,7 +2658,7 @@ var isCharacterId = (value) => typeof value === "string" && CHARACTER_IDS.includ
 var SELECTION = { chooseMs: 3e4, totalMs: 39e3 };
 
 // server/modes.ts
-import { randomInt as randomInt4, randomUUID as randomUUID5 } from "node:crypto";
+import { randomInt as randomInt4, randomUUID as randomUUID6 } from "node:crypto";
 var key2 = (r, p) => teamKey(r.mode, p.id);
 var keys = (r) => [...new Set(Object.values(r.mode.teams))];
 var noOp = () => {
@@ -2488,6 +2715,7 @@ function beginMode(room, now) {
     clearInventory(p);
   }
   MODE_RULES[room.selectedGameMode].init({ room, now });
+  initPair(room);
   initCrates(room, now);
 }
 function assignTeams(room) {
@@ -2518,7 +2746,7 @@ function interact(room, p, now, itemId, replaceSlot) {
   }
   if (item.state === "closed") {
     item.kind = chestReward(room.selectedGameMode);
-    item.weapon = createWeapon(canonicalWeapon(item.kind), randomUUID5());
+    item.weapon = createWeapon(canonicalWeapon(item.kind), randomUUID6());
     item.state = "opening";
     item.openedAt = now;
     item.pickupPosition = { x: item.x, y: item.y, elevation: item.elevation };
@@ -2571,14 +2799,18 @@ function onElimination(room, killer, victim) {
   room.mode.scores[key2(room, killer)] = (room.mode.scores[key2(room, killer)] ?? 0) + 1;
 }
 function throwBall(room, p, now) {
+  if (isPair(p.heldItem)) {
+    activatePair(room, p, now);
+    return true;
+  }
   if (room.selectedGameMode === "tag" && isPower(p.heldItem)) {
     activateTagPower(room, p, now);
     return true;
   }
   if (p.heldItem !== "freeze_ball" || !MODE_EQUIPMENT[room.selectedGameMode].powerUps) return false;
   consumeUtility(p);
-  room.mode.projectiles.push({ id: randomUUID5(), ownerId: p.id, teamId: key2(room, p), x: p.x, y: p.y, elevation: p.elevation, dx: p.attackX, dy: p.attackY, expiresAt: now + RULES.ballLifetimeMs, bornAt: now });
-  room.mode.effects.push({ id: randomUUID5(), type: "throw", at: now, ownerId: p.id, x: p.x, y: p.y, elevation: p.elevation, dx: p.attackX, dy: p.attackY });
+  room.mode.projectiles.push({ id: randomUUID6(), ownerId: p.id, teamId: key2(room, p), x: p.x, y: p.y, elevation: p.elevation, dx: p.attackX, dy: p.attackY, expiresAt: now + RULES.ballLifetimeMs, bornAt: now });
+  room.mode.effects.push({ id: randomUUID6(), type: "throw", at: now, ownerId: p.id, x: p.x, y: p.y, elevation: p.elevation, dx: p.attackX, dy: p.attackY });
   return true;
 }
 function tickMode(room, now, dt) {
@@ -2587,7 +2819,7 @@ function tickMode(room, now, dt) {
   for (const item of room.mode.items) if (item.state === "opening" && now >= (item.openedAt ?? now) + CHEST_OPEN_MS) item.state = "opened";
   for (const item of room.mode.items) if (item.source === "floor" && item.state === "empty" && now >= item.refreshAt) {
     item.kind = item.id.startsWith("utility-") ? "freeze_ball" : GROUND_WEAPONS[randomInt4(GROUND_WEAPONS.length)];
-    if (item.kind !== "freeze_ball") item.weapon = createWeapon(canonicalWeapon(item.kind), randomUUID5());
+    if (item.kind !== "freeze_ball") item.weapon = createWeapon(canonicalWeapon(item.kind), randomUUID6());
     item.state = "opened";
   }
   room.mode.projectiles = room.mode.projectiles.filter((ball) => {
@@ -2595,7 +2827,7 @@ function tickMode(room, now, dt) {
     const start = { x: ball.x, y: ball.y, elevation: ball.elevation };
     const end = { x: ball.x + ball.dx * RULES.ballSpeed * dt, y: ball.y + ball.dy * RULES.ballSpeed * dt, elevation: ball.elevation };
     if (!clearAttackLine(start, end, MAPS[room.mapId])) {
-      room.mode.effects.push({ id: randomUUID5(), type: "ice_wall", at: now, ownerId: ball.ownerId, ...start, dx: ball.dx, dy: ball.dy });
+      room.mode.effects.push({ id: randomUUID6(), type: "ice_wall", at: now, ownerId: ball.ownerId, ...start, dx: ball.dx, dy: ball.dy });
       return false;
     }
     const targets = room.players.filter((p) => p.socket && p.health > 0 && p.id !== ball.ownerId && key2(room, p) !== ball.teamId).map((p) => {
@@ -2605,12 +2837,13 @@ function tickMode(room, now, dt) {
     if (targets[0]) {
       targets[0].p.frozenUntil = now + RULES.freezeMs;
       targets[0].p.dashRemaining = 0;
-      room.mode.effects.push({ id: randomUUID5(), type: "ice_hit", at: now, ownerId: ball.ownerId, targetId: targets[0].p.id, ...targets[0].point, dx: ball.dx, dy: ball.dy });
+      room.mode.effects.push({ id: randomUUID6(), type: "ice_hit", at: now, ownerId: ball.ownerId, targetId: targets[0].p.id, ...targets[0].point, dx: ball.dx, dy: ball.dy });
       return false;
     }
     Object.assign(ball, end);
     return true;
   });
+  tickPair(room, now, dt);
   tickCrates(room, now);
   if (room.selectedGameMode === "tag") tickTag(room, now, dt);
   return MODE_RULES[room.selectedGameMode].tick({ room, now });
@@ -2620,10 +2853,11 @@ function finishMode(room, now) {
   for (const k of room.mode.winnerKeys) room.mode.matchPoints[k] = (room.mode.matchPoints[k] ?? 0) + 1;
   room.mode.projectiles = [];
   finishCrates(room);
+  finishPair(room);
 }
 
 // server/rooms.ts
-import { randomBytes, randomUUID as randomUUID6, randomInt as randomInt5 } from "node:crypto";
+import { randomBytes, randomUUID as randomUUID7, randomInt as randomInt5 } from "node:crypto";
 
 // shared/rounds.ts
 var ROUND = { durationMs: 9e4, resultsMs: 5e3 };
@@ -2767,7 +3001,7 @@ var RoomServer = class {
         }
       }
       const color = COLORS.find((c) => !room2.players.some((p3) => p3.color === c)) || COLORS[0];
-      const p2 = { characterId: null, characterAutoAssigned: false, jumpId: 0, crouch: false, inventory: { weapon: null, utility: null }, selectedSlot: 1, dashStyle: "dash", frozenUntil: 0, heldItem: null, targetId: null, eliminations: 0, matchEliminations: 0, ...freshMotion(mapFor(room2).spawns[0]), ...freshCombat(), sprint: false, dashId: 0, attackId: 0, aimX: 0, aimY: 0, id: randomUUID6(), token: randomBytes(24).toString("hex"), name, color, ready: false, ack: 0, seq: 0, dx: 0, dy: 0, lastInput: 0, disconnectedAt: 0, socket: ws };
+      const p2 = { characterId: null, characterAutoAssigned: false, jumpId: 0, crouch: false, inventory: { weapon: null, utility: null }, selectedSlot: 1, dashStyle: "dash", frozenUntil: 0, heldItem: null, targetId: null, eliminations: 0, matchEliminations: 0, ...freshMotion(mapFor(room2).spawns[0]), ...freshCombat(), sprint: false, dashId: 0, attackId: 0, aimX: 0, aimY: 0, id: randomUUID7(), token: randomBytes(24).toString("hex"), name, color, ready: false, ack: 0, seq: 0, dx: 0, dy: 0, lastInput: 0, disconnectedAt: 0, socket: ws };
       room2.players.push(p2);
       if (!room2.hostId) room2.hostId = p2.id;
       room2.notice = "";
@@ -2848,11 +3082,11 @@ var RoomServer = class {
       return;
     }
     if (m.type === "use_utility") {
-      if (room.selectedGameMode === "tag" && room.phase === "arena" && m.matchId === room.match.id && m.roundNumber === room.match.roundNumber && typeof m.instanceId === "string" && m.instanceId === p.inventory?.utilityInstanceId) {
+      if ((room.selectedGameMode === "tag" || isPair(p.inventory?.utility)) && room.phase === "arena" && m.matchId === room.match.id && m.roundNumber === room.match.roundNumber && typeof m.instanceId === "string" && m.instanceId === p.inventory?.utilityInstanceId) {
         const n = Math.hypot(p.aimX, p.aimY);
         p.attackX = n > 1e-6 ? p.aimX / n : p.facingX;
         p.attackY = n > 1e-6 ? p.aimY / n : p.facingY;
-        activateTagPower(room, p, Date.now(), m.instanceId);
+        (isPair(p.inventory?.utility) ? activatePair : activateTagPower)(room, p, Date.now(), m.instanceId);
         this.broadcast(room);
       }
       return;
@@ -2908,7 +3142,7 @@ var RoomServer = class {
         return;
       }
       assignTeams(room);
-      room.match = { ...emptyMatch(), id: randomUUID6() };
+      room.match = { ...emptyMatch(), id: randomUUID7() };
       room.roster = [...room.players];
       for (const p2 of room.players) p2.matchEliminations = 0;
       const now = Date.now();
@@ -3271,7 +3505,7 @@ var RoomServer = class {
             continue;
           }
           const active2 = now - p.lastInput < NETWORK.inputTimeoutMs;
-          const motion = (room.selectedGameMode === "tag" && !this.legacyBounty ? (p2, input, dt, map) => advanceTagMotion(p2, input, room.mode.tag?.status[p2.id], now, dt, map) : advanceMotion)(p, { dx: active2 ? p.dx : 0, dy: active2 ? p.dy : 0, sprint: active2 && p.sprint, dashId: active2 ? p.dashId : p.dashSeen, dashStyle: p.dashStyle, jumpId: active2 ? p.jumpId : p.jumpSeen, crouch: active2 && p.crouch }, STEP, mapFor(room));
+          const motion = (!this.legacyBounty ? (p2, input, dt, map) => advancePairMotion(p2, input, room.mode.pair?.status[p2.id], now, dt, map, room.mode.tag?.status[p2.id]) : advanceMotion)(p, { dx: active2 ? p.dx : 0, dy: active2 ? p.dy : 0, sprint: active2 && p.sprint, dashId: active2 ? p.dashId : p.dashSeen, dashStyle: p.dashStyle, jumpId: active2 ? p.jumpId : p.jumpSeen, crouch: active2 && p.crouch }, STEP, mapFor(room));
           Object.assign(p, motion);
           p.ack = p.seq;
         }
@@ -3333,7 +3567,7 @@ var RoomServer = class {
           if (killer && !this.legacyBounty) {
             onElimination(room, killer, p);
             const w = activeWeapon(killer);
-            if (w && isGun(w.weaponId)) (room.mode.weaponEffects ??= []).push({ id: randomUUID6(), type: "elimination", ownerId: killer.id, weaponId: w.weaponId, at: now, targetId: p.id, x: killer.x, y: killer.y, elevation: killer.elevation, toX: p.x, toY: p.y, toZ: p.elevation + 50 });
+            if (w && isGun(w.weaponId)) (room.mode.weaponEffects ??= []).push({ id: randomUUID7(), type: "elimination", ownerId: killer.id, weaponId: w.weaponId, at: now, targetId: p.id, x: killer.x, y: killer.y, elevation: killer.elevation, toX: p.x, toY: p.y, toZ: p.elevation + 50 });
           }
           if (this.legacyBounty && killer && killer.targetId === p.id) completions.push(killer);
           p.health = Math.max(0, p.health - total);
@@ -3403,16 +3637,16 @@ async function createGameServer(production = process.env.NODE_ENV === "productio
   wss.on("connection", (ws) => {
     let count = 0;
     let windowStart = Date.now();
-    let alive = true;
+    let alive2 = true;
     ws.on("pong", () => {
-      alive = true;
+      alive2 = true;
     });
     const heartbeat = setInterval(() => {
-      if (!alive) {
+      if (!alive2) {
         ws.terminate();
         return;
       }
-      alive = false;
+      alive2 = false;
       if (ws.readyState === 1) ws.ping();
     }, 5e3);
     ws.on("message", (raw) => {
