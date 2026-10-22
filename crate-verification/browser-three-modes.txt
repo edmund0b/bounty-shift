@@ -1,0 +1,8 @@
+BROWSER CRATES tag
+BROWSER CRATES flag_run
+BROWSER CRATES kill_race
+PASS [
+  'tag: two-client crate positions/availability, desktop E, private matching reward, server reset, touch collection and no scrolling',
+  'flag_run: two-client crate positions/availability, desktop E, private matching reward, server reset, touch collection and no scrolling',
+  'kill_race: two-client crate positions/availability, desktop E, private matching reward, server reset, touch collection and no scrolling'
+]

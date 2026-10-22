@@ -1,0 +1,9 @@
+BROWSER CRATES tag
+LAYOUT PASS {"width":844,"height":390}
+LAYOUT PASS {"width":390,"height":844}
+LAYOUT PASS {"width":375,"height":667}
+LAYOUT PASS {"width":640,"height":360}
+PASS [
+  'Four mobile portrait/landscape sizes: reward stays in viewport, clear of existing HUD/control rectangles, no scroll',
+  'tag: two-client crate positions/availability, desktop E, private matching reward, server reset, touch collection and no scrolling'
+]

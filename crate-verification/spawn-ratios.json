@@ -1,0 +1,155 @@
+{
+  "method": "100ms authoritative simulation; original weapons and crates continuously collected when eligible, actual 90/135s rounds; no map geometry changes",
+  "rows": [
+    {
+      "mode": "tag",
+      "map": "central_plaza",
+      "initialCrates": 16,
+      "weaponOpportunities": 52,
+      "crateOpportunities": 96,
+      "collected": 96,
+      "ratio": 1.846,
+      "target": 2
+    },
+    {
+      "mode": "tag",
+      "map": "scorched_point",
+      "initialCrates": 15,
+      "weaponOpportunities": 52,
+      "crateOpportunities": 96,
+      "collected": 96,
+      "ratio": 1.846,
+      "target": 2
+    },
+    {
+      "mode": "tag",
+      "map": "aerie_sky_port",
+      "initialCrates": 16,
+      "weaponOpportunities": 52,
+      "crateOpportunities": 96,
+      "collected": 96,
+      "ratio": 1.846,
+      "target": 2
+    },
+    {
+      "mode": "tag",
+      "map": "outlaws_canyon",
+      "initialCrates": 16,
+      "weaponOpportunities": 52,
+      "crateOpportunities": 96,
+      "collected": 96,
+      "ratio": 1.846,
+      "target": 2
+    },
+    {
+      "mode": "tag",
+      "map": "vikings_fjord",
+      "initialCrates": 16,
+      "weaponOpportunities": 52,
+      "crateOpportunities": 96,
+      "collected": 96,
+      "ratio": 1.846,
+      "target": 2
+    },
+    {
+      "mode": "flag_run",
+      "map": "central_plaza",
+      "initialCrates": 8,
+      "weaponOpportunities": 36,
+      "crateOpportunities": 36,
+      "collected": 36,
+      "ratio": 1,
+      "target": 1
+    },
+    {
+      "mode": "flag_run",
+      "map": "scorched_point",
+      "initialCrates": 8,
+      "weaponOpportunities": 36,
+      "crateOpportunities": 36,
+      "collected": 36,
+      "ratio": 1,
+      "target": 1
+    },
+    {
+      "mode": "flag_run",
+      "map": "aerie_sky_port",
+      "initialCrates": 8,
+      "weaponOpportunities": 36,
+      "crateOpportunities": 36,
+      "collected": 36,
+      "ratio": 1,
+      "target": 1
+    },
+    {
+      "mode": "flag_run",
+      "map": "outlaws_canyon",
+      "initialCrates": 8,
+      "weaponOpportunities": 36,
+      "crateOpportunities": 36,
+      "collected": 36,
+      "ratio": 1,
+      "target": 1
+    },
+    {
+      "mode": "flag_run",
+      "map": "vikings_fjord",
+      "initialCrates": 8,
+      "weaponOpportunities": 36,
+      "crateOpportunities": 36,
+      "collected": 36,
+      "ratio": 1,
+      "target": 1
+    },
+    {
+      "mode": "kill_race",
+      "map": "central_plaza",
+      "initialCrates": 8,
+      "weaponOpportunities": 36,
+      "crateOpportunities": 36,
+      "collected": 36,
+      "ratio": 1,
+      "target": 1
+    },
+    {
+      "mode": "kill_race",
+      "map": "scorched_point",
+      "initialCrates": 8,
+      "weaponOpportunities": 36,
+      "crateOpportunities": 36,
+      "collected": 36,
+      "ratio": 1,
+      "target": 1
+    },
+    {
+      "mode": "kill_race",
+      "map": "aerie_sky_port",
+      "initialCrates": 8,
+      "weaponOpportunities": 36,
+      "crateOpportunities": 36,
+      "collected": 36,
+      "ratio": 1,
+      "target": 1
+    },
+    {
+      "mode": "kill_race",
+      "map": "outlaws_canyon",
+      "initialCrates": 8,
+      "weaponOpportunities": 36,
+      "crateOpportunities": 36,
+      "collected": 36,
+      "ratio": 1,
+      "target": 1
+    },
+    {
+      "mode": "kill_race",
+      "map": "vikings_fjord",
+      "initialCrates": 8,
+      "weaponOpportunities": 36,
+      "crateOpportunities": 36,
+      "collected": 36,
+      "ratio": 1,
+      "target": 1
+    }
+  ]
+}

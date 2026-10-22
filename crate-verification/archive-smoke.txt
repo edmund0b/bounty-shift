@@ -1,0 +1,1 @@
+PASS extracted compiled production archive: health/index/all bundles, two real clients create/join/ready/character selection, Tag 135s, authoritative generation-validated crate collection, private receipt and room cleanup

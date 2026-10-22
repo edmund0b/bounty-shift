@@ -1,0 +1,24 @@
+{
+  "runs": [
+    {
+      "log": "browser-three-modes.txt",
+      "results": [
+        "tag: two-client crate positions/availability, desktop E, private matching reward, server reset, touch collection and no scrolling",
+        "flag_run: two-client crate positions/availability, desktop E, private matching reward, server reset, touch collection and no scrolling",
+        "kill_race: two-client crate positions/availability, desktop E, private matching reward, server reset, touch collection and no scrolling"
+      ],
+      "pageErrors": []
+    },
+    {
+      "log": "browser-mobile-layout.txt",
+      "results": [
+        "Four mobile portrait/landscape sizes: reward stays in viewport, clear of existing HUD/control rectangles, no scroll",
+        "tag: two-client crate positions/availability, desktop E, private matching reward, server reset, touch collection and no scrolling"
+      ],
+      "pageErrors": []
+    }
+  ],
+  "softwareRendering": true,
+  "fixtureAssisted": true,
+  "physicalDevicesTested": false
+}
