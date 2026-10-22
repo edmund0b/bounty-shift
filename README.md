@@ -1,3 +1,7 @@
+# Current release: Mystery Crate Integration — Phase 1
+
+See [MYSTERY_CRATE_PHASE_1.md](MYSTERY_CRATE_PHASE_1.md) for source priority, Workshop import, mode pacing and inventory rules. No deployment is authorized. Earlier release notes below describe preserved history.
+
 # Current release: Tag Run 2.0 — Hot Potato & Power-Up Integration
 
 This complete game builds on Gun Combat Upgrade 1. See [TAG_RUN_2.md](TAG_RUN_2.md), [CHANGELOG_TAG_RUN_2.md](CHANGELOG_TAG_RUN_2.md), and [tag-verification/TEST_RESULTS.md](tag-verification/TEST_RESULTS.md). Tag Run permits melee and all 20 mystery power-ups, with no firearms. Each of its three rounds lasts 135 seconds. Flag Run and Kill Race retain their existing rules and guns.
