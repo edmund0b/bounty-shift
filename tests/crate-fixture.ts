@@ -1,0 +1,4 @@
+import type {WebSocket} from 'ws';
+import {RoomServer} from './selection-fixture';
+import type {GameMode} from '../shared/modes';
+export function crateFixture(mode:GameMode='tag',count=2){const server=new RoomServer(),packets:any[][]=[],sockets=Array.from({length:count},()=>{const list:any[]=[];packets.push(list);return {readyState:1,send:(s:string)=>list.push(JSON.parse(s))} as unknown as WebSocket;}),send=(i:number,m:any)=>server.message(sockets[i],JSON.stringify(m));send(0,{type:'create',name:'Crate Host'});const room=server.sessions.get(sockets[0])!.room;for(let i=1;i<count;i++)send(i,{type:'join',name:'Crate Guest '+i,code:room.code});send(0,{type:'settings',mode,format:'solo'});for(let i=0;i<count;i++)send(i,{type:'ready',ready:true});send(0,{type:'start'});return {server,room,send,sockets,packets,p:room.players[0],q:room.players[1],now:room.mode.crates!.startedAt};}
