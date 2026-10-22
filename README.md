@@ -1,3 +1,7 @@
+# Current release: Power-Ups Pair 1 — Phase 2
+
+See [PAIR1_VERIFICATION.md](PAIR1_VERIFICATION.md) for current caps, cooldowns, Bounce Bomb/Sticky Trap settings, reward policy, measurements, exact test coverage and remaining limitations. No deployment was performed. Earlier release notes below are preserved history.
+
 # Current release: Mystery Crate Integration — Phase 1
 
 See [MYSTERY_CRATE_PHASE_1.md](MYSTERY_CRATE_PHASE_1.md) for source priority, Workshop import, mode pacing and inventory rules. No deployment is authorized. Earlier release notes below describe preserved history.
