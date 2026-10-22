@@ -66,7 +66,7 @@ export function createArenaScene(canvas:HTMLCanvasElement,map:MapDefinition=ACTI
  function update(room:RoomView,id:string,predicted:Motion|null,yaw:number,pitch:number,dt:number,time:number,ads?:AimControl){
   const width=canvas.clientWidth,height=canvas.clientHeight;if(!width||!height)return;
   if(lastWidth!==width||lastHeight!==height){lastWidth=width;lastHeight=height;renderer.setSize(width,height,false);camera.aspect=width/height;camera.updateProjectionMatrix();}
-  const visualNow=lootEffects.clock(room);lootEffects.updateLoot(room,visualNow,predicted??room.players.find(p=>p.id===id)??null);
+  const visualNow=lootEffects.clock(room);lootEffects.updateLoot(room,visualNow,predicted??room.players.find(p=>p.id===id)??null,id);
   capture.visible=room.selectedGameMode==='flag_run';capture.position.set(room.mode.capture.x*S,(room.mode.capture.elevation??0)*S+.04,room.mode.capture.y*S);
   const flagState=room.mode.flag;flag.visible=room.selectedGameMode==='flag_run'&&['spawned','dropped','carried'].includes(flagState.state);flag.position.set(flagState.position.x*S,(flagState.position.elevation??0)*S+(flagState.state==='carried'?1.8:0),flagState.position.y*S);
   const self=room.players.find(p=>p.id===id);if(!self)return;const local=predicted||self,aim=cameraAim(yaw);floorElevation=(local.elevation??0)*S;

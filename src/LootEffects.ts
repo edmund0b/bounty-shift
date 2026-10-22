@@ -1,3 +1,4 @@
+import {createMysteryCrateEffects} from './MysteryCrateEffects';
 import {weaponName} from '../shared/weapons';
 import * as THREE from 'three';
 import type {RoomView,Motion} from '../shared/game';
@@ -8,6 +9,7 @@ import {createItemArt,revealPosition} from './ItemArt';
 import {gameplayAudio} from './gameplayAudio';
 type Track=<T extends {dispose:()=>void}>(resource:T)=>T;
 export function createLootEffects(scene:THREE.Scene,track:Track){
+ const mystery=createMysteryCrateEffects(scene);
  const art=createItemArt(track),sound=gameplayAudio(),loot=new Map<string,{chest:ReturnType<typeof art.chest>|null;pickup:THREE.Group;kind:string|null;openedAt:number}>();
  const shard=track(new THREE.OctahedronGeometry(.045,0)),flashGeometry=track(new THREE.IcosahedronGeometry(.14,1));
  const bursts=Array.from({length:8},()=>{const group=new THREE.Group(),material=track(new THREE.MeshBasicMaterial({color:'#a3f5ff',transparent:true,opacity:0,depthWrite:false}));const particles=Array.from({length:10},()=>{const mesh=new THREE.Mesh(shard,material);group.add(mesh);return mesh;});const flash=new THREE.Mesh(flashGeometry,material);flash.position.y=.2;group.add(flash);scene.add(group);group.visible=false;return {group,particles,flash,material,at:0};});let burstIndex=0;let listener:Motion|null=null;
@@ -18,9 +20,10 @@ export function createLootEffects(scene:THREE.Scene,track:Track){
  const sounds=new Set<string>();
  let snapshotTick=-1,received=0;const seenEffects=new Set<string>();
  function clock(room:RoomView){if(room.tick!==snapshotTick){snapshotTick=room.tick;received=performance.now();}return room.serverTime+Math.min(120,Math.max(0,performance.now()-received));}
- function updateLoot(room:RoomView,now:number,local:Motion|null){
+ function updateLoot(room:RoomView,now:number,local:Motion|null,localId:string){
+  mystery.update(room,now,localId);
   listener=local;const ids=new Set(room.mode.items.map(i=>i.id));for(const [id,entry]of loot)if(!ids.has(id)){if(entry.chest)scene.remove(entry.chest.group);scene.remove(entry.pickup);loot.delete(id);}
-  for(const item of room.mode.items){let entry=loot.get(item.id);if(!entry){const chest=item.source==='chest'?art.chest():null,pickup=new THREE.Group();if(chest){chest.group.position.set(item.x*VIEW.scale,(item.elevation??0)*VIEW.scale,item.y*VIEW.scale);scene.add(chest.group);}scene.add(pickup);entry={chest,pickup,kind:null,openedAt:0};loot.set(item.id,entry);}
+  for(const item of room.mode.items){if(item.source==='mystery')continue;let entry=loot.get(item.id);if(!entry){const chest=item.source==='chest'?art.chest():null,pickup=new THREE.Group();if(chest){chest.group.position.set(item.x*VIEW.scale,(item.elevation??0)*VIEW.scale,item.y*VIEW.scale);scene.add(chest.group);}scene.add(pickup);entry={chest,pickup,kind:null,openedAt:0};loot.set(item.id,entry);}
    if(entry.chest){entry.chest.update(item,now);if(item.openedAt&&entry.openedAt!==item.openedAt){entry.openedAt=item.openedAt;if(now-item.openedAt<700)burst(item.x*VIEW.scale,(item.elevation??0)*VIEW.scale+.55,item.y*VIEW.scale,item.openedAt+150,true);if(now-item.openedAt<250&&local)sound.open(Math.hypot(local.x-item.x,local.y-item.y)*VIEW.scale);}}
    if(entry.kind!==item.kind){entry.pickup.clear();entry.kind=item.kind;if(item.kind){entry.pickup.add(art.item(item.kind));let material=labels.get(item.kind);if(!material){const c=document.createElement('canvas');c.width=768;c.height=96;const ctx=c.getContext('2d')!;ctx.font='600 36px Arial';ctx.textAlign='center';ctx.fillStyle='#dbf8ff';ctx.shadowColor='#071522';ctx.shadowBlur=8;ctx.fillText(weaponName(item.kind),384,56);const texture=track(new THREE.CanvasTexture(c));texture.colorSpace=THREE.SRGBColorSpace;material=track(new THREE.SpriteMaterial({map:texture,transparent:true}));labels.set(item.kind,material);}const text=new THREE.Sprite(material);text.scale.set(2,.25,1);text.position.y=.75;entry.pickup.add(text);}}
    entry.pickup.visible=!!item.kind&&(item.state==='opened'||item.state==='opening'&&now-(item.openedAt??now)>220);
@@ -42,5 +45,5 @@ export function createLootEffects(scene:THREE.Scene,track:Track){
   for(const e of room.mode.effects)if(!seenEffects.has(e.id)){seenEffects.add(e.id);if(e.type!=='throw'&&now-e.at<800)burst(e.x*VIEW.scale,(e.elevation??0)*VIEW.scale+.9,e.y*VIEW.scale,e.at);}
   for(const b of bursts){const age=(now-b.at)/1000;b.group.visible=age>=0&&age<.55;if(!b.group.visible)continue;b.material.opacity=(1-age/.55)*.8;b.flash.visible=age<.15;b.flash.scale.setScalar(Math.max(0,1-age/.15));b.particles.forEach((p,j)=>{const angle=j*2.399;p.position.set(Math.cos(angle)*age*.9,.2+age*(.5+(j%3)*.2)-age*age*.8,Math.sin(angle)*age*.9);p.scale.setScalar(1+age);p.rotation.set(age+j,age*2,angle);});}
  }
- return {art,clock,updateLoot,updateProjectiles,dispose(){sound.dispose();loot.clear();seenEffects.clear();}};
+ return {art,clock,updateLoot,updateProjectiles,dispose(){mystery.dispose();sound.dispose();loot.clear();seenEffects.clear();}};
 }
