@@ -1,14 +1,15 @@
+import {TAG_POLISH} from './tag-polish.js';
 import type {Position,Motion,Input} from './game.js';
 import {advanceMotion} from './game.js';
 import type {MapDefinition} from './map.js';
 import {nextPosition,blockedAt,walkable} from './traversal.js';
-export const TAG={roundMs:135000,immunityMs:2000,freezeMs:2000,freezeImmunityMs:3000,pickupRespawnMs:14000,unitsPerMeter:1/.03,fieldRadius:4/.03,blinkRange:7/.03,tagRange:80};
+export const TAG={roundMs:135000,immunityMs:2000,freezeMs:2000,freezeImmunityMs:3000,pickupRespawnMs:TAG_POLISH.crates.respawnMs,unitsPerMeter:1/.03,fieldRadius:4/.03,blinkRange:7/.03,tagRange:80};
 export const RARITIES={common:{weight:55,color:'#9bccd9'},rare:{weight:30,color:'#4bafff'},epic:{weight:13,color:'#be84ff'},legendary:{weight:2,color:'#ffcf65'}};
 const ability=(name:string,rarity:keyof typeof RARITIES,duration:number,description:string,icon:string)=>({name,rarity,duration,description,icon,range:TAG.fieldRadius,cooldown:1000});
 export const POWERS={
- smoke_screen:ability('Smoke Screen','common',4000,'Smoke hides players and nameplates.','≋'),
+ smoke_screen:ability('Smoke Screen','common',TAG_POLISH.smoke.durationMs,'Smoke hides players and nameplates.','≋'),
  speed_surge:ability('Speed Surge','common',3000,'20% faster movement; normal stamina costs.','↟'),
- sticky_trap:ability('Sticky Trap','common',5000,'First opponent is slowed 35% for 1.5s.','▧'),
+ sticky_trap:ability('Sticky Trap','common',TAG_POLISH.sticky.lifetimeMs,'First opponent is slowed 35% for 1.5s.','▧'),
  jump_pad:ability('Jump Pad','common',8000,'Launch upward and forward.','⇡'),
  footprint_tracker:ability('Footprint Tracker','common',5000,'Reveal nearby recent movement trails.','⋯'),
  healing_burst:ability('Healing Burst','common',0,'Restore 35 stamina and clear ordinary slows.','✚'),
@@ -32,7 +33,7 @@ export const ESCAPE_POWERS:PowerId[]=['speed_surge','blink_beaker','clone_decoy'
 export const POWER_IDS=Object.keys(POWERS) as PowerId[];
 export const isPower=(v:unknown):v is PowerId=>typeof v==='string'&&Object.hasOwn(POWERS,v);
 export const pickupCount=(players:number)=>[0,0,2,3,4,4,5][Math.min(6,Math.max(2,players))];
-export type TagStatus={utilityCooldown?:number;speed?:number;slow?:number;bubble?:number;tracker?:number;ghost?:number;magnet?:number;flash?:number;invisible?:number;sealed?:number;freezeImmune?:number;portalLock?:number;padLock?:number;escapeLock?:number;forceImmune?:number;phase?:number;phaseX?:number;phaseY?:number;origin?:Position;impulseX?:number;impulseY?:number;impulseUntil?:number};
+export type TagStatus={utilityCooldown?:number;speed?:number;slow?:number;bubble?:number;tracker?:number;ghost?:number;magnet?:number;flash?:number;invisible?:number;sealed?:number;freezeImmune?:number;portalExit?:string;portalLock?:number;padLock?:number;escapeLock?:number;forceImmune?:number;phase?:number;phaseX?:number;phaseY?:number;origin?:Position;impulseX?:number;impulseY?:number;impulseUntil?:number};
 export type TagField=Position&{id:string;kind:PowerId|'slow_cloud';ownerId:string;team:string;endsAt:number;createdAt:number;dx:number;dy:number;other?:Position;characterId?:string};
 export type TagProjectile=Position&{id:string;kind:'freeze_ball'|'bounce_bomb';ownerId:string;team:string;endsAt:number;dx:number;dy:number};
 export type TagEvent=Position&{id:string;kind:'tag'|'pickup'|'power'|'freeze'|'burst';at:number;ownerId:string;targetId?:string;power?:PowerId};

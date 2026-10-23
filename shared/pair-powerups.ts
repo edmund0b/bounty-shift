@@ -1,3 +1,4 @@
+import {TAG_POLISH} from './tag-polish.js';
 import type {Position,Motion,Input} from './game.js';
 import {advanceMotion} from './game.js';
 import {advanceTagMotion,tagSweep,type TagStatus} from './tag-run.js';
@@ -6,6 +7,7 @@ export const PAIR={enabledRewards:true,releaseMs:640,actionMs:1350,cooldownMs:10
  bounce:{throwSpeed:300,gravity:650,lift:140,originHeight:32,projectileRadius:6,fuseMs:900,impact:true,radius:4/.03,horizontal:400,vertical:300,maxImpulse:450,impulseMs:600,selfMultiplier:1,friendlyFire:false,forceImmunityMs:200,falloffFloor:.25},
  sticky:{placeDistance:36,footprint:12,maxSlope:.4,armMs:350,radius:35,slow:.65,effectMs:1500,lifetimeMs:5000,maxPerPlayer:1,maxPerRound:6,friendlyFire:false,triggerVisualMs:1500},
 } as const;
+export const stickyLifetime=(mode:string)=>mode==='tag'?TAG_POLISH.sticky.lifetimeMs:PAIR.sticky.lifetimeMs;
 export type PairId='bounce_bomb'|'sticky_trap';export const isPair=(id:unknown):id is PairId=>id==='bounce_bomb'||id==='sticky_trap';
 export type PairStatus={spawnVersion:number;slowUntil:number;slowAt:number;knockUntil:number;knockAt:number;vx:number;vy:number;immuneUntil:number;cooldownUntil:number};
 export type PairAction={id:string;kind:PairId;ownerId:string;instanceId:string;startedAt:number;releaseAt:number;endsAt:number;released:boolean;dx:number;dy:number;dz:number};

@@ -1,10 +1,11 @@
+import {TAG_POLISH} from './tag-polish.js';
 import {PAIR} from './pair-powerups.js';
 import type {GameMode} from './modes.js';
 import type {PowerId} from './tag-run.js';
 /** Opportunities count generated world pickups, not player drops or duplicate chest-open events. */
-const common={enabled:true,initialDelayMs:0,respawnMs:40000,collectionCooldownMs:250,minSpacing:550,playerClearance:100,pickupClearance:85,objectiveClearance:130};
+const common={enabled:true,initialActive:2,initialDelayMs:0,respawnMs:40000,collectionCooldownMs:250,minSpacing:550,playerClearance:100,pickupClearance:85,objectiveClearance:130};
 export const CRATE_CONFIG={
- tag:{...common,ratio:2,maxActive:3,spawnIntervalMs:2000,stopBeforeEndMs:5000},
+ tag:{...common,...TAG_POLISH.crates,ratio:2,stopBeforeEndMs:5000},
  flag_run:{...common,ratio:1,maxActive:2,respawnMs:50000,spawnIntervalMs:2500,stopBeforeEndMs:0},
  kill_race:{...common,ratio:1,maxActive:2,respawnMs:50000,spawnIntervalMs:2500,stopBeforeEndMs:0},
 } satisfies Record<GameMode,typeof common&{ratio:number;maxActive:number;spawnIntervalMs:number;stopBeforeEndMs:number}>;
