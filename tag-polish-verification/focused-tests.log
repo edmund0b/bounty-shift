@@ -1,0 +1,23 @@
+✔ Tag configuration increases only its own availability and trap life; other modes preserve values (1.445346ms)
+✔ 2 players: every member can collect independently; authoritative refill, no duplicate award and round cleanup (425.584158ms)
+✔ 3 players: every member can collect independently; authoritative refill, no duplicate award and round cleanup (242.018239ms)
+✔ 4 players: every member can collect independently; authoritative refill, no duplicate award and round cleanup (252.333941ms)
+✔ 5 players: every member can collect independently; authoritative refill, no duplicate award and round cleanup (259.278867ms)
+✔ 6 players: every member can collect independently; authoritative refill, no duplicate award and round cleanup (266.998199ms)
+✔ Sticky remains anchored past 3s/30s, uses fixed 45s deadline, single trigger/unchanged slow and safe cleanup (250.401215ms)
+✔ untriggered Sticky expires exactly at 45s; owner/team immunity and disconnect cleanup remain (216.222076ms)
+✔ Smoke uses one shared animated 125% radius, 14s deadline, unchanged visibility-only semantics (220.27242ms)
+✔ central_plaza: Portal pair links safe endpoints, prevents immediate looping, allows movement and cleans expiry (639.915605ms)
+✔ scorched_point: Portal pair links safe endpoints, prevents immediate looping, allows movement and cleans expiry (597.12772ms)
+✔ aerie_sky_port: Portal pair links safe endpoints, prevents immediate looping, allows movement and cleans expiry (681.14954ms)
+✔ outlaws_canyon: Portal pair links safe endpoints, prevents immediate looping, allows movement and cleans expiry (495.006694ms)
+✔ vikings_fjord: Portal pair links safe endpoints, prevents immediate looping, allows movement and cleans expiry (476.724202ms)
+✔ smoke and portal presentation share geometry, match authoritative boundaries/heights and clean every scene root (1142.909159ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7040.492419

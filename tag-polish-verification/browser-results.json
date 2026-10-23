@@ -1,0 +1,78 @@
+{
+  "results": [
+    "Desktop E collection, hidden/private reward, synchronized disappearance, actual 10s respawn and mobile touch collection",
+    "Mobile grounded trap stayed fixed beyond 30s, both clients rendered adhesive activation, slow expired",
+    "Both WebGL clients rendered three soft instanced Smoke Screens, shared 125% radius, 14s lifetime and cleanup; one draw per cloud",
+    "Linked portals rendered, teleport synchronized, no standing-still loop after cooldown, W movement works, 8s cleanup",
+    "Three touch viewport sizes retain utility, movement, minimap and loadout access without scrolling",
+    "Three rounds, results and return to lobby; no page/shader errors"
+  ],
+  "errors": [],
+  "shaderErrors": [],
+  "performanceSamples": {
+    "noSmoke": [
+      {
+        "ms": 503.1000000005588,
+        "calls": 156
+      },
+      {
+        "ms": 488.3999999994412,
+        "calls": 163
+      },
+      {
+        "ms": 186.70000000018626,
+        "calls": 166
+      },
+      {
+        "ms": 501.40000000037253,
+        "calls": 166
+      },
+      {
+        "ms": 880.0999999996275,
+        "calls": 167
+      },
+      {
+        "ms": 189.5,
+        "calls": 167
+      }
+    ],
+    "threeSmoke": [
+      {
+        "ms": 614.4000000003725,
+        "calls": 164
+      },
+      {
+        "ms": 374.79999999981374,
+        "calls": 164
+      },
+      {
+        "ms": 76.09999999962747,
+        "calls": 164
+      },
+      {
+        "ms": 146.6000000005588,
+        "calls": 164
+      },
+      {
+        "ms": 262,
+        "calls": 164
+      },
+      {
+        "ms": 537.2999999998137,
+        "calls": 164
+      },
+      {
+        "ms": 398.59999999962747,
+        "calls": 164
+      },
+      {
+        "ms": 378.70000000018626,
+        "calls": 164
+      }
+    ]
+  },
+  "fixtureAssisted": true,
+  "extendedRoundClock": true,
+  "softwareGPU": true,
+  "physicalDevicesTested": false
+}

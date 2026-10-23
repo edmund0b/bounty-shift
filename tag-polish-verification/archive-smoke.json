@@ -1,0 +1,9 @@
+{
+  "passed": true,
+  "checks": [
+    "Extracted production server: health, index and hashed JS/CSS assets served",
+    "Two independent sockets create/join/ready/selection/arena; Tag 135s, five replenished crates and pair subsystem"
+  ],
+  "packagedBuild": true,
+  "dependencies": "npm ci dependencies supplied via temporary extraction-only symlink; node_modules excluded from ZIP"
+}

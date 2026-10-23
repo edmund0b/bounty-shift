@@ -1,0 +1,33 @@
+{
+  "sourceSHA256": "ec36742cf486b244e57734d7983c22a2cd56a632c80fc18f50ed0b50d1ed57cb",
+  "changedSource": [
+    "DEPLOYMENT_STATUS.md",
+    "README.md",
+    "crate-verification/spawn-ratios.json",
+    "server/mystery-crates.ts",
+    "server/pair-powerups.ts",
+    "server/tag-run.ts",
+    "shared/mystery-crates.ts",
+    "shared/pair-powerups.ts",
+    "shared/tag-run.ts",
+    "src/TagHud.tsx",
+    "src/TagVisuals.ts",
+    "src/pair/presentation.ts",
+    "src/scene.ts",
+    "tests/mystery-crates-network.test.ts",
+    "tests/mystery-crates.test.ts",
+    "tests/tag-run.test.ts"
+  ],
+  "added": [
+    "TAG_RUN_POLISH_01_STATUS.md",
+    "TAG_RUN_POLISH_01_VERIFICATION.md",
+    "scripts/tag-polish-browser-qa.mjs",
+    "shared/tag-polish.ts",
+    "src/SmokeScreen.ts",
+    "tests/tag-polish-network.test.ts",
+    "tests/tag-polish.test.ts"
+  ],
+  "deletedSource": [],
+  "protectedCount": 44,
+  "protectedUnchanged": true
+}

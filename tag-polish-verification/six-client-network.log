@@ -1,0 +1,12 @@
+POLISH NETWORK: contested claim, private grant, resume, actual 10s refill synchronized to six clients
+POLISH NETWORK: actual 14s smoke, portal teleport/8s cleanup, actual 30s trap retention and 45s expiry; six synchronized clients
+POLISH NETWORK: trigger/slow expiry and three-round/results/lobby cleanup PASS
+✔ six actual sockets: real 10s refill/reconnect, 45s anchored trap/expiry, smoke and portal synchronization (59797.565072ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 60437.229925

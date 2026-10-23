@@ -1,0 +1,12 @@
+STEP: crates PASS
+STEP: trap PASS
+STEP: smoke PASS
+STEP: portal PASS
+PASS [
+  'Desktop E collection, hidden/private reward, synchronized disappearance, actual 10s respawn and mobile touch collection',
+  'Mobile grounded trap stayed fixed beyond 30s, both clients rendered adhesive activation, slow expired',
+  'Both WebGL clients rendered three soft instanced Smoke Screens, shared 125% radius, 14s lifetime and cleanup; one draw per cloud',
+  'Linked portals rendered, teleport synchronized, no standing-still loop after cooldown, W movement works, 8s cleanup',
+  'Three touch viewport sizes retain utility, movement, minimap and loadout access without scrolling',
+  'Three rounds, results and return to lobby; no page/shader errors'
+]
