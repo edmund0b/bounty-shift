@@ -8,6 +8,23 @@ import { resolve, dirname } from "node:path";
 // server/pair-powerups.ts
 import { randomUUID } from "node:crypto";
 
+// shared/tag-polish.ts
+var TAG_POLISH = {
+  crates: { initialActive: 3, maxActive: 5, respawnMs: 1e4, spawnIntervalMs: 250 },
+  sticky: { lifetimeMs: 45e3 },
+  smoke: { durationMs: 14e3, radius: 95 * 1.25, height: 70, expandMs: 350, fadeMs: 700, puffs: 16 },
+  portal: { radius: 30, reentryMs: 1e3, exitPadding: 4 }
+};
+var smooth = (x) => {
+  const v = Math.max(0, Math.min(1, x));
+  return v * v * (3 - 2 * v);
+};
+function smokeEnvelope(createdAt, endsAt, now) {
+  if (now < createdAt || now >= endsAt) return 0;
+  return smooth((now - createdAt) / TAG_POLISH.smoke.expandMs) * smooth((endsAt - now) / TAG_POLISH.smoke.fadeMs);
+}
+var smokeRadiusAt = (createdAt, endsAt, now) => TAG_POLISH.smoke.radius * smokeEnvelope(createdAt, endsAt, now);
+
 // shared/maps/fjord-layout.ts
 var FJORD_TERRACES = [
   { id: "village", x: 800, y: 1e3, width: 1400, height: 950, elevation: 120 },
@@ -962,13 +979,13 @@ function advanceMotion(previous, input, dt = STEP, map = ACTIVE_MAP) {
 }
 
 // shared/tag-run.ts
-var TAG = { roundMs: 135e3, immunityMs: 2e3, freezeMs: 2e3, freezeImmunityMs: 3e3, pickupRespawnMs: 14e3, unitsPerMeter: 1 / 0.03, fieldRadius: 4 / 0.03, blinkRange: 7 / 0.03, tagRange: 80 };
+var TAG = { roundMs: 135e3, immunityMs: 2e3, freezeMs: 2e3, freezeImmunityMs: 3e3, pickupRespawnMs: TAG_POLISH.crates.respawnMs, unitsPerMeter: 1 / 0.03, fieldRadius: 4 / 0.03, blinkRange: 7 / 0.03, tagRange: 80 };
 var RARITIES = { common: { weight: 55, color: "#9bccd9" }, rare: { weight: 30, color: "#4bafff" }, epic: { weight: 13, color: "#be84ff" }, legendary: { weight: 2, color: "#ffcf65" } };
 var ability = (name, rarity, duration, description, icon) => ({ name, rarity, duration, description, icon, range: TAG.fieldRadius, cooldown: 1e3 });
 var POWERS = {
-  smoke_screen: ability("Smoke Screen", "common", 4e3, "Smoke hides players and nameplates.", "\u224B"),
+  smoke_screen: ability("Smoke Screen", "common", TAG_POLISH.smoke.durationMs, "Smoke hides players and nameplates.", "\u224B"),
   speed_surge: ability("Speed Surge", "common", 3e3, "20% faster movement; normal stamina costs.", "\u219F"),
-  sticky_trap: ability("Sticky Trap", "common", 5e3, "First opponent is slowed 35% for 1.5s.", "\u25A7"),
+  sticky_trap: ability("Sticky Trap", "common", TAG_POLISH.sticky.lifetimeMs, "First opponent is slowed 35% for 1.5s.", "\u25A7"),
   jump_pad: ability("Jump Pad", "common", 8e3, "Launch upward and forward.", "\u21E1"),
   footprint_tracker: ability("Footprint Tracker", "common", 5e3, "Reveal nearby recent movement trails.", "\u22EF"),
   healing_burst: ability("Healing Burst", "common", 0, "Restore 35 stamina and clear ordinary slows.", "\u271A"),
@@ -1025,6 +1042,7 @@ var PAIR = {
   bounce: { throwSpeed: 300, gravity: 650, lift: 140, originHeight: 32, projectileRadius: 6, fuseMs: 900, impact: true, radius: 4 / 0.03, horizontal: 400, vertical: 300, maxImpulse: 450, impulseMs: 600, selfMultiplier: 1, friendlyFire: false, forceImmunityMs: 200, falloffFloor: 0.25 },
   sticky: { placeDistance: 36, footprint: 12, maxSlope: 0.4, armMs: 350, radius: 35, slow: 0.65, effectMs: 1500, lifetimeMs: 5e3, maxPerPlayer: 1, maxPerRound: 6, friendlyFire: false, triggerVisualMs: 1500 }
 };
+var stickyLifetime = (mode) => mode === "tag" ? TAG_POLISH.sticky.lifetimeMs : PAIR.sticky.lifetimeMs;
 var isPair = (id) => id === "bounce_bomb" || id === "sticky_trap";
 var emptyPair = () => ({ version: 1, ended: false, actions: [], shots: [], traps: [], events: [], status: {} });
 function advancePairMotion(p, input, s, now, dt, map, tag) {
@@ -1722,7 +1740,7 @@ function tickPair(room, now, dt) {
         shot.elevation = (p.elevation ?? 0) + PAIR.bounce.originHeight;
       }
       t.shots.push(shot);
-    } else t.traps.push({ ...place, id: a.id, ownerId: p.id, ownerSpawnVersion: p.spawnVersion ?? 0, team: teamKey(room.mode, p.id), bornAt: now, armedAt: now + PAIR.sticky.armMs, endsAt: now + PAIR.sticky.lifetimeMs });
+    } else t.traps.push({ ...place, id: a.id, ownerId: p.id, ownerSpawnVersion: p.spawnVersion ?? 0, team: teamKey(room.mode, p.id), bornAt: now, armedAt: now + PAIR.sticky.armMs, endsAt: now + stickyLifetime(room.selectedGameMode) });
     consumeUtility(p);
     a.released = true;
     const s = pairStatus(room, p);
@@ -1797,9 +1815,9 @@ function finishPair(room) {
 import { randomUUID as randomUUID4, randomInt as randomInt3 } from "node:crypto";
 
 // shared/mystery-crates.ts
-var common = { enabled: true, initialDelayMs: 0, respawnMs: 4e4, collectionCooldownMs: 250, minSpacing: 550, playerClearance: 100, pickupClearance: 85, objectiveClearance: 130 };
+var common = { enabled: true, initialActive: 2, initialDelayMs: 0, respawnMs: 4e4, collectionCooldownMs: 250, minSpacing: 550, playerClearance: 100, pickupClearance: 85, objectiveClearance: 130 };
 var CRATE_CONFIG = {
-  tag: { ...common, ratio: 2, maxActive: 3, spawnIntervalMs: 2e3, stopBeforeEndMs: 5e3 },
+  tag: { ...common, ...TAG_POLISH.crates, ratio: 2, stopBeforeEndMs: 5e3 },
   flag_run: { ...common, ratio: 1, maxActive: 2, respawnMs: 5e4, spawnIntervalMs: 2500, stopBeforeEndMs: 0 },
   kill_race: { ...common, ratio: 1, maxActive: 2, respawnMs: 5e4, spawnIntervalMs: 2500, stopBeforeEndMs: 0 }
 };
@@ -2145,7 +2163,7 @@ function tagVisible(room, p, viewer, now = Date.now()) {
   if (viewer && hostile(room, p, viewer)) {
     for (const f of t.fields.filter((f2) => f2.kind === "smoke_screen" && f2.endsAt > now)) {
       const dx = p.x - viewer.x, dy = p.y - viewer.y, v = Math.max(0, Math.min(1, ((f.x - viewer.x) * dx + (f.y - viewer.y) * dy) / (dx * dx + dy * dy || 1)));
-      if (Math.hypot(viewer.x + dx * v - f.x, viewer.y + dy * v - f.y) < 95 && Math.abs((p.elevation ?? 0) - (f.elevation ?? 0)) < 70) return false;
+      if (Math.hypot(viewer.x + dx * v - f.x, viewer.y + dy * v - f.y) < smokeRadiusAt(f.createdAt, f.endsAt, now) && Math.abs((p.elevation ?? 0) - (f.elevation ?? 0)) < TAG_POLISH.smoke.height) return false;
     }
   }
   return true;
@@ -2167,6 +2185,10 @@ function tickTag(room, now, dt) {
   for (const p of room.players) {
     const s = status(room, p);
     s.bubble = 0;
+    if (s.portalExit) {
+      const portal = t.fields.find((f) => f.id === s.portalExit && f.endsAt > now), radius = TAG_POLISH.portal.radius + TAG_POLISH.portal.exitPadding;
+      if (!portal || !portal.other || !inRange(room, p, portal, radius) && !inRange(room, p, portal.other, radius)) delete s.portalExit;
+    }
     if (s.origin && (!(s.sealed > now) || !p.socket)) {
       Object.assign(p, isWalkable(s.origin, MAPS[room.mapId]) ? s.origin : MAPS[room.mapId].spawns[0]);
       delete s.origin;
@@ -2223,15 +2245,16 @@ function tickTag(room, now, dt) {
         s.impulseY = f.dy * 150;
         s.impulseUntil = now + 450;
       }
-      if (f.kind === "portal_pair" && f.other && s.portalLock <= now) {
-        const dest = inRange(room, p, f, 30) ? f.other : inRange(room, p, f.other, 30) ? f : null;
+      if (f.kind === "portal_pair" && f.other && s.portalLock <= now && s.portalExit !== f.id) {
+        const dest = inRange(room, p, f, TAG_POLISH.portal.radius) ? f.other : inRange(room, p, f.other, TAG_POLISH.portal.radius) ? f : null;
         if (dest && isWalkable(dest, MAPS[room.mapId])) {
           Object.assign(p, { x: dest.x, y: dest.y, elevation: dest.elevation ?? 0 });
           p.jumpOrigin = { x: p.x, y: p.y, elevation: p.elevation };
           p.airborne = false;
           p.verticalVelocity = 0;
           p.dashRemaining = 0;
-          s.portalLock = now + 1e3;
+          s.portalLock = now + TAG_POLISH.portal.reentryMs;
+          s.portalExit = f.id;
         }
       }
     }
@@ -2378,7 +2401,7 @@ function tickCrates(room, now, initial = false) {
   }
   let spawned = 0;
   for (const point of pool) {
-    if (spawned >= Math.min(budget, capacity, initial ? c.maxActive : 1)) break;
+    if (spawned >= Math.min(budget, capacity, initial ? Math.min(c.initialActive, c.maxActive) : 1)) break;
     if (!cratePointValid(room, point)) continue;
     let slot = room.mode.items.find((i) => i.source === "mystery" && i.state === "empty" && now >= i.refreshAt);
     if (!slot) {
