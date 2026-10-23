@@ -120,7 +120,7 @@ export function createArenaScene(canvas:HTMLCanvasElement,map:MapDefinition=ACTI
   const animationVersions=room.players.map(p=>`${p.id}:${avatars.get(p.id)?.version}`).join(',');if(canvas.dataset.animationVersions!==animationVersions)canvas.dataset.animationVersions=animationVersions;
   canvas.dataset.weapons=room.players.map(p=>`${p.id}:${avatars.get(p.id)?.weapon.weapon?.id??'unarmed'}:${avatars.get(p.id)?.weapon.lastClip}`).join(',');
   canvas.dataset.aimPoses=room.players.map(p=>`${p.id}:${Number(avatars.get(p.id)?.rig.root.userData.aimBlend??0).toFixed(2)}`).join(',');
-  tagVisuals.update(room,id,visualNow);pairEffects.update(room,visualNow);canvas.dataset.pairEffects=pairEffects.visibleIds().join(',');
+  tagVisuals.update(room,id,visualNow,camera);canvas.dataset.tagFields=JSON.stringify(tagVisuals.stats());pairEffects.update(room,visualNow);canvas.dataset.pairEffects=pairEffects.visibleIds().join(',');
   canvas.dataset.characters=room.players.map(p=>`${p.id}:${p.characterId}`).join(',');renderer.render(scene,camera);
  }
  const shotDirection=new THREE.Vector3();return {update,aimRay(){camera.getWorldDirection(shotDirection);return {x:shotDirection.x,y:shotDirection.z,z:shotDirection.y,origin:{x:camera.position.x/S,y:camera.position.z/S,elevation:camera.position.y/S}};},dispose(){for(const a of avatars.values()){a.pair.dispose();a.weapon.dispose();disposeTree(a.rig.root);}for(const r of resources)r.dispose();resources.clear();avatars.clear();lootEffects.dispose();tagVisuals.dispose();pairEffects.dispose();environment.dispose();renderer.dispose();}};
