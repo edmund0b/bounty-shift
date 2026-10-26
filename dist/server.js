@@ -855,7 +855,7 @@ var MAX_PLAYERS = 6;
 var RECONNECT_MS = 1e4;
 var NETWORK = { inputTimeoutMs: 300, maxInputAdvance: 120, resumeRetryMs: 1e3, resumeAttempts: 15 };
 var COLORS = ["#60cfff", "#ffbc66", "#b6a2ff", "#77d8a4", "#ff8da5", "#e9df78"];
-var MOVEMENT = { sprintMultiplier: 1.5, staminaMax: 100, staminaDrain: 28, staminaRegen: 22, regenDelay: 0.6, dashSpeed: 850, dashDuration: 0.18, dashCooldown: 3 };
+var MOVEMENT = { sprintMultiplier: 1.5, crouchMultiplier: 0.45, staminaMax: 100, staminaDrain: 28, staminaRegen: 22, regenDelay: 0.6, dashSpeed: 850, dashDuration: 0.18, dashCooldown: 3 };
 var JUMP = { velocity: 300, gravity: 900 };
 function freshMotion(position) {
   return { ...position, jumpOrigin: { ...position, elevation: position.elevation ?? 0 }, jumpSeen: 0, airborne: false, verticalVelocity: 0, crouched: false, traversalState: "idle", elevation: position.elevation ?? 0, stamina: MOVEMENT.staminaMax, regenWait: 0, exhausted: false, dashCooldown: 0, dashRemaining: 0, dashX: 0, dashY: 1, facingX: 0, facingY: 1, dashSeen: 0, sprinting: false };
@@ -915,7 +915,7 @@ function advanceMotion(previous, input, dt = STEP, map = ACTIVE_MAP) {
       s.dashY = length > 0 ? dy : s.facingY;
     }
   }
-  s.sprinting = !!input.sprint && length > 0 && !s.exhausted && s.stamina > 0 && s.dashRemaining <= 0;
+  s.sprinting = !!input.sprint && !s.crouched && length > 0 && !s.exhausted && s.stamina > 0 && s.dashRemaining <= 0;
   if (s.sprinting) {
     s.stamina = Math.max(0, s.stamina - MOVEMENT.staminaDrain * dt);
     s.regenWait = MOVEMENT.regenDelay;
@@ -938,7 +938,7 @@ function advanceMotion(previous, input, dt = STEP, map = ACTIVE_MAP) {
     const time = Math.min(dt, s.dashRemaining);
     pos = travel(s.dashX, s.dashY, time, s.traversalState === "slide" ? 250 + 300 * (s.dashRemaining - time / 2) / 0.42 : s.traversalState === "dodge" ? 580 : MOVEMENT.dashSpeed);
     s.dashRemaining = Math.max(0, s.dashRemaining - dt);
-  } else pos = travel(dx, dy, dt, ARENA.speed * (s.sprinting ? MOVEMENT.sprintMultiplier : 1));
+  } else pos = travel(dx, dy, dt, ARENA.speed * (s.crouched ? MOVEMENT.crouchMultiplier : s.sprinting ? MOVEMENT.sprintMultiplier : 1));
   if (s.dashRemaining <= 0) s.traversalState = s.sprinting ? "sprint" : length > 0 ? "walk" : "idle";
   if (s.airborne) {
     const old = s.elevation;
@@ -2680,6 +2680,46 @@ var CHARACTER_IDS = ["voltrix", "kirin", "emberjack", "mossbyte", "novaa", "grav
 var isCharacterId = (value) => typeof value === "string" && CHARACTER_IDS.includes(value);
 var SELECTION = { chooseMs: 3e4, totalMs: 39e3 };
 
+// shared/flag-capture.ts
+var FLAG_CAPTURE = { durationMs: 5e3, zoneRadius: 65, speedTolerance: 2, driftTolerance: 0.5, inputTolerance: 1e-4, opponentNoticeRange: 500 };
+
+// server/flag-capture.ts
+function resetCapture(room, now, reason) {
+  const f = room.mode.flag;
+  if (f.capture) {
+    const ownerId = f.capture.carrierId;
+    delete f.capture;
+    f.captureNotice = { ownerId, at: now, kind: "interrupted", reason };
+  }
+}
+function tickFlagCapture(room, p, now) {
+  const f = room.mode.flag, actor = p;
+  const position = { x: p.x, y: p.y, elevation: p.elevation ?? 0 }, sample = f.captureSample;
+  f.captureSample = { at: now, position };
+  const elapsed = sample ? Math.max(0, (now - sample.at) / 1e3) : 0, moved = sample ? Math.hypot(p.x - sample.position.x, p.y - sample.position.y, (p.elevation ?? 0) - (sample.position.elevation ?? 0)) : 0;
+  const liveInput = now - (actor.lastInput ?? now) < NETWORK.inputTimeoutMs, intent = liveInput && Math.hypot(actor.dx ?? 0, actor.dy ?? 0) > FLAG_CAPTURE.inputTolerance;
+  let reason = "";
+  if (f.state !== "carried" || f.carrier !== p.id || !p.socket || p.health <= 0 || p.frozenUntil > now || now >= room.round.endsAt) reason = "Carrier unavailable";
+  else if (!near(room, p, room.mode.capture, FLAG_CAPTURE.zoneRadius)) reason = "Left capture zone";
+  else if (intent || p.dashRemaining > 0 || actor.airborne || Math.abs(actor.verticalVelocity ?? 0) > 0.01 || elapsed > 0 && moved / elapsed > FLAG_CAPTURE.speedTolerance || f.capture && Math.hypot(p.x - f.capture.anchor.x, p.y - f.capture.anchor.y, (p.elevation ?? 0) - (f.capture.anchor.elevation ?? 0)) > FLAG_CAPTURE.driftTolerance) reason = "Keep still to capture";
+  if (reason) {
+    resetCapture(room, now, reason);
+    return false;
+  }
+  if (!f.capture || f.capture.carrierId !== p.id) {
+    f.capture = { carrierId: p.id, startedAt: now, endsAt: now + FLAG_CAPTURE.durationMs, anchor: position };
+    delete f.captureNotice;
+    return false;
+  }
+  if (now < f.capture.endsAt) return false;
+  f.state = "captured";
+  f.captureNotice = { at: now, kind: "captured", reason: "Flag captured" };
+  delete f.capture;
+  delete f.captureSample;
+  room.mode.winnerKeys = [teamKey(room.mode, p.id)];
+  return true;
+}
+
 // server/modes.ts
 import { randomInt as randomInt4, randomUUID as randomUUID6 } from "node:crypto";
 var key2 = (r, p) => teamKey(r.mode, p.id);
@@ -2711,11 +2751,7 @@ var MODE_RULES = {
         return false;
       }
       f.position = { x: p.x, y: p.y, elevation: p.elevation };
-      if (near(room, p, room.mode.capture)) {
-        f.state = "captured";
-        room.mode.winnerKeys = [key2(room, p)];
-        return true;
-      }
+      if (tickFlagCapture(room, p, now)) return true;
     }
     return false;
   }, finish: ({ room }) => {
@@ -2759,6 +2795,9 @@ function interact(room, p, now, itemId, replaceSlot) {
   if (room.selectedGameMode === "flag_run" && ["spawned", "dropped"].includes(flag.state) && near(room, p, flag.position)) {
     flag.state = "carried";
     flag.carrier = p.id;
+    delete flag.capture;
+    delete flag.captureSample;
+    delete flag.captureNotice;
     return;
   }
   const item = itemId ? room.mode.items.find((i) => i.id === itemId && (i.state === "closed" || i.state === "opened" && !!i.kind) && near(room, p, i.state === "closed" ? i : i.pickupPosition ?? i)) : interactionItem(room.mode.items, room.mapId, p);
@@ -2806,10 +2845,15 @@ function interact(room, p, now, itemId, replaceSlot) {
   item.state = "empty";
   item.refreshAt = now + LOOT_CONFIG.respawnMs;
 }
-function dropFlag(room, p) {
+function dropFlag(room, p, now = Date.now()) {
   const f = room.mode.flag;
   if (f.state !== "carried" || p && f.carrier !== p.id) return;
-  if (p) f.position = { x: p.x, y: p.y, elevation: p.elevation };
+  resetCapture(room, now, "Flag dropped");
+  delete f.captureSample;
+  if (p) {
+    const point = isWalkable(p, MAPS[room.mapId]) ? p : dropPosition(room.mapId, p, room.mode.items) ?? MAPS[room.mapId].spawns[0];
+    f.position = { x: point.x, y: point.y, elevation: point.elevation };
+  }
   f.carrier = null;
   f.state = "dropped";
 }
@@ -2872,6 +2916,10 @@ function tickMode(room, now, dt) {
   return MODE_RULES[room.selectedGameMode].tick({ room, now });
 }
 function finishMode(room, now) {
+  if (room.selectedGameMode === "flag_run") {
+    delete room.mode.flag.capture;
+    delete room.mode.flag.captureSample;
+  }
   MODE_RULES[room.selectedGameMode].finish({ room, now });
   for (const k of room.mode.winnerKeys) room.mode.matchPoints[k] = (room.mode.matchPoints[k] ?? 0) + 1;
   room.mode.projectiles = [];
@@ -2890,13 +2938,21 @@ function emptyMatch() {
 }
 
 // shared/map-rotation.ts
+var MAP_WEIGHTS = { central_plaza: 5, scorched_point: 24, aerie_sky_port: 24, outlaws_canyon: 24, vikings_fjord: 23 };
 var OPENING_MAP_ID = "central_plaza";
 function selectRoundMap(roundNumber, previous, chooseIndex, registry = MAPS) {
   const ids = Object.keys(registry);
   if (!ids.length) throw new Error("No playable maps registered");
   if (roundNumber === 1) return registry[OPENING_MAP_ID] ? OPENING_MAP_ID : ids[0];
-  const alternatives = ids.filter((id) => id !== previous), pool = alternatives.length ? alternatives : ids;
-  return pool[chooseIndex(pool.length)];
+  const alternatives = roundNumber >= 3 ? ids.filter((id) => id !== previous) : ids, pool = alternatives.length ? alternatives : ids;
+  const weight = (id) => MAP_WEIGHTS[id] ?? 24, total = pool.reduce((n, id) => n + weight(id), 0);
+  let roll = chooseIndex(total);
+  if (!Number.isInteger(roll) || roll < 0 || roll >= total) throw new Error("Map random source outside weighted range");
+  for (const id of pool) {
+    roll -= weight(id);
+    if (roll < 0) return id;
+  }
+  return pool[pool.length - 1];
 }
 function selectMapVariant(mapId, chooseIndex) {
   const variants = Object.keys(MAPS[mapId]?.variants ?? {});
@@ -3116,6 +3172,11 @@ var RoomServer = class {
     }
     if (m.type === "reload" || m.type === "drop_weapon") {
       if (room.phase === "arena" && m.matchId === room.match.id && m.roundNumber === room.match.roundNumber && Date.now() < room.round.endsAt && p.socket && p.health > 0 && p.frozenUntil <= Date.now()) {
+        if (m.type === "drop_weapon" && room.selectedGameMode === "flag_run" && room.mode.flag.state === "carried" && room.mode.flag.carrier === p.id) {
+          dropFlag(room, p, Date.now());
+          this.broadcast(room);
+          return;
+        }
         const instance = p.inventory?.weapons?.[(m.slot ?? p.selectedSlot) === 2 ? 1 : 0];
         if (!instance || m.instanceId !== instance.instanceId) return;
         if (m.type === "reload") reloadWeapon(p, room, Date.now());
