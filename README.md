@@ -1,3 +1,11 @@
+# Current release: Final Gameplay Polish — Phase 1
+
+See [FINAL_POLISH_PHASE1_REPORT.md](FINAL_POLISH_PHASE1_REPORT.md) for shared attack visual cleanup, movement/camera presentation fixes, Tag reach/feedback, exact test evidence and remaining device checks. 373 automated tests passed. Local release; not deployed. Earlier notes below are retained history.
+
+# Current release: Tag Run 2.0 — Polish Pass 01
+
+Read [TAG_RUN_POLISH_01_VERIFICATION.md](TAG_RUN_POLISH_01_VERIFICATION.md) for this release, tests and limitations. Local release; not deployed. Earlier release notes below are preserved history.
+
 # Current release: Power-Ups Pair 1 — Phase 2
 
 See [PAIR1_VERIFICATION.md](PAIR1_VERIFICATION.md) for current caps, cooldowns, Bounce Bomb/Sticky Trap settings, reward policy, measurements, exact test coverage and remaining limitations. No deployment was performed. Earlier release notes below are preserved history.
