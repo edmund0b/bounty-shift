@@ -1,0 +1,18 @@
+[
+  {
+    "displayHz": 60,
+    "seconds": 1.5,
+    "oldFalseIdleFrames": 45,
+    "newFalseIdleFrames": 0,
+    "oldStateChanges": 90,
+    "newStateChanges": 0
+  },
+  {
+    "displayHz": 120,
+    "seconds": 1.5,
+    "oldFalseIdleFrames": 135,
+    "newFalseIdleFrames": 0,
+    "oldStateChanges": 90,
+    "newStateChanges": 0
+  }
+]

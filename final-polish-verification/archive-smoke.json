@@ -1,0 +1,10 @@
+{
+  "passed": true,
+  "checks": [
+    "Extracted compiled server: health, index and hashed client JS/CSS return HTTP 200",
+    "Two actual sockets create/join/ready/choose/prepare/start",
+    "Packaged compiled implementation: accepted unarmed serial/time and authoritative Tag transfer synchronized to both clients; unchanged 100HP/135-second rules"
+  ],
+  "dependencies": "Temporary extracted-tree node_modules symlink to npm-ci installation; not shipped",
+  "fixtures": "Reachable positioning and initial IT fixture only; actual WS input and compiled server adjudication"
+}

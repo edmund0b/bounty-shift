@@ -1,0 +1,25 @@
+✔ two real clients: accepted swings, bidirectional tags, misses/walls, sprint/jump/dash/slide, reconnect and scoring (4170.119021ms)
+✔ 30Hz prediction on 60/120Hz displays no longer alternates idle/run, stops promptly and never changes source motion (2.634149ms)
+✔ central_plaza: diagonal/camera-relative movement, sprint release, dash-once, jump/landing, slide/crouch remain authoritative (58.980483ms)
+✔ scorched_point: diagonal/camera-relative movement, sprint release, dash-once, jump/landing, slide/crouch remain authoritative (42.542816ms)
+✔ aerie_sky_port: diagonal/camera-relative movement, sprint release, dash-once, jump/landing, slide/crouch remain authoritative (56.507372ms)
+✔ outlaws_canyon: diagonal/camera-relative movement, sprint release, dash-once, jump/landing, slide/crouch remain authoritative (14.565533ms)
+✔ vikings_fjord: diagonal/camera-relative movement, sprint release, dash-once, jump/landing, slide/crouch remain authoritative (8.851317ms)
+✔ unchanged flat diagonal speed, sprint stamina, slide exit and crouch transitions (0.528931ms)
+✔ tag reach stages are visual only and preserve locomotion/root/feet on all eight skins and moving stances (426.519473ms)
+✔ camera footprint covers side walls at every orbit angle, resets ray state, tracks changed transforms and safe floor (2.758723ms)
+✔ accepted unarmed timestamp/serial excludes cooldown spam and transfers once, opposite return respects existing 2s immunity (241.390386ms)
+✔ wrong orientation/range/walls and frozen attempts never send successful contact; miss still has accepted reach (848.904182ms)
+✔ three-round time/scoring/results and supported reconnect preserve authoritative counts (381.322799ms)
+✔ camera near-plane footprint catches a grazing side wall that center/world-X offsets miss (0.456474ms)
+✔ server tag event alone emits a tiny 220ms contact at authoritative chest point and cleans the pool (235.121256ms)
+✔ slow render frames use actual elapsed time for gait rather than the camera smoothing dt cap (0.127568ms)
+✔ utility throws preserve their own presentation and cannot masquerade as an unarmed reach (206.67522ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4597.851023

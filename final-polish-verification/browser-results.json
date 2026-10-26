@@ -1,0 +1,18 @@
+{
+  "results": [
+    "Desktop F causes server-confirmed transfer; both rendered IT markers/HUD update",
+    "Mobile touch Attack transfers back after real immunity; IT marker follows actual new player",
+    "Accepted missed reaches rendered on both eight-rig-compatible animators; out-of-range attacks do not transfer or confirm",
+    "Actual desktop sprint/release + Tag, jump/landing, double-space dash, crouch/stand, hold-slide/recovery and map/cursor controls",
+    "Three touch viewport sizes: controls on-screen, Tag objective/health/utility/joystick/loadout do not overlap, no page scrolling",
+    "Three authoritative rounds, scoreboard and current-host return to lobby",
+    "flag_run: real unarmed/melee/firearm attack controls, legacy range sector/red cylinder absent; weapon animation retained",
+    "kill_race: real unarmed/melee/firearm attack controls, legacy range sector/red cylinder absent; weapon animation retained"
+  ],
+  "errors": [],
+  "shaderErrors": [],
+  "fixtureAssisted": true,
+  "softwareGPU": true,
+  "physicalDevices": false,
+  "roundsAccelerated": true
+}
