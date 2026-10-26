@@ -1067,7 +1067,7 @@ function advancePairMotion(p, input, s, now, dt, map, tag) {
 // shared/combat.ts
 var COMBAT = { chestHeight: 30, maxHealth: 100, damage: 25, range: 80, halfAngle: Math.PI / 3, cooldown: 0.6, respawnDelay: 5, protection: 1.5, attackFlash: 0.15, hitFlash: 0.2 };
 function freshCombat() {
-  return { health: COMBAT.maxHealth, koRemaining: 0, protection: 0, attackCooldown: 0, attackSeen: 0, attackFlash: 0, hitFlash: 0, attackX: 0, attackY: 1, spawnVersion: 0 };
+  return { unarmedSerial: 0, unarmedAt: 0, health: COMBAT.maxHealth, koRemaining: 0, protection: 0, attackCooldown: 0, attackSeen: 0, attackFlash: 0, hitFlash: 0, attackX: 0, attackY: 1, spawnVersion: 0 };
 }
 function clearAttackLine(a, b, map = ACTIVE_MAP) {
   const az = (a.elevation ?? 0) + COMBAT.chestHeight, bz = (b.elevation ?? 0) + COMBAT.chestHeight;
@@ -1930,7 +1930,7 @@ var active = (p, now) => !!p.socket && p.health > 0 && p.frozenUntil <= now;
 var distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, (a.elevation ?? 0) - (b.elevation ?? 0));
 var inRange = (r, a, b, range = TAG.fieldRadius) => distance(a, b) <= range && clearAttackLine(a, b, MAPS[r.mapId]);
 var hostile = (r, a, b) => a.id !== b.id && key(r, a) !== key(r, b);
-var event = (r, p, now, kind, power, targetId) => r.mode.tag.events.push({ id: randomUUID3(), kind, power, targetId, at: now, ownerId: p.id, x: p.x, y: p.y, elevation: p.elevation });
+var event = (r, p, now, kind, power, targetId, position = p) => r.mode.tag.events.push({ id: randomUUID3(), kind, power, targetId, at: now, ownerId: p.id, x: position.x, y: position.y, elevation: position.elevation });
 function initTag(room, now, prior) {
   const keys2 = [...new Set(room.players.map((p) => key(room, p)))];
   room.mode.tag = { version: 2, startedAt: now, clock: now, spent: Object.fromEntries(keys2.map((k) => [k, 0])), tags: {}, collected: {}, used: {}, immunity: {}, status: {}, fields: [], shots: [], events: [], trails: [], pings: [], pingAt: 0, trailAt: 0, lastTransferAt: -1, serial: 0, consumed: {}, announcement: "HOT POTATO \u2014 avoid holding IT at zero", announcementAt: now, sealSpawned: false, sealUsed: prior?.sealUsed ?? {}, totalTime: prior?.totalTime ?? {}, totalTags: prior?.totalTags ?? {}, totalCollected: prior?.totalCollected ?? {}, totalUsed: prior?.totalUsed ?? {}, rankings: [], ended: false };
@@ -1984,7 +1984,7 @@ function tryTag(room, a, b, now) {
   }
   t.announcement = room.players.filter((p) => key(room, p) === room.mode.it).map((p) => p.name).join(" + ") + " IS IT";
   t.announcementAt = now;
-  event(room, b, now, "tag", void 0, a.id);
+  event(room, b, now, "tag", void 0, a.id, { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, elevation: ((a.elevation ?? 0) + (b.elevation ?? 0)) / 2 + COMBAT.chestHeight });
   return true;
 }
 function choosePower(t, roll = randomInt2(1e6) / 1e6, choice = randomInt2(1e6)) {
@@ -2923,7 +2923,7 @@ var RoomServer = class {
   }
   view(room, recipient) {
     const target = room.players.find((p) => p.id === recipient?.targetId);
-    return { selection: room.selection, selectedGameMode: room.selectedGameMode, selectedFormat: room.selectedFormat, mode: room.mode.crates ? { ...room.mode, ...room.selectedGameMode === "tag" ? { tag: tagView(room, recipient, Date.now()) } : {}, crates: crateView(room.mode.crates, recipient?.id) } : room.mode, mapId: room.mapId, mapVariant: room.mapVariant, nextMapId: room.nextMapId, nextMapVariant: room.nextMapVariant, match: room.match, round: room.round, objective: { target: target ? { id: target.id, name: target.name } : null, eliminations: recipient?.eliminations ?? 0, matchEliminations: recipient?.matchEliminations ?? 0 }, code: room.code, hostId: room.hostId, phase: room.phase, tick: room.tick, notice: room.notice, serverTime: Date.now(), players: room.players.map((p) => ({ ...room.mode.tag ? { concealed: recipient ? !tagVisible(room, p, recipient) : false } : {}, ads: !!p.ads, adsSince: p.adsSince ?? 0, aimX: p.aimX, aimY: p.aimY, aimZ: p.aimZ ?? 0, weaponAction: p.weaponAction, characterId: p.characterId, characterAutoAssigned: p.characterAutoAssigned, jumpSeen: p.jumpSeen, airborne: p.airborne, verticalVelocity: p.verticalVelocity, jumpOrigin: p.jumpOrigin, crouched: p.crouched, inventory: p.inventory, selectedSlot: p.selectedSlot, traversalState: p.traversalState, frozenUntil: p.frozenUntil, heldItem: p.heldItem, id: p.id, name: p.name, color: p.color, ready: p.ready, connected: !!p.socket, x: room.mode.tag && recipient && !tagVisible(room, p, recipient) ? 0 : p.x, y: room.mode.tag && recipient && !tagVisible(room, p, recipient) ? 0 : p.y, elevation: room.mode.tag && recipient && !tagVisible(room, p, recipient) ? 0 : p.elevation, ack: p.ack, stamina: p.stamina, regenWait: p.regenWait, exhausted: p.exhausted, dashCooldown: p.dashCooldown, dashRemaining: p.dashRemaining, dashX: p.dashX, dashY: p.dashY, facingX: p.facingX, facingY: p.facingY, dashSeen: p.dashSeen, sprinting: p.sprinting, health: p.health, koRemaining: p.koRemaining, protection: p.protection, attackCooldown: p.attackCooldown, attackSeen: p.attackSeen, attackFlash: p.attackFlash, hitFlash: p.hitFlash, attackX: p.attackX, attackY: p.attackY, spawnVersion: p.spawnVersion })) };
+    return { selection: room.selection, selectedGameMode: room.selectedGameMode, selectedFormat: room.selectedFormat, mode: room.mode.crates ? { ...room.mode, ...room.selectedGameMode === "tag" ? { tag: tagView(room, recipient, Date.now()) } : {}, crates: crateView(room.mode.crates, recipient?.id) } : room.mode, mapId: room.mapId, mapVariant: room.mapVariant, nextMapId: room.nextMapId, nextMapVariant: room.nextMapVariant, match: room.match, round: room.round, objective: { target: target ? { id: target.id, name: target.name } : null, eliminations: recipient?.eliminations ?? 0, matchEliminations: recipient?.matchEliminations ?? 0 }, code: room.code, hostId: room.hostId, phase: room.phase, tick: room.tick, notice: room.notice, serverTime: Date.now(), players: room.players.map((p) => ({ ...room.mode.tag ? { concealed: recipient ? !tagVisible(room, p, recipient) : false } : {}, ads: !!p.ads, adsSince: p.adsSince ?? 0, aimX: p.aimX, aimY: p.aimY, aimZ: p.aimZ ?? 0, weaponAction: p.weaponAction, characterId: p.characterId, characterAutoAssigned: p.characterAutoAssigned, jumpSeen: p.jumpSeen, airborne: p.airborne, verticalVelocity: p.verticalVelocity, jumpOrigin: p.jumpOrigin, crouched: p.crouched, inventory: p.inventory, selectedSlot: p.selectedSlot, traversalState: p.traversalState, frozenUntil: p.frozenUntil, heldItem: p.heldItem, id: p.id, name: p.name, color: p.color, ready: p.ready, connected: !!p.socket, x: room.mode.tag && recipient && !tagVisible(room, p, recipient) ? 0 : p.x, y: room.mode.tag && recipient && !tagVisible(room, p, recipient) ? 0 : p.y, elevation: room.mode.tag && recipient && !tagVisible(room, p, recipient) ? 0 : p.elevation, ack: p.ack, stamina: p.stamina, regenWait: p.regenWait, exhausted: p.exhausted, dashCooldown: p.dashCooldown, dashRemaining: p.dashRemaining, dashX: p.dashX, dashY: p.dashY, facingX: p.facingX, facingY: p.facingY, dashSeen: p.dashSeen, sprinting: p.sprinting, health: p.health, koRemaining: p.koRemaining, protection: p.protection, unarmedSerial: p.unarmedSerial ?? 0, unarmedAt: p.unarmedAt ?? 0, attackCooldown: p.attackCooldown, attackSeen: p.attackSeen, attackFlash: p.attackFlash, hitFlash: p.hitFlash, attackX: p.attackX, attackY: p.attackY, spawnVersion: p.spawnVersion })) };
   }
   broadcast(room) {
     for (const p of room.players) if (p.socket) this.send(p.socket, { type: "state", room: this.view(room, p) });
@@ -3554,6 +3554,10 @@ var RoomServer = class {
           if (!this.legacyBounty && canonicalWeapon(p.heldItem) && !allowedWeapon(room.selectedGameMode, p.heldItem)) continue;
           p.attackCooldown = p.heldItem && p.heldItem in WEAPONS ? WEAPONS[p.heldItem].cooldown : COMBAT.cooldown;
           p.attackFlash = COMBAT.attackFlash;
+          if (!p.heldItem) {
+            p.unarmedSerial = (p.unarmedSerial ?? 0) + 1;
+            p.unarmedAt = now;
+          }
           p.protection = 0;
           if (this.legacyBounty || !throwBall(room, p, now)) attacks.push(p);
         }
