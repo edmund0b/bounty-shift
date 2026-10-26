@@ -52,7 +52,7 @@ export class AnimationTimeline {
   else next=!moving?'idle':p.sprinting?'sprint':speed>=ANIMATION_TIMING.walkThreshold?'run':'walk';
   if(next!==this.state||this.reset){this.state=next;this.clip=clips[next];this.elapsed=0;this.changed=true;}else if(!this.frozen)this.elapsed+=dt;
   if(phase===undefined){
-   if(['walk','run','sprint','crouch_walk'].includes(next)){const reference=next==='walk'?ARENA.speed*.45:next==='sprint'?ARENA.speed*MOVEMENT.sprintMultiplier:ARENA.speed;this.gaitPhase=(this.gaitPhase+dt*Math.max(.35,Math.min(2.2,speed/reference))/period(next))%1;phase=this.gaitPhase;}
+   if(['walk','run','sprint','crouch_walk'].includes(next)){const reference=next==='crouch_walk'?ARENA.speed*MOVEMENT.crouchMultiplier:next==='walk'?ARENA.speed*.45:next==='sprint'?ARENA.speed*MOVEMENT.sprintMultiplier:ARENA.speed;this.gaitPhase=(this.gaitPhase+dt*Math.max(.35,Math.min(2.2,speed/reference))/period(next))%1;phase=this.gaitPhase;}
    else if(next==='idle')phase=this.breathPhase;
    else if(next==='crouch_idle'||next==='airborne')phase=(this.elapsed/period(next))%1;
    else phase=Math.min(1,this.elapsed/period(next));
@@ -62,7 +62,7 @@ export class AnimationTimeline {
   this.stanceClip='';
   if(next==='hit_reaction'&&!p.airborne){
    if(slide){const age=this.evadeAge;this.stanceClip=age<ANIMATION_TIMING.slideEntry?'slide-entry':'slide-loop';this.stancePhase=age<ANIMATION_TIMING.slideEntry?age/ANIMATION_TIMING.slideEntry:(age-ANIMATION_TIMING.slideEntry)/(.42-ANIMATION_TIMING.slideEntry);}
-   else if(p.crouched){if(this.crouchEnterAge<period('crouch_enter')){this.stanceClip='crouch-enter';this.stancePhase=this.crouchEnterAge/period('crouch_enter');}else{this.stanceClip=moving?'crouch-walk':'crouch-idle';if(moving)this.gaitPhase=(this.gaitPhase+dt*Math.max(.35,Math.min(2.2,speed/ARENA.speed))/period('crouch_walk'))%1;this.stancePhase=moving?this.gaitPhase:(this.breathPhase*3/2)%1;}}
+   else if(p.crouched){if(this.crouchEnterAge<period('crouch_enter')){this.stanceClip='crouch-enter';this.stancePhase=this.crouchEnterAge/period('crouch_enter');}else{this.stanceClip=moving?'crouch-walk':'crouch-idle';if(moving)this.gaitPhase=(this.gaitPhase+dt*Math.max(.35,Math.min(2.2,speed/(ARENA.speed*MOVEMENT.crouchMultiplier)))/period('crouch_walk'))%1;this.stancePhase=moving?this.gaitPhase:(this.breathPhase*3/2)%1;}}
    else if(this.slideExitAge<period('slide_exit')){this.stanceClip='slide-exit';this.stancePhase=this.slideExitAge/period('slide_exit');}
    else if(this.crouchExitAge<period('crouch_exit')){this.stanceClip='crouch-exit';this.stancePhase=this.crouchExitAge/period('crouch_exit');}
   }
