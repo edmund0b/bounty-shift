@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import {PAIR,isPair,emptyPair,type PairStatus,type PairShot,type PairId} from '../shared/pair-powerups.js';
+import {PAIR,isPair,emptyPair,stickyLifetime,type PairStatus,type PairShot,type PairId} from '../shared/pair-powerups.js';
 import {MAPS} from '../shared/map.js';
 import {isWalkable,type Position,type Motion} from '../shared/game.js';
 import {clearAttackLine} from '../shared/combat.js';
@@ -41,7 +41,7 @@ export function tickPair(room:ModeRoom,now:number,dt:number){
   const place=a.kind==='sticky_trap'?pairPlacement(room,p):null;
   if(a.kind==='sticky_trap'&&(!place||t.traps.filter(v=>!v.triggeredAt&&v.ownerId===p.id).length>=PAIR.sticky.maxPerPlayer||t.traps.filter(v=>!v.triggeredAt).length>=PAIR.sticky.maxPerRound))return false;
   if(a.kind==='bounce_bomb'){const horizontal=Math.sqrt(Math.max(0,1-a.dz*a.dz));const shot={id:a.id,ownerId:p.id,team:teamKey(room.mode,p.id),x:p.x+a.dx*18*horizontal,y:p.y+a.dy*18*horizontal,elevation:(p.elevation??0)+PAIR.bounce.originHeight,vx:a.dx*PAIR.bounce.throwSpeed*horizontal,vy:a.dy*PAIR.bounce.throwSpeed*horizontal,vz:a.dz*PAIR.bounce.throwSpeed+PAIR.bounce.lift,bornAt:now,lastAt:now,endsAt:now+PAIR.bounce.fuseMs};if(blockedProjectile(room,shot)){shot.x=p.x;shot.y=p.y;shot.elevation=(p.elevation??0)+PAIR.bounce.originHeight;}t.shots.push(shot);}
-  else t.traps.push({...place!,id:a.id,ownerId:p.id,ownerSpawnVersion:p.spawnVersion??0,team:teamKey(room.mode,p.id),bornAt:now,armedAt:now+PAIR.sticky.armMs,endsAt:now+PAIR.sticky.lifetimeMs});
+  else t.traps.push({...place!,id:a.id,ownerId:p.id,ownerSpawnVersion:p.spawnVersion??0,team:teamKey(room.mode,p.id),bornAt:now,armedAt:now+PAIR.sticky.armMs,endsAt:now+stickyLifetime(room.selectedGameMode)});
   consumeUtility(p);a.released=true;const s=pairStatus(room,p);s.cooldownUntil=now+PAIR.cooldownMs;if(room.mode.tag){room.mode.tag.used[p.id]=(room.mode.tag.used[p.id]??0)+1;room.mode.tag.status[p.id]??={};room.mode.tag.status[p.id].utilityCooldown=s.cooldownUntil;}return true;
  });
  t.shots=t.shots.filter(ball=>{if(!room.players.some(p=>p.id===ball.ownerId&&p.socket))return false;const seconds=Math.min(.1,Math.max(0,(now-ball.lastAt)/1000));ball.lastAt=now;let impact=false;const steps=Math.max(1,Math.ceil(Math.hypot(ball.vx,ball.vy,ball.vz)*seconds/4));for(let n=0;n<steps;n++){const h=seconds/steps,q={x:ball.x+ball.vx*h,y:ball.y+ball.vy*h,elevation:(ball.elevation??0)+ball.vz*h};ball.vz-=PAIR.bounce.gravity*h;if(blockedProjectile(room,q)){impact=true;break;}if((room.players as P[]).some(p=>p.socket&&p.health>0&&(p.id!==ball.ownerId||now-ball.bornAt>150)&&Math.hypot(p.x-q.x,p.y-q.y)<20&&q.elevation>=(p.elevation??0)-6&&q.elevation<=(p.elevation??0)+60)){Object.assign(ball,q);impact=true;break;}const map=MAPS[room.mapId],levels=[0,...map.surfaces.filter(v=>inside(q,v)).map(v=>surfaceHeight(v,q))].sort((a,b)=>b-a),floor=levels.find(z=>(ball.elevation??0)>=z&&q.elevation<=z);if(floor!==undefined){q.elevation=floor;Object.assign(ball,q);impact=true;break;}Object.assign(ball,q);}if((impact&&PAIR.bounce.impact)||now>=ball.endsAt){blast(room,ball,now);return false;}return true;});

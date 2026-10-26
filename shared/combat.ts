@@ -2,8 +2,8 @@ import { ACTIVE_MAP, type MapDefinition } from './map.js';
 import { isWalkable, type Position } from './game.js';
 import {inside,surfaceHeight} from './traversal.js';
 export const COMBAT = { chestHeight:30,maxHealth:100,damage:25,range:80,halfAngle:Math.PI/3,cooldown:0.6,respawnDelay:5,protection:1.5,attackFlash:0.15,hitFlash:0.2 };
-export type CombatState = { health:number;koRemaining:number;protection:number;attackCooldown:number;attackSeen:number;attackFlash:number;hitFlash:number;attackX:number;attackY:number;spawnVersion:number };
-export function freshCombat():CombatState {return {health:COMBAT.maxHealth,koRemaining:0,protection:0,attackCooldown:0,attackSeen:0,attackFlash:0,hitFlash:0,attackX:0,attackY:1,spawnVersion:0};}
+export type CombatState = { unarmedSerial?:number;unarmedAt?:number; health:number;koRemaining:number;protection:number;attackCooldown:number;attackSeen:number;attackFlash:number;hitFlash:number;attackX:number;attackY:number;spawnVersion:number };
+export function freshCombat():CombatState {return {unarmedSerial:0,unarmedAt:0,health:COMBAT.maxHealth,koRemaining:0,protection:0,attackCooldown:0,attackSeen:0,attackFlash:0,hitFlash:0,attackX:0,attackY:1,spawnVersion:0};}
 // Chest-height segment against actual solid volumes, including overhead decks.
 export function clearAttackLine(a:Position,b:Position,map:MapDefinition=ACTIVE_MAP):boolean {
  const az=(a.elevation??0)+COMBAT.chestHeight,bz=(b.elevation??0)+COMBAT.chestHeight;

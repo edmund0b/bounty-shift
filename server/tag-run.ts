@@ -1,3 +1,4 @@
+import {TAG_POLISH,smokeRadiusAt} from '../shared/tag-polish.js';
 import {CRATE_CONFIG} from '../shared/mystery-crates.js';
 import {activatePair} from './pair-powerups.js';
 import {isPair} from '../shared/pair-powerups.js';
@@ -18,7 +19,7 @@ const active=(p:ModePlayer,now:number)=>!!p.socket&&p.health>0&&p.frozenUntil<=n
 const distance=(a:Position,b:Position)=>Math.hypot(a.x-b.x,a.y-b.y,(a.elevation??0)-(b.elevation??0));
 const inRange=(r:ModeRoom,a:Position,b:Position,range=TAG.fieldRadius)=>distance(a,b)<=range&&clearAttackLine(a,b,MAPS[r.mapId]);
 const hostile=(r:ModeRoom,a:ModePlayer,b:ModePlayer)=>a.id!==b.id&&key(r,a)!==key(r,b);
-const event=(r:ModeRoom,p:ModePlayer,now:number,kind:TagState['events'][number]['kind'],power?:PowerId,targetId?:string)=>r.mode.tag!.events.push({id:randomUUID(),kind,power,targetId,at:now,ownerId:p.id,x:p.x,y:p.y,elevation:p.elevation});
+const event=(r:ModeRoom,p:ModePlayer,now:number,kind:TagState['events'][number]['kind'],power?:PowerId,targetId?:string,position:Position=p)=>r.mode.tag!.events.push({id:randomUUID(),kind,power,targetId,at:now,ownerId:p.id,x:position.x,y:position.y,elevation:position.elevation});
 export function initTag(room:ModeRoom,now:number,prior?:TagState){
  const keys=[...new Set(room.players.map(p=>key(room,p)))];
  room.mode.tag={version:2,startedAt:now,clock:now,spent:Object.fromEntries(keys.map(k=>[k,0])),tags:{},collected:{},used:{},immunity:{},status:{},fields:[],shots:[],events:[],trails:[],pings:[],pingAt:0,trailAt:0,lastTransferAt:-1,serial:0,consumed:{},announcement:'HOT POTATO — avoid holding IT at zero',announcementAt:now,sealSpawned:false,sealUsed:prior?.sealUsed??{},totalTime:prior?.totalTime??{},totalTags:prior?.totalTags??{},totalCollected:prior?.totalCollected??{},totalUsed:prior?.totalUsed??{},rankings:[],ended:false};
@@ -35,7 +36,7 @@ export function tryTag(room:ModeRoom,a:P,b:P,now:number){
  if(!inRange(room,a,b,range)||((b.x-a.x)*a.attackX+(b.y-a.y)*a.attackY)/(n*aim)<Math.cos(COMBAT.halfAngle))return false;
  tagClock(room,now);const old=room.mode.it;t.consumed[a.id]=token(a);t.tags[old]=(t.tags[old]??0)+1;room.mode.it=key(room,b);room.mode.tagAfter=now;t.lastTransferAt=now;t.serial++;
  for(const p of room.players as P[]){if(key(room,p)===old)t.immunity[p.id]=now+TAG.immunityMs;if(key(room,p)===room.mode.it)clearEscape(room,p,now);}
- t.announcement=room.players.filter(p=>key(room,p)===room.mode.it).map(p=>p.name).join(' + ')+' IS IT';t.announcementAt=now;event(room,b,now,'tag',undefined,a.id);return true;
+ t.announcement=room.players.filter(p=>key(room,p)===room.mode.it).map(p=>p.name).join(' + ')+' IS IT';t.announcementAt=now;event(room,b,now,'tag',undefined,a.id,{x:(a.x+b.x)/2,y:(a.y+b.y)/2,elevation:((a.elevation??0)+(b.elevation??0))/2+COMBAT.chestHeight});return true;
 }
 export function choosePower(t:TagState,roll=randomInt(1000000)/1000000,choice=randomInt(1000000)):PowerId{
  let value=roll*Object.values(RARITIES).reduce((n,r)=>n+r.weight,0),rarity:keyof typeof RARITIES='common';for(const [name,r] of Object.entries(RARITIES)){value-=r.weight;if(value<0){rarity=name as keyof typeof RARITIES;break;}}
@@ -88,14 +89,14 @@ export function hitTagClone(room:ModeRoom,p:P,now:number){const t=room.mode.tag;
 }
 export function tagVisible(room:ModeRoom,p:ModePlayer,viewer?:ModePlayer,now=Date.now()){
  const t=room.mode.tag;if(!t)return true;const s=t.status[p.id];if(viewer&&key(room,p)===key(room,viewer))return true;if(s?.sealed!>now||s?.invisible!>now)return false;
- if(viewer&&hostile(room,p,viewer)){for(const f of t.fields.filter(f=>f.kind==='smoke_screen'&&f.endsAt>now)){const dx=p.x-viewer.x,dy=p.y-viewer.y,v=Math.max(0,Math.min(1,((f.x-viewer.x)*dx+(f.y-viewer.y)*dy)/(dx*dx+dy*dy||1)));if(Math.hypot(viewer.x+dx*v-f.x,viewer.y+dy*v-f.y)<95&&Math.abs((p.elevation??0)-(f.elevation??0))<70)return false;}}
+ if(viewer&&hostile(room,p,viewer)){for(const f of t.fields.filter(f=>f.kind==='smoke_screen'&&f.endsAt>now)){const dx=p.x-viewer.x,dy=p.y-viewer.y,v=Math.max(0,Math.min(1,((f.x-viewer.x)*dx+(f.y-viewer.y)*dy)/(dx*dx+dy*dy||1)));if(Math.hypot(viewer.x+dx*v-f.x,viewer.y+dy*v-f.y)<smokeRadiusAt(f.createdAt,f.endsAt,now)&&Math.abs((p.elevation??0)-(f.elevation??0))<TAG_POLISH.smoke.height)return false;}}
  return true;
 }
 export function tickTag(room:ModeRoom,now:number,dt:number){
  const t=room.mode.tag;if(!t||t.ended)return;tagClock(room,now);
  if(!room.players.some(p=>key(room,p)===room.mode.it)){const next=room.players.find(p=>p.socket&&p.health>0);if(next){room.mode.it=key(room,next);for(const p of room.players as P[])if(key(room,p)===room.mode.it)clearEscape(room,p,now);t.announcement='IT reassigned after disconnect';t.announcementAt=now;t.serial++;}}
 
- for(const p of room.players as P[]){const s=status(room,p);s.bubble=0;if(s.origin&&(!(s.sealed!>now)||!p.socket)){Object.assign(p,isWalkable(s.origin,MAPS[room.mapId])?s.origin:MAPS[room.mapId].spawns[0]);delete s.origin;s.sealed=0;}if(!p.socket){s.invisible=0;s.phase=0;continue;}if(s.sealed!>now){Object.assign(p,s.origin);continue;}
+ for(const p of room.players as P[]){const s=status(room,p);s.bubble=0;if(s.portalExit){const portal=t.fields.find(f=>f.id===s.portalExit&&f.endsAt>now),radius=TAG_POLISH.portal.radius+TAG_POLISH.portal.exitPadding;if(!portal||!portal.other||!inRange(room,p,portal,radius)&&!inRange(room,p,portal.other,radius))delete s.portalExit;}if(s.origin&&(!(s.sealed!>now)||!p.socket)){Object.assign(p,isWalkable(s.origin,MAPS[room.mapId])?s.origin:MAPS[room.mapId].spawns[0]);delete s.origin;s.sealed=0;}if(!p.socket){s.invisible=0;s.phase=0;continue;}if(s.sealed!>now){Object.assign(p,s.origin);continue;}
   if(s.phase!>now){const q=tagSweep(p,(s.phaseX??0)*700*dt,(s.phaseY??0)*700*dt,MAPS[room.mapId],!!p.airborne);Object.assign(p,q);}
   if(s.impulseUntil!>now){const damp=Math.max(0,(s.impulseUntil!-now)/450),q=tagSweep(p,(s.impulseX??0)*dt*damp,(s.impulseY??0)*dt*damp,MAPS[room.mapId],!!p.airborne);Object.assign(p,q);}
  }
@@ -107,7 +108,7 @@ export function tickTag(room:ModeRoom,now:number,dt:number){
    if(f.kind==='time_bubble'&&enemy&&inRange(room,p,f))s.bubble=now+100;
    if(f.kind==='gravity_bomb'&&enemy&&inRange(room,p,f)&&s.forceImmune!<=now){const n=distance(p,f)||1,strength=s.magnet!>now?.3:1;Object.assign(p,tagSweep(p,(f.x-p.x)/n*100*dt*strength,(f.y-p.y)/n*100*dt*strength,MAPS[room.mapId],!!p.airborne));}
    if(f.kind==='jump_pad'&&inRange(room,p,f,32)&&s.padLock!<=now){s.padLock=now+1000;p.jumpOrigin={x:p.x,y:p.y,elevation:p.elevation};p.airborne=true;p.verticalVelocity=380;s.impulseX=f.dx*150;s.impulseY=f.dy*150;s.impulseUntil=now+450;}
-   if(f.kind==='portal_pair'&&f.other&&s.portalLock!<=now){const dest=inRange(room,p,f,30)?f.other:inRange(room,p,f.other,30)?f:null;if(dest&&isWalkable(dest,MAPS[room.mapId])){Object.assign(p,{x:dest.x,y:dest.y,elevation:dest.elevation??0});p.jumpOrigin={x:p.x,y:p.y,elevation:p.elevation};p.airborne=false;p.verticalVelocity=0;p.dashRemaining=0;s.portalLock=now+1000;}}
+   if(f.kind==='portal_pair'&&f.other&&s.portalLock!<=now&&s.portalExit!==f.id){const dest=inRange(room,p,f,TAG_POLISH.portal.radius)?f.other:inRange(room,p,f.other,TAG_POLISH.portal.radius)?f:null;if(dest&&isWalkable(dest,MAPS[room.mapId])){Object.assign(p,{x:dest.x,y:dest.y,elevation:dest.elevation??0});p.jumpOrigin={x:p.x,y:p.y,elevation:p.elevation};p.airborne=false;p.verticalVelocity=0;p.dashRemaining=0;s.portalLock=now+TAG_POLISH.portal.reentryMs;s.portalExit=f.id;}}
   }
  }
  t.shots=t.shots.filter(ball=>{if(now>=ball.endsAt)return false;const from={...ball},dx=ball.dx*650*dt,dy=ball.dy*650*dt,end={x:ball.x+dx,y:ball.y+dy,elevation:ball.elevation};if(!clearAttackLine(from,end,MAPS[room.mapId]))return false;

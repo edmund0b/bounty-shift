@@ -42,7 +42,7 @@ export function tickCrates(room:ModeRoom,now:number,initial=false){
  // Choose from the original, traversably connected loot route candidates. Shuffle on every respawn.
  const pool=[...candidates(room).points];for(let i=pool.length-1;i>0;i--){const j=randomInt(i+1);[pool[i],pool[j]]=[pool[j],pool[i]];}let spawned=0;
  for(const point of pool){
-  if(spawned>=Math.min(budget,capacity,initial?c.maxActive:1))break;if(!cratePointValid(room,point))continue;
+  if(spawned>=Math.min(budget,capacity,initial?Math.min(c.initialActive,c.maxActive):1))break;if(!cratePointValid(room,point))continue;
   let slot=room.mode.items.find(i=>i.source==='mystery'&&i.state==='empty'&&now>=i.refreshAt);
   if(!slot){if(room.mode.items.filter(i=>i.source==='mystery').length>=c.maxActive)break;slot={...point,id:'crate-'+randomUUID(),source:'mystery',state:'empty',kind:null,refreshAt:0,generation:0};room.mode.items.push(slot);}
   Object.assign(slot,point,{state:'opened',kind:'mystery',spawnedAt:now,generation:(slot.generation??0)+1,collectedAt:undefined,collectorId:undefined,collectionId:undefined});t.crateOpportunities++;spawned++;
