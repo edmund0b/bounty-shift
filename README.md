@@ -1,3 +1,7 @@
+# Current release: Gameplay & Multiplayer Stability
+
+Read [STABILITY_RELEASE_REPORT.md](STABILITY_RELEASE_REPORT.md) and RELEASE_REFERENCE.txt. This release adds 45% crouch movement, corrects RMB pointer-lock ADS, preserves Tag Run polish, attaches the flag to its carrying hand, requires five stationary capture seconds, and weights later maps. 401 automated tests passed. Not deployed. Earlier notes below are retained history.
+
 # Current release: Final Gameplay Polish — Phase 1
 
 See [FINAL_POLISH_PHASE1_REPORT.md](FINAL_POLISH_PHASE1_REPORT.md) for shared attack visual cleanup, movement/camera presentation fixes, Tag reach/feedback, exact test evidence and remaining device checks. 373 automated tests passed. Local release; not deployed. Earlier notes below are retained history.

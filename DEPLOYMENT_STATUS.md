@@ -1,3 +1,7 @@
+# Gameplay & Multiplayer Stability release candidate
+
+NOT DEPLOYED. No GitHub push, Render change or production deployment occurred. The source commit is local and recorded in RELEASE_REFERENCE.txt in the ZIP. STABILITY_RELEASE_REPORT.md contains exact verification, limitations and deployment instructions. Historical status follows.
+
 # Final Gameplay Polish — Phase 1
 
 NOT DEPLOYED. No repository push or Render/production change was made. Read FINAL_POLISH_PHASE1_REPORT.md for verification and deployment instructions. Earlier status below is historical.

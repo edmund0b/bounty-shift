@@ -1,0 +1,6 @@
+Bounty Shift gameplay stability release candidate
+Local source commit: f6c135ae9a3e5db473f0adae53f4ace3caef75aa
+Verified GitHub parent: b00b52d81bd305b0d95e5b139ddf95f6d00923ea
+Branch: release/gameplay-stability-2026-10-31
+Status: local commit only; not pushed or deployed
+Generated packaging metadata; source working tree was clean.
