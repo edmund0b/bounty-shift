@@ -39,7 +39,7 @@ export function createTagVisuals(scene:T.Scene,track:Track){
  let index=0;const dot=(p:{x:number;y:number;elevation?:number},color:string,scale:number)=>{const m=pool[index++];if(!m)return;m.visible=true;m.material=mat(color);m.position.set(p.x*.03,(p.elevation??0)*.03+.15,p.y*.03);m.scale.setScalar(scale);};
  for(const trail of t.trails)dot(trail,'#92f3ff',.055);
  for(const ball of t.shots)dot(ball,ball.kind==='freeze_ball'?'#a4eeff':'#ffa057',.18);
- for(const e of t.events){if(e.kind==='tag'){const age=(now-e.at)/1600;dot(e,'#ff5378',.2+age*.8);}if(!seen.has(e.id)){seen.add(e.id);if(now-e.at<1500){if(e.kind==='tag')for(const h of [440,660,880])tone(h,.14,.012);else if(e.ownerId===id)tone(e.kind==='pickup'?720:520,.12);}}}
+ for(const e of t.events){if(e.kind==='tag'){const age=now-e.at;if(age>=0&&age<220)dot(e,'#ff8da3',.065+.045*Math.sin(age/220*Math.PI));}if(!seen.has(e.id)){seen.add(e.id);if(now-e.at<1500){if(e.kind==='tag'&&now-e.at<350)for(const h of [440,660,880])tone(h,.14,.012);else if(e.ownerId===id)tone(e.kind==='pickup'?720:520,.12);}}}
  if(seen.size>128){seen.clear();t.events.forEach(e=>seen.add(e.id));}
  if(room.phase==='arena'&&self){const frenzy=room.round.remainingSeconds<=20,interval=room.round.remainingSeconds<=5?250:frenzy?450:1250;
   if(now-lastBeat>interval){lastBeat=now;tone([110,130.81,110,164.81][beat++%4],.18,frenzy?.014:.006);}

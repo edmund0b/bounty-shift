@@ -1,3 +1,4 @@
+import {teamKey} from '../shared/modes';
 import {pickupPosition} from '../shared/loot';
 import type {RoomView} from '../shared/game';
 import React, {useEffect,useRef,useMemo,useState} from 'react';
@@ -7,7 +8,7 @@ import type {Footprint} from '../shared/maps/types';
 function MapShape({r,...props}:{r:Footprint;fill:string;stroke?:string;strokeWidth?:number;strokeDasharray?:string}){return r.shape==='ellipse'?<ellipse cx={r.x+r.width/2} cy={r.y+r.height/2} rx={r.width/2} ry={r.height/2} {...props}/>:<rect x={r.x} y={r.y} width={r.width} height={r.height} {...props}/>;}
 
 // Geometry comes from the same definition as rendering/collision; no opponent state enters this component.
-export const Minimap=React.memo(function Minimap({mapId,marker,room,open,setOpen}:{open:boolean;setOpen:(open:boolean)=>void;room:RoomView;mapId:string;marker:React.RefObject<SVGGElement|null>}){
+export const Minimap=React.memo(function Minimap({id,mapId,marker,room,open,setOpen}:{id:string;open:boolean;setOpen:(open:boolean)=>void;room:RoomView;mapId:string;marker:React.RefObject<SVGGElement|null>}){
  const map=MAPS[mapId]??ACTIVE_MAP,sky=map.environment.theme==='sky_port',canyon=map.environment.theme==='canyon',fjord=map.environment.theme==='fjord';
  const panel=useRef<HTMLElement|null>(null),[small,setSmall]=useState(false);
  useEffect(()=>{const el=panel.current;if(!el)return;const observer=new ResizeObserver(()=>setSmall(el.clientWidth<160));observer.observe(el);setSmall(el.clientWidth<160);return()=>observer.disconnect();},[]);
@@ -22,8 +23,8 @@ export const Minimap=React.memo(function Minimap({mapId,marker,room,open,setOpen
   <g className="map-location-labels" fill="#d0eaf5" textAnchor="middle" fontFamily="Arial, sans-serif" fontWeight="600" stroke="#071522" strokeWidth="13" paintOrder="stroke" strokeLinejoin="round" pointerEvents="none">{labels.map(l=><text key={l.id} data-location={l.id} aria-label={l.fullName} x={l.x} y={l.y} fontSize={l.fontSize}><title>{l.fullName}</title>{l.lines.map((line,i)=><tspan key={i} x={l.x} dy={i?l.fontSize*1.12:-(l.lines.length-1)*l.fontSize*.56}>{line}</tspan>)}</text>)}</g>
   {room.mode.items.filter(i=>i.state!=='empty').map(i=><circle key={i.id} cx={(i.source==='chest'&&i.state==='opened'?pickupPosition(i):i).x} cy={(i.source==='chest'&&i.state==='opened'?pickupPosition(i):i).y} r="25" fill={i.kind==='freeze_ball'?'#86f3ff':'#ffc65a'}/>)}
   {room.selectedGameMode==='flag_run'&&<><circle cx={room.mode.capture.x} cy={room.mode.capture.y} r="80" fill="none" stroke="#45ffff" strokeWidth="20"/>{room.mode.flag.state!=='not_spawned'&&<text x={room.mode.flag.position.x} y={room.mode.flag.position.y} fill="#ffe058" fontSize="150" textAnchor="middle">⚑</text>}</>}
-  {room.mode.tag&&<g>{room.players.filter(p=>!p.concealed&&room.mode.teams[p.id]===room.mode.it).map(p=><circle key={p.id} cx={p.x} cy={p.y} r="45" fill="#ff506c" stroke="#ffd4dd" strokeWidth="10"/>)}{room.mode.tag.pings.map((p,i)=><circle key={'ping'+i} cx={p.x} cy={p.y} r="120" fill="none" stroke="#ffd07a" strokeWidth="12" strokeDasharray="30 24"/>)}</g>}
-  <g ref={marker}><circle r="60" fill="#091824" stroke="#c4f9ff" strokeWidth="12"/><path d="M 0 -85 L 50 50 L 0 25 L -50 50 Z" fill="#46e7ff" stroke="#e2ffff" strokeWidth="9"/></g>
+  {room.mode.tag&&<g>{room.players.filter(p=>!p.concealed&&teamKey(room.mode,p.id)===room.mode.it).map(p=><circle key={p.id} cx={p.x} cy={p.y} r="45" fill="#ff506c" stroke="#ffd4dd" strokeWidth="10"/>)}{room.mode.tag.pings.map((p,i)=><circle key={'ping'+i} cx={p.x} cy={p.y} r="120" fill="none" stroke="#ffd07a" strokeWidth="12" strokeDasharray="30 24"/>)}</g>}
+  <g ref={marker} data-it={!!room.mode.tag&&teamKey(room.mode,id)===room.mode.it}><circle r="60" fill={room.mode.tag&&teamKey(room.mode,id)===room.mode.it?'#8b1836':'#091824'} stroke={room.mode.tag&&teamKey(room.mode,id)===room.mode.it?'#ff809b':'#c4f9ff'} strokeWidth="12"/><path d="M 0 -85 L 50 50 L 0 25 L -50 50 Z" fill="#46e7ff" stroke="#e2ffff" strokeWidth="9"/></g>
  </svg></aside></>;
 });
 
