@@ -10,7 +10,7 @@ export const MAX_PLAYERS = 6;
 export const RECONNECT_MS = 10_000;
 export const NETWORK = { inputTimeoutMs:300, maxInputAdvance:120, resumeRetryMs:1000, resumeAttempts:15 };
 export const COLORS = ['#60cfff','#ffbc66','#b6a2ff','#77d8a4','#ff8da5','#e9df78'];
-export const MOVEMENT = { sprintMultiplier: 1.5, staminaMax: 100, staminaDrain: 28, staminaRegen: 22, regenDelay: 0.6, dashSpeed: 850, dashDuration: 0.18, dashCooldown: 3 };
+export const MOVEMENT = { sprintMultiplier: 1.5, crouchMultiplier:.45, staminaMax: 100, staminaDrain: 28, staminaRegen: 22, regenDelay: 0.6, dashSpeed: 850, dashDuration: 0.18, dashCooldown: 3 };
 export type Position = { x: number; y: number; elevation?:number };
 export const JUMP={velocity:300,gravity:900};
 export type Input = { ads?:boolean; weaponInstanceId?:string;aimZ?:number;aimOrigin?:{x:number;y:number;elevation:number};matchId: string; roundNumber: number; seq: number; dx: number; dy: number; sprint?: boolean; jumpId?:number; crouch?:boolean; dashId?: number; dashStyle?: 'dash'|'dodge'|'slide'; attackId?: number; aimX?: number; aimY?: number };
@@ -64,7 +64,7 @@ export function advanceMotion(previous:Motion,input:Pick<Input,'dx'|'dy'|'sprint
   s.dashSeen=dashId;
   if(s.dashCooldown<=0&&(input.dashStyle!=='slide'||length>0)){s.traversalState=input.dashStyle??'dash';s.dashCooldown=MOVEMENT.dashCooldown;s.dashRemaining=s.traversalState==='slide'?.42:s.traversalState==='dodge'?.24:MOVEMENT.dashDuration;s.dashX=length>0?dx:s.facingX;s.dashY=length>0?dy:s.facingY;}
  }
- s.sprinting=!!input.sprint&&length>0&&!s.exhausted&&s.stamina>0&&s.dashRemaining<=0;
+ s.sprinting=!!input.sprint&&!s.crouched&&length>0&&!s.exhausted&&s.stamina>0&&s.dashRemaining<=0;
  if(s.sprinting){s.stamina=Math.max(0,s.stamina-MOVEMENT.staminaDrain*dt);s.regenWait=MOVEMENT.regenDelay;if(s.stamina===0)s.exhausted=true;}
  else if(s.regenWait<=0)s.stamina=Math.min(MOVEMENT.staminaMax,s.stamina+MOVEMENT.staminaRegen*dt);
  // The grounded path remains unchanged. Air movement uses the same solid/bounds checks in tiny steps.
@@ -76,7 +76,7 @@ export function advanceMotion(previous:Motion,input:Pick<Input,'dx'|'dy'|'sprint
  };
  let pos:Position;
  if(s.dashRemaining>0){const time=Math.min(dt,s.dashRemaining);pos=travel(s.dashX,s.dashY,time,s.traversalState==='slide'?250+300*(s.dashRemaining-time/2)/.42:s.traversalState==='dodge'?580:MOVEMENT.dashSpeed);s.dashRemaining=Math.max(0,s.dashRemaining-dt);}
- else pos=travel(dx,dy,dt,ARENA.speed*(s.sprinting?MOVEMENT.sprintMultiplier:1));
+ else pos=travel(dx,dy,dt,ARENA.speed*(s.crouched?MOVEMENT.crouchMultiplier:s.sprinting?MOVEMENT.sprintMultiplier:1));
  if(s.dashRemaining<=0)s.traversalState=s.sprinting?'sprint':length>0?'walk':'idle';
  if(s.airborne){
   const old=s.elevation;s.verticalVelocity=(s.verticalVelocity??0)-JUMP.gravity*dt;const next=old+s.verticalVelocity*dt;

@@ -11,7 +11,7 @@ export const CONTROLLER = {
  mouseSensitivity:0.0028, touchSensitivityX:0.006, touchSensitivityY:0.0045,
  minPitch:-55*Math.PI/180, maxPitch:70*Math.PI/180, defaultPitch:-0.18,
  lookSmoothing:30, avatarTurnSpeed:14, cameraSmoothing:18,
- lookHeight:1.3, cameraLift:0.85, floorClearance:0.35,
+ crouchCameraDrop:.38, lookHeight:1.3, cameraLift:0.85, floorClearance:0.35,
  obstructionPadding:0.32, avatarFadeDistance:2, joystickRadius:42, joystickDeadzone:0.12,
 };
 export type CameraControl={targetYaw:number;targetPitch:number;pitch:number};
