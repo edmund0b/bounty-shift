@@ -1,0 +1,35 @@
+MAP DISTRIBUTION {"scorched_point":119840,"outlaws_canyon":119540,"central_plaza":25087,"aerie_sky_port":120154,"vikings_fjord":115379}
+✔ tag: crouch speed is exactly 45%, sprint cannot override, stamina/jump/dash/slide remain (3.702193ms)
+✔ flag_run: crouch speed is exactly 45%, sprint cannot override, stamina/jump/dash/slide remain (3.09654ms)
+✔ kill_race: crouch speed is exactly 45%, sprint cannot override, stamina/jump/dash/slide remain (1.204887ms)
+✔ central_plaza: crouch collision remains full-height, supported and bounded (9.622953ms)
+✔ scorched_point: crouch collision remains full-height, supported and bounded (6.171377ms)
+✔ aerie_sky_port: crouch collision remains full-height, supported and bounded (8.5733ms)
+✔ outlaws_canyon: crouch collision remains full-height, supported and bounded (2.581073ms)
+✔ vikings_fjord: crouch collision remains full-height, supported and bounded (1.647095ms)
+✔ all eight skins carry by off-hand wrist through locomotion/crouch/jump/KO, without modifying feet or root (449.304643ms)
+✔ capture requires exactly five continuous seconds, uses server deadline and awards once (206.104808ms)
+✔ capture resets: intent (185.753726ms)
+✔ capture resets: move (176.946523ms)
+✔ capture resets: exit (177.356315ms)
+✔ capture resets: jump (170.945702ms)
+✔ capture resets: dash (186.430168ms)
+✔ capture resets: frozen (186.40921ms)
+✔ capture resets: dead (179.101687ms)
+✔ capture resets: disconnect (192.718071ms)
+✔ capture resets: owner (194.886945ms)
+✔ capture resets: drop (188.126831ms)
+✔ small noise tolerated, cumulative creep blocked; damage alone does not add a new interruption rule (182.854939ms)
+✔ timeout is separate: incomplete capture gives no winner and no overtime; drops and epoch spoofing do not score (198.702205ms)
+✔ G drops flag even with empty weapon inventory; wrong owner/old round cannot drop it (201.245097ms)
+✔ 500k seeded weighted selections match requested weights, guaranteed opening and normalized no-repeat R3 (482.685166ms)
+✔ capture interruption feedback follows its original owner after G drop, then expires (241.248953ms)
+✔ flag grip keeps the pole upright through all skins and crouch/slide, rather than blending IK back to the old pose (352.177851ms)
+ℹ tests 26
+ℹ suites 0
+ℹ pass 26
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4657.857063

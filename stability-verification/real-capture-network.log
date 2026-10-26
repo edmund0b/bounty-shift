@@ -1,0 +1,11 @@
+REAL CAPTURE 5s, interrupted/drop/disconnect/resume and synchronized one-point scoring PASS
+✔ two actual clients: real five-second stationary capture, slow intent/drop/disconnect reset, resume and exactly one score (5761.535441ms)
+✔ two sockets: round timeout before five seconds gives no capture/no overtime (2084.55748ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 8264.469974

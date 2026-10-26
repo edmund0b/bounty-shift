@@ -1,0 +1,37 @@
+REAL CAPTURE 5s, interrupted/drop/disconnect/resume and synchronized one-point scoring PASS
+✔ two actual clients: real five-second stationary capture, slow intent/drop/disconnect reset, resume and exactly one score (5804.982466ms)
+✔ two sockets: round timeout before five seconds gives no capture/no overtime (2209.513898ms)
+MAP DISTRIBUTION {"scorched_point":119840,"outlaws_canyon":119540,"central_plaza":25087,"aerie_sky_port":120154,"vikings_fjord":115379}
+✔ tag: crouch speed is exactly 45%, sprint cannot override, stamina/jump/dash/slide remain (4.814106ms)
+✔ flag_run: crouch speed is exactly 45%, sprint cannot override, stamina/jump/dash/slide remain (5.180138ms)
+✔ kill_race: crouch speed is exactly 45%, sprint cannot override, stamina/jump/dash/slide remain (1.284914ms)
+✔ central_plaza: crouch collision remains full-height, supported and bounded (17.061403ms)
+✔ scorched_point: crouch collision remains full-height, supported and bounded (9.59924ms)
+✔ aerie_sky_port: crouch collision remains full-height, supported and bounded (11.725289ms)
+✔ outlaws_canyon: crouch collision remains full-height, supported and bounded (5.191756ms)
+✔ vikings_fjord: crouch collision remains full-height, supported and bounded (1.851817ms)
+✔ all eight skins carry by off-hand wrist through locomotion/crouch/jump/KO, without modifying feet or root (605.541892ms)
+✔ capture requires exactly five continuous seconds, uses server deadline and awards once (274.551966ms)
+✔ capture resets: intent (296.129196ms)
+✔ capture resets: move (256.669796ms)
+✔ capture resets: exit (276.516788ms)
+✔ capture resets: jump (302.588605ms)
+✔ capture resets: dash (364.582871ms)
+✔ capture resets: frozen (334.369344ms)
+✔ capture resets: dead (293.545708ms)
+✔ capture resets: disconnect (223.191665ms)
+✔ capture resets: owner (240.554542ms)
+✔ capture resets: drop (268.919185ms)
+✔ small noise tolerated, cumulative creep blocked; damage alone does not add a new interruption rule (237.010302ms)
+✔ timeout is separate: incomplete capture gives no winner and no overtime; drops and epoch spoofing do not score (249.433382ms)
+✔ G drops flag even with empty weapon inventory; wrong owner/old round cannot drop it (245.700263ms)
+✔ 500k seeded weighted selections match requested weights, guaranteed opening and normalized no-repeat R3 (564.515176ms)
+✔ capture interruption feedback follows its original owner after G drop, then expires (323.571183ms)
+ℹ tests 27
+ℹ suites 0
+ℹ pass 27
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 8442.148333

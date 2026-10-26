@@ -1,0 +1,7 @@
+{
+  "remoteMain": "b00b52d81bd305b0d95e5b139ddf95f6d00923ea",
+  "remoteWorkingTree": "clean shallow audit clone",
+  "attachmentUncommittedFiles": "ZIP has no Git metadata; existing workspace matches its archived files",
+  "remoteCommonPathDifferences": [],
+  "inputZipGitDifference": "Attached ZIP omits historical unused hashed builds and preview images from main; no common source file differed."
+}

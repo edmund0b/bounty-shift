@@ -1,0 +1,9 @@
+{
+  "passed": true,
+  "checks": [
+    "default-camera in-game off-hand carry inspected",
+    "crouched carry inspected",
+    "pickup and G drop synchronized"
+  ],
+  "physicalGPU": false
+}
